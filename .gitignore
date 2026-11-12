@@ -1,0 +1,12 @@
+.rea-tools/
+.npm-cache/
+.validation-artifacts/
+*.exe
+*.o
+*.obj
+*.oct
+*.log
+octave-workspace
+/gui-*-export.c
+/rea-simulink*-evidence.json
+validation-out/
