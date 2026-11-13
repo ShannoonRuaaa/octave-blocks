@@ -5,8 +5,55 @@ subsystems, variable-step solvers, and code generation. This goal supersedes
 the first-release stopping point. A completed milestone does not mean full
 Simulink compatibility.
 
-Current status: paused at the user's request after the existing agents finished
-their assignments. The advanced goal is incomplete.
+Current status: paused at the user's request after all agents finished. The
+advanced goal is incomplete. Experimental event-enabled C work is retained on
+`codex/event-c-export`; it has not passed full integration verification or been
+published. The validated public baseline remains commit `2ae43f3`.
+
+## Event C implementation pause checkpoint (2026-11-12)
+
+The typed emitter now has separate experimental root and child runtimes,
+frozen primitive modes through nested/shared stages, static clock/guard
+inventories, accepted lifecycle/reconciliation and transactional context APIs.
+These are implementation changes under test, not a completed compatibility
+milestone. The public `ob_codegen` rejection checks remain in place. See
+[EVENT_CODEGEN_DEVELOPMENT.md](EVENT_CODEGEN_DEVELOPMENT.md) for the internal
+opt-in, architecture and remaining acceptance work.
+
+Verification completed before pausing:
+
+- The supported-export regression gate passed 167 strict C99 cases: 157 numeric
+  models with worst scaled error 0, and ten model API harnesses. Artifacts:
+  `.validation-artifacts/event-c-legacy-20261112/`.
+- All 43 event fixtures passed their analytical Octave checks; experimental
+  preparation generated 43 model sources and two API harnesses. Strict C
+  compilation then stopped on a falling-guard negative literal emitted as
+  `x--0.35`. The first two rising executables ran; the final full-channel
+  comparison phase was not reached. Artifacts:
+  `.validation-artifacts/event-c-20261112-integration/`.
+- Guard boundaries and Dead Zone subtraction operands were parenthesized to
+  fix negative C literals. Subsequent focused falling-switch and negative-bound
+  Dead Zone models both compiled with strict C99 flags, executed and matched
+  every numeric channel with scaled error 0. These checks validate the final
+  literal fix; they do not replace the interrupted full experimental run.
+  Artifacts: `.validation-artifacts/event-c-negative-closure/`.
+- Six additional edge specifications passed analytical Octave checks, including
+  guard-free models, large/tiny time scales, lazy/dormant child guards and finite
+  inputs causing guard-subtraction overflow. Their C preparation/API harness
+  remains unverified. Inventory and isolated event-math helper checks passed.
+
+No engine or UI implementation files changed in this increment. The previous
+complete application gate is the published 2026-11-11 record in
+[VALIDATION.md](VALIDATION.md). The supported C gate above preceded the final
+negative-literal parenthesization; the two focused checks exercised that fix.
+
+Resume by rerunning `Test-EventCodegen.ps1 -ExperimentalTyped` from clean
+artifacts. Complete all 45 compiled cases and final channel comparisons, then
+compile the independent edge models/API and resolve any lifecycle/clock/memory
+failures without weakening their analytical expectations. Rerun the supported
+C gate and full application gate before enabling public export. Updating the
+old public-rejection test expectations and public support documentation remains
+pending. No new goal work should run while paused.
 
 ## Publication verification (2026-11-11)
 

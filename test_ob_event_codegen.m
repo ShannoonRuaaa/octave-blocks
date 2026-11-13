@@ -1,4 +1,4 @@
-function test_ob_event_codegen (directory, verify = false, pattern = '.*')
+function test_ob_event_codegen (directory, verify = false, pattern = '.*', experimental = false)
   % Prepare event exports and compare every numeric channel after C execution.
   % Test-EventCodegen.ps1 performs strict compilation between these two phases.
   if (verify)
@@ -12,7 +12,12 @@ function test_ob_event_codegen (directory, verify = false, pattern = '.*')
   for fixture = fixtures
     if (isempty(regexp(fixture.name,pattern,'once'))), continue; endif
     source = [fixture.name '.c']; expected_file = [fixture.name '.expected.csv'];
-    info = ob_codegen (fixture.model,fullfile(directory,source),fixture.config,fixture.options);
+    if (experimental)
+      % Explicit internal integration probe; the public exporter stays gated.
+      info = ob_codegen_conditional (fixture.model,fullfile(directory,source),fixture.config,fixture.options);
+    else
+      info = ob_codegen (fixture.model,fullfile(directory,source),fixture.config,fixture.options);
+    endif
     result = ob_run (fixture.model,ob_time_grid(fixture.config(1),fixture.config(2),fixture.config(3)),fixture.options);
     assert (numel(info.shapes)==numel(result.compiled_model.blocks), ...
             ['event export metadata length: ' fixture.name]);

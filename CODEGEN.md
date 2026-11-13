@@ -1,5 +1,9 @@
 # Standalone C generation
 
+Developer-only event integration is described in
+[EVENT_CODEGEN_DEVELOPMENT.md](EVENT_CODEGEN_DEVELOPMENT.md). The public support
+status below remains unchanged until that path passes integration verification.
+
 Use **Export C** in the editor or call the exporter directly in Octave:
 
 ```octave
