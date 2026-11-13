@@ -14,32 +14,42 @@ function [order, edges, stateful, loops] = ob_execution_order (model, allow_loop
   for k = 1:rows (direct)
     indegree(direct(k, 2)) += 1;
   endfor
-  queue = find (indegree == 0); order = []; loops = {};
-  while (! isempty (queue))
-    id = queue(1); queue(1) = []; order(end + 1) = id;
-    for target = direct(direct(:, 1) == id, 2)'
+  [forward, targets] = adjacency (n, direct);
+  queue = zeros (1, n); ready = find (indegree == 0);
+  tail = numel (ready); queue(1:tail) = ready; head = 1;
+  order = zeros (1, n); used = 0; loops = {};
+  while (head <= tail)
+    id = queue(head); head += 1; used += 1; order(used) = id;
+    for target = targets(forward(id):forward(id+1)-1)'
       indegree(target) -= 1;
-      if (indegree(target) == 0), queue(end + 1) = target; endif
+      if (indegree(target) == 0), tail += 1; queue(tail) = target; endif
     endfor
   endwhile
-  if (numel (order) == n), return; endif
+  if (used == n)
+    if (n == 0), order = []; endif
+    return;
+  endif
   if (! allow_loops)
     error ("ob_execution_order: algebraic loop without a stateful block");
   endif
 
-  [components, membership] = strongly_connected (n, direct);
+  [components, membership] = strongly_connected (n, direct, forward, targets);
   dag = unique ([membership(direct(:, 1))' membership(direct(:, 2))'], 'rows');
   dag = dag(dag(:, 1) != dag(:, 2), :);
   indegree = zeros (1, numel (components));
   for k = 1:rows (dag)
     indegree(dag(k, 2)) += 1;
   endfor
-  queue = find (indegree == 0); order = [];
+  [dag_forward, dag_targets] = adjacency (numel(components), dag);
+  ready = find (indegree == 0); tail = numel (ready); head = 1;
+  queue(1:tail) = ready; used = 0;
+  self_loop = false (1, n);
+  self_loop(direct(direct(:,1)==direct(:,2),1)) = true;
   allowed = {'Gain', 'Sum', 'Product', 'Function', 'Scope', 'Inport', 'Outport'};
-  while (! isempty (queue))
-    component = queue(1); queue(1) = [];
+  while (head <= tail)
+    component = queue(head); head += 1;
     ids = components{component};
-    cyclic = numel (ids) > 1 || any (direct(:, 1) == ids(1) & direct(:, 2) == ids(1));
+    cyclic = numel (ids) > 1 || self_loop(ids(1));
     if (cyclic)
       for id = ids
         if (! any (strcmp (types{id}, allowed)))
@@ -48,54 +58,63 @@ function [order, edges, stateful, loops] = ob_execution_order (model, allow_loop
       endfor
       loops{end + 1} = ids;
     endif
-    order = [order ids];
-    for target = dag(dag(:, 1) == component, 2)'
+    order(used+(1:numel(ids))) = ids; used += numel (ids);
+    for target = dag_targets(dag_forward(component):dag_forward(component+1)-1)'
       indegree(target) -= 1;
-      if (indegree(target) == 0), queue(end + 1) = target; endif
+      if (indegree(target) == 0), tail += 1; queue(tail) = target; endif
     endfor
   endwhile
 endfunction
 
-function [components, membership] = strongly_connected (n, edges)
+function [offsets, targets] = adjacency (n, edges)
+  % Compact adjacency preserves the original edge order within each source.
+  counts = zeros (n, 1);
+  for k = 1:rows(edges), counts(edges(k,1)) += 1; endfor
+  offsets = [1; 1+cumsum(counts)]; cursor = offsets(1:n);
+  targets = zeros (rows(edges), 1);
+  for k = 1:rows(edges)
+    source = edges(k,1); targets(cursor(source)) = edges(k,2); cursor(source) += 1;
+  endfor
+endfunction
+
+function [components, membership] = strongly_connected (n, edges, forward, targets)
   % Iterative Kosaraju traversal avoids the interpreter's recursion limit for
   % long diagrams.  Component IDs follow their smallest original block ID.
-  forward = reverse = cell (1, n);
-  for k = 1:rows (edges)
-    source = edges(k, 1); target = edges(k, 2);
-    forward{source}(end + 1) = target;
-    reverse{target}(end + 1) = source;
-  endfor
-  seen = false (1, n); finished = [];
+  [reverse, sources] = adjacency (n, edges(:,[2 1]));
+  seen = false (1, n); finished = zeros (1, n); completed = 0;
+  stack = cursor = zeros (1, n);
   for root = 1:n
     if (seen(root)), continue; endif
-    seen(root) = true; stack = root; cursor = 1;
-    while (! isempty (stack))
-      id = stack(end);
-      if (cursor(end) <= numel (forward{id}))
-        target = forward{id}(cursor(end)); cursor(end) += 1;
+    seen(root) = true; depth = 1; stack(1) = root; cursor(1) = forward(root);
+    while (depth > 0)
+      id = stack(depth);
+      if (cursor(depth) < forward(id+1))
+        target = targets(cursor(depth)); cursor(depth) += 1;
         if (! seen(target))
-          seen(target) = true; stack(end + 1) = target; cursor(end + 1) = 1;
+          seen(target) = true; depth += 1; stack(depth) = target; cursor(depth) = forward(target);
         endif
       else
-        finished(end + 1) = id; stack(end) = []; cursor(end) = [];
+        completed += 1; finished(completed) = id; depth -= 1;
       endif
     endwhile
   endfor
-  membership = zeros (1, n); components = {};
+  membership = zeros (1, n); components = cell (1, n); component = 0;
+  ids = zeros (1, n);
   for root = fliplr (finished)
     if (membership(root) != 0), continue; endif
-    component = numel (components) + 1;
-    membership(root) = component; stack = root; ids = [];
-    while (! isempty (stack))
-      id = stack(end); stack(end) = []; ids(end + 1) = id;
-      for source = reverse{id}
+    component += 1;
+    membership(root) = component; depth = 1; stack(1) = root; used = 0;
+    while (depth > 0)
+      id = stack(depth); depth -= 1; used += 1; ids(used) = id;
+      for source = sources(reverse(id):reverse(id+1)-1)'
         if (membership(source) == 0)
-          membership(source) = component; stack(end + 1) = source;
+          membership(source) = component; depth += 1; stack(depth) = source;
         endif
       endfor
     endwhile
-    components{component} = sort (ids);
+    components{component} = sort (ids(1:used));
   endfor
+  components = components(1:component);
   [~, permutation] = sort (cellfun (@(ids) ids(1), components));
   components = components(permutation);
   for component = 1:numel (components)

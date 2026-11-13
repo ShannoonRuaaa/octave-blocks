@@ -13,6 +13,7 @@ function [flat, signal_map, block_paths, interface_in, interface_out] = compile_
   signal_map = struct ("path", {}, "outputs", {});
   block_paths = {};
   inputs = outputs = cell (1, numel (model.blocks));
+  conditional = false (1, numel (model.blocks));
   interface_in = interface_out = [];
   for id = 1:numel (model.blocks)
     block = model.blocks(id);
@@ -21,6 +22,7 @@ function [flat, signal_map, block_paths, interface_in, interface_out] = compile_
     options = struct ('mode', 'virtual');
     if (strcmp (block.type, 'Subsystem')), options = ob_execution_options (block.value); endif
     if (strcmp (block.type, 'Subsystem') && ! strcmp (options.mode, 'virtual'))
+      conditional(id) = true;
       core = struct ('type', 'Conditional Subsystem', 'value', block.value, ...
                      'name', block.name, 'x', block.x, 'y', block.y);
       flat.blocks(end + 1) = core;
@@ -87,12 +89,7 @@ function [flat, signal_map, block_paths, interface_in, interface_out] = compile_
   for k = 1:rows (edges)
     edge = edges(k, :);
     source = outputs{edge(1)}(edge(2));
-    conditional = false;
-    if (strcmp (model.blocks(edge(3)).type, 'Subsystem'))
-      options = ob_execution_options (model.blocks(edge(3)).value, false);
-      conditional = ! strcmp (options.mode, 'virtual');
-    endif
-    if (conditional)
+    if (conditional(edge(3)))
       target = inputs{edge(3)}; target_port = edge(4);
     elseif (strcmp (model.blocks(edge(3)).type, "Subsystem"))
       target = inputs{edge(3)}(edge(4)); target_port = 1;

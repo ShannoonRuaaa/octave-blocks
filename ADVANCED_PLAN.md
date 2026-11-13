@@ -5,10 +5,13 @@ subsystems, variable-step solvers, and code generation. This goal supersedes
 the first-release stopping point. A completed milestone does not mean full
 Simulink compatibility.
 
-Current status: paused at the user's request after all agents finished. The
-advanced goal is incomplete. Experimental event-enabled C work is retained on
-`codex/event-c-export`; it has not passed full integration verification or been
-published. The validated public baseline remains commit `2ae43f3`.
+Current status: paused at the user's request. The advanced goal is incomplete.
+Experimental event-enabled C work is retained on `codex/event-c-export` at
+`8aeec48`; it has not passed full integration verification or been published.
+The subsequent optimization audit is saved on `codex/performance-audit`, with
+focused checks passing and full verification/after-change timing pending. See
+[OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for claims, evidence and resume work.
+The validated public baseline remains commit `2ae43f3`.
 
 ## Event C implementation pause checkpoint (2026-11-12)
 
