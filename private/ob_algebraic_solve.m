@@ -1,21 +1,22 @@
 function [current, states] = ob_algebraic_solve (model, edges, ids, current, states, time)
   % Solve simultaneous numeric outputs without evaluating lifecycle/state code.
   % Candidate evaluation uses immutable inputs, never a Gauss-Seidel update.
-  labels = cell (1, numel (ids));
-  for k = 1:numel (ids)
-    label = sprintf ('%d/', model.algebraic_paths{ids(k)});
-    labels{k} = label(1:end-1);
-  endfor
-  description = strjoin (labels, ' ');
   shapes = cell (1, numel (ids)); counts = zeros (1, numel (ids));
-  sources = cell (1, numel (ids)); initial = [];
+  sources = cell (1, numel (ids));
+  cached = isfield(model,'runtime_info') && isstruct(model.runtime_info) ...
+           && isscalar(model.runtime_info) && isfield(model.runtime_info,'kind') ...
+           && strcmp(model.runtime_info.kind,'octave-blocks-runtime-info-v1') ...
+           && isfield(model.runtime_info,'sources') && iscell(model.runtime_info.sources) ...
+           && numel(model.runtime_info.sources) == numel(model.blocks);
   for k = 1:numel (ids)
     id = ids(k); guess = states{id};
     shapes{k} = size (guess); counts(k) = numel (guess);
-    sources{k} = edges(edges(:, 2) == id, 1)';
-    initial = [initial; guess(:)];
+    if (cached), sources{k} = model.runtime_info.sources{id};
+    else sources{k} = edges(edges(:, 2) == id, 1)'; endif
   endfor
   offsets = [0 cumsum(counts)];
+  initial = zeros (offsets(end), 1);
+  for k = 1:numel(ids), initial(offsets(k)+(1:counts(k))) = states{ids(k)}(:); endfor
   settings = optimset ('TolX', 1e-12, 'TolFun', 1e-12, 'MaxIter', 100, ...
       'MaxFunEvals', max (200, 100 * (numel(initial) + 1)), ...
       'Updating', 'off', 'AutoScaling', 'off', 'Jacobian', 'on');
@@ -24,13 +25,13 @@ function [current, states] = ob_algebraic_solve (model, edges, ids, current, sta
     [error_value, unused] = residual (solution);
   catch err
     error ('ob_run: algebraic loop [%s] at time %.17g: %s', ...
-           description, time, err.message);
+           loop_description(model,ids), time, err.message);
   end_try_catch
   % A small step or trust region is not proof of a solved constraint.
   maximum = max (abs (error_value));
   if (status <= 0 || ! isfinite (maximum) || maximum > 1e-9)
     error ('ob_run: algebraic loop [%s] at time %.17g failed to converge (status %d, maximum residual %.6g)', ...
-           description, time, status, maximum);
+           loop_description(model,ids), time, status, maximum);
   endif
   for k = 1:numel (ids)
     accepted = reshape (solution(offsets(k) + (1:counts(k))), shapes{k});
@@ -72,4 +73,13 @@ function [current, states] = ob_algebraic_solve (model, edges, ids, current, sta
       evaluated(range) = candidate(range) - output(:);
     endfor
   endfunction
+endfunction
+
+function description = loop_description (model, ids)
+  labels = cell (1, numel (ids));
+  for k = 1:numel (ids)
+    label = sprintf ('%d/', model.algebraic_paths{ids(k)});
+    labels{k} = label(1:end-1);
+  endfor
+  description = strjoin (labels, ' ');
 endfunction

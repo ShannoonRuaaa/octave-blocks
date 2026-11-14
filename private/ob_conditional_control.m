@@ -2,7 +2,7 @@ function state = ob_conditional_control (model, state, inputs, time, events, ini
   % Accepted enable transition, separate from the child's discrete sample clock.
   descriptor = ob_event_execution (model,events);
   options = descriptor.options;
-  [unused, control] = ob_conditional_signals (model, inputs, time, false);
+  [unused, control] = ob_conditional_signals (model, inputs, time, false, descriptor.input_ports);
   active = control > 0; previous = state.was_enabled;
   state.control_sign = sign (double(control));
   if (previous && ! active)
@@ -25,15 +25,15 @@ function state = ob_conditional_control (model, state, inputs, time, events, ini
     return;
   endif
   if (! initialize), return; endif
-  [signals, unused] = ob_conditional_signals (model, inputs, time);
   if (! state.initialized)
+    [signals, unused] = ob_conditional_signals (model, inputs, time, true, descriptor.input_ports);
     child = model; child.inputs = signals;
     state.child = ob_runtime_engine ('init-child',child,time,events.options,events.origin,true,false,events);
     state.child.major_current = state.child.current;
     state.initialized = true;
+    state = ob_refresh_conditional_outputs (model,state,descriptor);
   else
     state = ob_conditional_gate_flow (model,state,inputs,time,events);
   endif
-  state = ob_refresh_conditional_outputs (model,state,descriptor);
   if (! previous), state.executions(end+1) = time; endif
 endfunction

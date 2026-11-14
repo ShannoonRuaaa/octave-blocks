@@ -71,6 +71,7 @@ function ob_action (src, action, data)
   fig = ancestor (src, "figure");
   state = guidata (fig);
   before = ob_snapshot (state);
+  selection_only = strcmp(action,'select') && strcmp(state.mode,'select');
   diagram = ob_model_at (state.model, state.path);
   switch (action)
     case "enter"
@@ -444,15 +445,15 @@ function ob_action (src, action, data)
         state.saved = ob_snapshot (state);
       endif
   endswitch
-  if (any (strcmp (action, {"add", "select", "edit", "delete", "sample_time"})))
+  if (! selection_only && any (strcmp (action, {"add", "select", "edit", "delete", "sample_time"})))
     state.model = ob_set_model_at (state.model, state.path, diagram);
   endif
-  if (! any (strcmp (action, {"undo", "redo"})) ...
+  if (! selection_only && ! any (strcmp (action, {"undo", "redo"})) ...
       && ! isequal (before, ob_snapshot (state)))
     state = ob_record (state, before);
   endif
   guidata (fig, state);
-  ob_draw (fig);
+  ob_draw (fig, false, selection_only);
 endfunction
 
 function ob_drag (fig)
@@ -487,13 +488,18 @@ function ob_stop_drag (fig)
   if (moved), ob_draw (fig); endif
 endfunction
 
-function ob_draw (fig, geometry_only = false)
+function ob_draw (fig, geometry_only = false, selection_only = false)
   state = guidata (fig);
   ax = state.axes;
   diagram = ob_model_at (state.model, state.path);
-  % Mouse motion already knows content moved. Compare the saved model only
-  % after the drag finishes, rather than traversing it for every pointer event.
-  dirty = geometry_only || ! isequal (state.saved, ob_snapshot (state));
+  % One coherency check preserves externally changed model/settings/saved data.
+  % A pure selection can then reuse both dirty status and scene classification.
+  key = struct('current',ob_snapshot(state),'saved',state.saved);
+  cached_selection = selection_only && isfield(state,'graphics') ...
+      && all(isfield(state.graphics,{'draw_key','dirty'})) ...
+      && isequal(state.graphics.draw_key,key);
+  if (cached_selection), dirty = state.graphics.dirty;
+  else dirty = geometry_only || ! isequal(state.saved,key.current); endif
   title_text = "Octave Blocks";
   if (dirty), title_text = [title_text " *"]; endif
   set (fig, "name", title_text);
@@ -522,9 +528,10 @@ function ob_draw (fig, geometry_only = false)
   set (state.status, "string", [breadcrumb " : " status_text]);
   if (isfield(state,'graphics'))
     cache = state.graphics;
-    valid = isequal(cache.path,state.path) && numel(cache.blocks)==numel(diagram.blocks) ...
+    valid = isfield(cache,'incident') && numel(cache.incident)==numel(diagram.blocks) ...
+            && isequal(cache.path,state.path) && numel(cache.blocks)==numel(diagram.blocks) ...
             && all(isgraphics(cache.handles));
-    if (valid && (geometry_only || isequal(cache.diagram,diagram)))
+    if (valid && (geometry_only || cached_selection || isequal(cache.diagram,diagram)))
       if (geometry_only)
         moved = [];
         for id = 1:numel(diagram.blocks)
@@ -543,7 +550,8 @@ function ob_draw (fig, geometry_only = false)
             endfor
           endif
         endfor
-        incident = find(ismember(cache.edges(:,1),moved) | ismember(cache.edges(:,3),moved));
+        if (isempty(moved)), incident = [];
+        else incident = unique([cache.incident{moved}]); endif
         for k = reshape(incident,1,[])
           edge = cache.edges(k,:);
           [points,corners] = signal_geometry(diagram.blocks(edge(1)),diagram.blocks(edge(3)), ...
@@ -557,6 +565,7 @@ function ob_draw (fig, geometry_only = false)
         if (state.selected > 0), set(cache.bodies(state.selected),'facecolor',[1 .83 .50]); endif
       endif
       cache.diagram = diagram; cache.selected = state.selected;
+      cache.draw_key = key; cache.dirty = dirty;
       state.graphics = cache; guidata(fig,state);
       return;
     endif
@@ -569,6 +578,7 @@ function ob_draw (fig, geometry_only = false)
   cache = struct ('path',state.path,'diagram',diagram,'selected',state.selected, ...
                   'blocks',{cell(1,numel(diagram.blocks))},'bodies',zeros(1,numel(diagram.blocks)), ...
                   'wires',zeros(rows(edges),2),'edges',edges,'handles',[], ...
+                  'incident',{cell(1,numel(diagram.blocks))},'draw_key',key,'dirty',dirty, ...
                   'inputs',zeros(1,numel(diagram.blocks)),'outputs',zeros(1,numel(diagram.blocks)));
   for id = 1:numel(diagram.blocks)
     [inputs,outputs] = ob_block_ports(diagram.blocks(id));
@@ -577,6 +587,8 @@ function ob_draw (fig, geometry_only = false)
   endfor
   for k = 1:rows (edges)
     edge = edges(k, :);
+    cache.incident{edge(1)}(end+1) = k;
+    if (edge(3)!=edge(1)), cache.incident{edge(3)}(end+1) = k; endif
     a = diagram.blocks(edge(1)); b = diagram.blocks(edge(3));
     cache.wires(k,:) = draw_signal (ax, a, b, edge(2),cache.outputs(edge(1)),edge(4),cache.inputs(edge(3)));
   endfor

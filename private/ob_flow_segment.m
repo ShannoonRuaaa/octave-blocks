@@ -16,6 +16,9 @@ function [next, count, times, samples] = ob_flow_segment (model, edges, order, i
     return;
   endif
   initial = pack_states (states, ids);
+  has_flow = !isempty (fieldnames(flow));
+  packed_ids = num2cell (1:numel(ids));
+  routes = derivative_routes (model, edges, ids, states);
   if (strcmp (options.solver, 'rk4'))
     h = finish - begin;
     k1 = rhs (begin, initial);
@@ -95,14 +98,14 @@ function [next, count, times, samples] = ob_flow_segment (model, edges, order, i
     trial = unpack_states (vector, states, ids);
     left_limit = stage_time >= finish;
     if (left_limit), stage_time = finish; endif
-    if (isempty (fieldnames (flow)))
+    if (!has_flow)
       evaluated = ob_runtime_eval (model, edges, order, stage_time, trial, left_limit);
     else
       evaluated = ob_runtime_eval (model, edges, order, stage_time, trial, ...
                                    left_limit, [], [], struct (), flow);
     endif
-    rates = derivatives (evaluated, edges, ids);
-    derivative = pack_states (rates, num2cell (1:numel (ids)));
+    rates = derivatives (evaluated, ids, routes);
+    derivative = pack_states (rates, packed_ids);
   endfunction
 
   function stop = accepted_output (callback_times, callback_values, flag)
@@ -132,19 +135,41 @@ function [next, count, times, samples] = ob_flow_segment (model, edges, order, i
   endfunction
 endfunction
 
-function rates = derivatives (current, edges, integrators)
+function routes = derivative_routes (model, edges, ids, states)
+  routes = zeros (1, numel(ids));
+  for item = 1:numel(ids)
+    path = ids{item}; local_model = model; local_edges = edges; local_states = states;
+    for core = path(1:end-1)
+      child = local_states{core}.child;
+      local_model = child.model; local_edges = child.edges; local_states = child.states;
+    endfor
+    id = path(end);
+    info = [];
+    if (isfield(local_model,'runtime_info')), info = local_model.runtime_info; endif
+    if (isstruct(info) && isscalar(info) && all(isfield(info,{'kind','sources'})) ...
+        && ischar(info.kind) && strcmp(info.kind,'octave-blocks-runtime-info-v1') && iscell(info.sources) ...
+        && numel(info.sources)==numel(local_model.blocks))
+      sources = info.sources{id};
+    else
+      sources = local_edges(local_edges(:,2)==id,1);
+    endif
+    if (numel(sources)!=1), error('ob_run: Integrator needs one input'); endif
+    routes(item) = sources(1);
+  endfor
+endfunction
+
+function rates = derivatives (current, integrators, routes)
   rates = cell (1, numel (integrators));
   for item = 1:numel (integrators)
-    path = integrators{item}; local_current = current; local_edges = edges;
+    path = integrators{item}; local_current = current;
     for core = path(1:end-1)
       child = local_current{core}.child;
-      local_current = child.current; local_edges = child.edges;
+      local_current = child.current;
     endfor
-    id = path(end); sources = local_edges(local_edges(:, 2) == id, 1);
-    if (numel (sources) != 1), error ('ob_run: Integrator needs one input'); endif
-    rates{item} = local_current{sources(1)};
+    id = path(end);
+    rates{item} = local_current{routes(item)};
     if (! isnumeric (rates{item}) || ! isreal (rates{item}) ...
-        || ! isequal (size (rates{item}), size (local_current{id})) ...
+        || ! size_equal (rates{item}, local_current{id}) ...
         || any (! isfinite (rates{item}(:))))
       error ('ob_run: Integrator block %s derivative must be finite, real, and match its state shape', ...
              strtrim (sprintf ('%d ', path)));
@@ -153,11 +178,12 @@ function rates = derivatives (current, edges, integrators)
 endfunction
 
 function vector = pack_states (states, ids)
-  vector = [];
-  for path = ids
-    value = get_state (states, path{1});
-    vector = [vector; double(value(:))];
+  parts = cell (numel(ids), 1);
+  for item = 1:numel(ids)
+    value = get_state (states, ids{item});
+    parts{item} = double(value(:));
   endfor
+  vector = vertcat (parts{:});
 endfunction
 
 function states = unpack_states (vector, states, ids)

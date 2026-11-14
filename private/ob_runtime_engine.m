@@ -73,7 +73,8 @@ function runtime = initialize (model, start_time, options, origin = [], embedded
   runtime.event_memory = struct ();
   for id = reshape (find (runtime.stateful), 1, [])
     if (strcmp (runtime.types{id}, 'Conditional Subsystem'))
-      runtime.states{id} = ob_conditional_state (runtime.model.blocks(id).value, runtime.time);
+      descriptor = ob_runtime_execution (runtime.model,id);
+      runtime.states{id} = ob_conditional_state (runtime.model.blocks(id).value, runtime.time, descriptor.options);
     else
       runtime.states{id} = runtime.model.blocks(id).value;
     endif
@@ -123,8 +124,9 @@ function runtime = advance (runtime, next_time)
   endif
   dt = next_time - runtime.time;
   event_dispatches = 0;
+  spacing = clock_spacing (runtime);
   for id = reshape (find (runtime.inherited & runtime.delayed), 1, [])
-    source = runtime.edges(runtime.edges(:, 2) == id, 1);
+    source = block_source (runtime,id);
     runtime.pending{id} = capture (runtime.types{id}, runtime.states{id}, runtime.current{source}, dt, id);
     runtime.pending_valid(id) = true;
   endfor
@@ -134,7 +136,7 @@ function runtime = advance (runtime, next_time)
       nested = [runtime.nested_clocks.next];
     endif
     event = min ([runtime.next_hits nested Inf]);
-    at_output = ! (event < next_time && ! time_equal (event, next_time, runtime.start_time, clock_spacing(runtime)));
+    at_output = ! (event < next_time && ! time_equal (event, next_time, runtime.start_time, spacing));
     if (at_output), event = next_time; endif
     if (event <= runtime.time)
       error ('ob_run: discrete schedule cannot advance time');
@@ -155,7 +157,7 @@ function runtime = advance (runtime, next_time)
     endif
     if (reconcile)
       event = reached; at_output = false;
-    elseif (time_equal(reached,scheduled,runtime.start_time,clock_spacing(runtime)))
+    elseif (time_equal(reached,scheduled,runtime.start_time,spacing))
       event = scheduled;
       if (isfield(runtime.event_memory,'time') && runtime.event_memory.time == reached)
         runtime.event_memory.time = event;
@@ -168,7 +170,7 @@ function runtime = advance (runtime, next_time)
       crossing.path = public_event_path (runtime, crossing.path);
       runtime.events(end+1) = crossing;
     endfor
-    frame = struct ();
+    frame = struct ('spacing',spacing);
     if (reconcile), frame.reconcile = true; frame.flow = dispatch_flow; endif
     runtime = process_hits (runtime, event, at_output, [], frame);
   endwhile
@@ -206,11 +208,12 @@ function runtime = process_hits (runtime, time, at_output, inherited_interval = 
     [runtime.ticks, runtime.next_hits] = ob_clock_rebase(runtime.rates,runtime.explicit,runtime.start_time,time,events.spacing);
   endif
   due = false (size (runtime.explicit));
-  for id = reshape (find (runtime.explicit), 1, [])
-    if (reconcile), continue; endif
-    due(id) = ! (time == runtime.start_time && runtime.rates(id, 2) > 0) ...
-              && time_equal (runtime.next_hits(id), time, runtime.start_time, events.spacing);
-  endfor
+  if (!reconcile)
+    for id = reshape (find (runtime.explicit), 1, [])
+      due(id) = ! (time == runtime.start_time && runtime.rates(id, 2) > 0) ...
+                && time_equal (runtime.next_hits(id), time, runtime.start_time, events.spacing);
+    endfor
+  endif
   % Commit all previous captures simultaneously before evaluating any input.
   commits = runtime.delayed & runtime.pending_valid & (due | (at_output & runtime.inherited));
   for id = reshape (find (commits), 1, [])
@@ -239,7 +242,7 @@ function runtime = process_hits (runtime, time, at_output, inherited_interval = 
     runtime.sample_hits{id}(end + 1) = time;
   endfor
   for id = reshape (find (due & runtime.delayed), 1, [])
-    source = runtime.edges(runtime.edges(:, 2) == id, 1);
+    source = block_source (runtime,id);
     runtime.pending{id} = capture (runtime.types{id}, runtime.states{id}, ...
                                   runtime.current{source}, runtime.rates(id, 1), id);
     runtime.pending_valid(id) = true;
@@ -282,7 +285,7 @@ function runtime = execute_clocked_child (runtime, time, signals, interval, majo
     captured = runtime.current;
     if (isfield(runtime,'major_current')), captured = runtime.major_current; endif
     for id = reshape(find(runtime.inherited & runtime.delayed),1,[])
-      source = runtime.edges(runtime.edges(:,2)==id,1);
+      source = block_source (runtime,id);
       runtime.pending{id} = capture(runtime.types{id},runtime.states{id},captured{source},interval,id);
       runtime.pending_valid(id) = true;
     endfor
@@ -310,7 +313,7 @@ function runtime = execute_child (runtime, time, signals, interval, continuous =
   if (continuous && isfield (runtime, 'major_current')), captured = runtime.major_current; endif
   for id = reshape (find (runtime.inherited & runtime.delayed), 1, [])
     if (interval == 0), continue; endif
-    source = runtime.edges(runtime.edges(:, 2) == id, 1);
+    source = block_source (runtime,id);
     runtime.pending{id} = capture (runtime.types{id}, runtime.states{id}, captured{source}, interval, id);
     runtime.pending_valid(id) = true;
   endfor
@@ -345,6 +348,16 @@ function value = outputs (runtime, path, port)
     return;
   endif
   path = double (path(:)');
+  % A flat root block normally occupies its own signal-map slot. Virtual and
+  % nested interfaces retain the general lookup unless this exact path agrees.
+  if (path(1)<=numel(runtime.signal_map))
+    item = runtime.signal_map(path(1));
+    if (isequal(item.path,path))
+      if (port>numel(item.outputs)), error('ob_runtime_outputs: output port does not exist'); endif
+      value = runtime.current{item.outputs(port)};
+      return;
+    endif
+  endif
   for item = runtime.signal_map
     if (isequal (item.path, path))
       if (port > numel (item.outputs)), error ('ob_runtime_outputs: output port does not exist'); endif
@@ -352,7 +365,7 @@ function value = outputs (runtime, path, port)
       return;
     endif
   endfor
-  for id = reshape (find (strcmp (runtime.types, 'Conditional Subsystem')), 1, [])
+  for id = conditional_ids (runtime)
     prefix = runtime.block_paths{id}(1:end-1);
     if (numel (path) > numel (prefix) && isequal (path(1:numel(prefix)), prefix))
       relative = path(numel(prefix)+1:end);
@@ -370,8 +383,36 @@ function value = outputs (runtime, path, port)
   error ('ob_runtime_outputs: block path does not exist');
 endfunction
 
+function source = block_source (runtime, id)
+  if (isfield(runtime.model,'runtime_info'))
+    info = runtime.model.runtime_info;
+    if (isstruct(info) && isscalar(info) && all(isfield(info,{'kind','sources'})) ...
+        && ischar(info.kind) && strcmp(info.kind,'octave-blocks-runtime-info-v1') ...
+        && iscell(info.sources) && numel(info.sources)==numel(runtime.model.blocks))
+      source = info.sources{id}; return;
+    endif
+  endif
+  source = runtime.edges(runtime.edges(:,2)==id,1);
+endfunction
+
+function ids = conditional_ids (runtime)
+  if (isfield(runtime.model,'runtime_info'))
+    info = runtime.model.runtime_info;
+    if (isstruct(info) && isscalar(info) && all(isfield(info,{'kind','conditional_ids'})) ...
+        && ischar(info.kind) && strcmp(info.kind,'octave-blocks-runtime-info-v1'))
+      candidate = info.conditional_ids;
+      if (isnumeric(candidate) && isreal(candidate) && ndims(candidate)==2 && rows(candidate)==1 ...
+          && all(isfinite(candidate)) && all(candidate==fix(candidate)) ...
+          && all(candidate>=1 & candidate<=numel(runtime.model.blocks)) && all(diff(candidate)>0))
+        ids = candidate; return;
+      endif
+    endif
+  endif
+  ids = reshape(find(strcmp(runtime.types,'Conditional Subsystem')),1,[]);
+endfunction
+
 function next = capture (type, state, input, interval, id)
-  if (! isnumeric (input) || ! isreal (input) || ! isequal (size (state), size (input)) ...
+  if (! isnumeric (input) || ! isreal (input) || ! size_equal (state, input) ...
       || any (! isfinite (input(:))))
     error ('ob_run: discrete input at block %d must be finite, real, and match its state shape', id);
   endif

@@ -1,4 +1,34 @@
-# Validation report — 2026-11-11
+# Validation report
+
+## Optimization verification — 2026-11-13
+
+The complete updated `Launch-Blocks.ps1 -SelfTest` passed: 21 Octave suites,
+9 graph BIST, 4 edge-expansion BIST, 12 snapshot BIST, all 167 strict C99 cases,
+and expanded Qt editor checks. Every channel of 157 compiled numeric models
+matched Octave with worst scaled error 0; all ten C model API harnesses passed.
+
+New tests cover old/unknown/partial metadata, exact historical graph/port order,
+mixed numeric input queries and left limits, finite/shape failures and rollback,
+and editor cache/dirty/graphics/wire behavior. The registered gate includes the
+three `test_ob_performance_*` suites. The public event-export guard remains.
+
+The local full-gate/BIST logs are in
+`.validation-artifacts/performance-audit-20261113/`. C artifacts:
+`<TEMP>/octave-blocks-codegen-a7307632e8f0436e9225ce7e064e689e`; Qt log:
+`<TEMP>/octave-blocks-editor-fc58d1bebb2f48548702f9e0439b0918/editor.log`.
+See [OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for measured results and
+[benchmarks/README.md](benchmarks/README.md) for reproducible timing comparisons.
+
+The isolated publication branch `codex/optimized-release`, based on `2ae43f3`
+without the experimental C event-runtime changes, passed a fresh complete
+`Launch-Blocks.ps1 -SelfTest` run with exit 0. This independently repeated all
+21 suites, 25 BIST checks, 167 C cases and the expanded Qt editor checks; the
+157 numerical models again had worst scaled error 0. Its local log is
+`.validation-artifacts/optimization-publication-full-gate.log`; C artifacts:
+`<TEMP>/octave-blocks-codegen-3ea941b1f7994c4fb328e6a595594de5`; Qt log:
+`<TEMP>/octave-blocks-editor-6be2221a4eaa419cba4fa7f12428e4e6/editor.log`.
+
+## Release verification — 2026-11-11
 
 The documented, implemented feature set passed the complete application gate on
 Windows with GNU Octave 11.3.0, GCC 15.2.0, and PowerShell 7.6.9. The supplemental

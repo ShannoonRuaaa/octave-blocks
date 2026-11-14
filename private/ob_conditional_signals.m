@@ -1,5 +1,5 @@
-function [signals, control] = ob_conditional_signals (model, inputs, time, prepare = true)
-  ports = sum (strcmp ({model.blocks.type}, 'Inport'));
+function [signals, control] = ob_conditional_signals (model, inputs, time, prepare = true, ports = [])
+  if (isempty(ports)), ports = sum (strcmp ({model.blocks.type}, 'Inport')); endif
   if (numel (inputs) != ports+1)
     error ('ob_run: conditional Subsystem needs its data ports followed by one control port');
   endif

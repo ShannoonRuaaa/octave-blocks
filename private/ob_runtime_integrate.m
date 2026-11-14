@@ -22,26 +22,29 @@ function [states, accepted, events, memory, reached, dispatch_flow] = ob_runtime
     states = refresh_endpoint (model, edges, order, states, reached);
     return;
   endif
+  % The active graph is fixed throughout these smooth segments. Resolve each
+  % derivative's source once, before solver stages change only numeric states.
+  routes = derivative_routes (model, edges, ids, states);
   for segment = 1:numel (boundaries)-1
     begin = boundaries(segment); finish = boundaries(segment + 1);
     h = finish - begin;
     if (! strcmp (options.solver, "rk4"))
-      [states, count] = adaptive_segment (model, edges, order, ids, states, begin, finish, options);
+      [states, count] = adaptive_segment (model, edges, order, ids, routes, states, begin, finish, options);
       accepted += count;
       continue;
     endif
     accepted += 1;
     initial = ob_runtime_eval (model, edges, order, begin, states);
-    k1 = derivatives (initial, edges, ids);
+    k1 = derivatives (initial, ids, routes);
     stage = set_integrator_states (states, ids, k1, h / 2);
     middle = ob_runtime_eval (model, edges, order, begin + h / 2, stage);
-    k2 = derivatives (middle, edges, ids);
+    k2 = derivatives (middle, ids, routes);
     stage = set_integrator_states (states, ids, k2, h / 2);
     middle = ob_runtime_eval (model, edges, order, begin + h / 2, stage);
-    k3 = derivatives (middle, edges, ids);
+    k3 = derivatives (middle, ids, routes);
     stage = set_integrator_states (states, ids, k3, h);
     endpoint = ob_runtime_eval (model, edges, order, finish, stage, true);
-    k4 = derivatives (endpoint, edges, ids);
+    k4 = derivatives (endpoint, ids, routes);
     for j = 1:numel (ids)
       value = get_state (states, ids{j});
       value += h / 6 * (k1{j} + 2*k2{j} + 2*k3{j} + k4{j});
@@ -54,7 +57,7 @@ endfunction
 function states = refresh_endpoint (model, edges, order, states, end_time)
   % Preserve the left-limit child snapshot before a major hit can disable it.
   % Ordinary flat models need no additional evaluation after the solver stages.
-  for id = reshape (find (strcmp ({model.blocks.type}, 'Conditional Subsystem')), 1, [])
+  for id = category_ids(model,'conditional_ids',{'Conditional Subsystem'})
     descriptor = ob_runtime_execution (model,id);
     if (states{id}.initialized && states{id}.was_enabled ...
         && descriptor.needs_flow)
@@ -64,21 +67,38 @@ function states = refresh_endpoint (model, edges, order, states, end_time)
   endfor
 endfunction
 
-function k = derivatives (current, edges, integrators)
+function routes = derivative_routes (model, edges, ids, states)
+  routes = zeros (1, numel(ids));
+  for j = 1:numel(ids)
+    path = ids{j}; local_model = model; local_edges = edges; local_states = states;
+    for core = path(1:end-1)
+      child = local_states{core}.child;
+      local_model = child.model; local_edges = child.edges; local_states = child.states;
+    endfor
+    id = path(end);
+    if (has_sources(local_model))
+      sources = local_model.runtime_info.sources{id};
+    else
+      sources = local_edges(local_edges(:,2)==id,1);
+    endif
+    require_inputs (sources, 1, 'Integrator');
+    routes(j) = sources(1);
+  endfor
+endfunction
+
+function k = derivatives (current, integrators, routes)
   k = cell (1, numel (integrators));
   for j = 1:numel (integrators)
     path = integrators{j};
-    local_current = current; local_edges = edges;
+    local_current = current;
     for core = path(1:end-1)
       child = local_current{core}.child;
-      local_current = child.current; local_edges = child.edges;
+      local_current = child.current;
     endfor
     id = path(end);
-    sources = local_edges(local_edges(:, 2) == id, 1);
-    require_inputs (sources, 1, "Integrator");
-    k{j} = local_current{sources(1)};
+    k{j} = local_current{routes(j)};
     if (! isnumeric (k{j}) || ! isreal (k{j}) ...
-        || ! isequal (size (k{j}), size (local_current{id})) ...
+        || ! size_equal (k{j}, local_current{id}) ...
         || any (! isfinite (k{j}(:))))
       error ("ob_run: Integrator block %s derivative must be finite, real, and match its state shape", ...
              strtrim (sprintf ('%d ', path)));
@@ -86,11 +106,12 @@ function k = derivatives (current, edges, integrators)
   endfor
 endfunction
 
-function [states, accepted] = adaptive_segment (model, edges, order, ids, states, start_time, end_time, options)
+function [states, accepted] = adaptive_segment (model, edges, order, ids, routes, states, start_time, end_time, options)
   initial = pack_states (states, ids);
   settings = odeset ("RelTol", options.reltol, "AbsTol", options.abstol, ...
                      "MaxStep", min (options.maxstep, end_time - start_time), "Refine", 1);
-  rhs = @(time, y) adaptive_rhs (time, y, model, edges, order, ids, states, end_time);
+  packed_ids = num2cell (1:numel(ids));
+  rhs = @(time, y) adaptive_rhs (time, y, model, edges, order, ids, routes, packed_ids, states, end_time);
   if (strcmp (options.solver, "ode15s"))
     settings = odeset (settings, "InitialSlope", rhs(start_time, initial));
   endif
@@ -105,23 +126,24 @@ function [states, accepted] = adaptive_segment (model, edges, order, ids, states
   accepted = numel (times) - 1;
 endfunction
 
-function value = adaptive_rhs (time, y, model, edges, order, ids, template, end_time)
+function value = adaptive_rhs (time, y, model, edges, order, ids, routes, packed_ids, template, end_time)
   states = unpack_states (y, template, ids);
   % Adaptive step accumulation can overshoot its requested endpoint by an ulp.
   % Keep every such stage on the left side of this segment's discontinuity.
   left_limit = time >= end_time;
   if (left_limit), time = end_time; endif
   current = ob_runtime_eval (model, edges, order, time, states, left_limit);
-  k = derivatives (current, edges, ids);
-  value = pack_states (k, num2cell (1:numel (ids)));
+  k = derivatives (current, ids, routes);
+  value = pack_states (k, packed_ids);
 endfunction
 
 function y = pack_states (states, ids)
-  y = [];
-  for path = ids
-    value = get_state (states, path{1});
-    y = [y; double(value(:))];
+  parts = cell (numel(ids), 1);
+  for j = 1:numel(ids)
+    value = get_state (states, ids{j});
+    parts{j} = double(value(:));
   endfor
+  y = vertcat (parts{:});
 endfunction
 
 function states = unpack_states (y, states, ids)
@@ -155,19 +177,43 @@ endfunction
 
 function boundaries = enabled_boundaries (model, states, begin, finish)
   boundaries = [];
-  for id = 1:numel (model.blocks)
+  for id = category_ids(model,'boundary_ids',{'Step','Conditional Subsystem'})
     block = model.blocks(id);
     if (strcmp (block.type, 'Step'))
       event = block.value(1);
       if (event > begin && event < finish), boundaries(end + 1) = event; endif
     elseif (strcmp (block.type, 'Conditional Subsystem'))
       state = states{id};
-      options = ob_execution_options (block.value, false);
+      descriptor = ob_runtime_execution (model,id);
+      options = descriptor.options;
       if (strcmp (options.mode, 'enabled') && state.initialized && state.was_enabled)
         boundaries = [boundaries enabled_boundaries(state.child.model, state.child.states, begin, finish)];
       endif
     endif
   endfor
+endfunction
+
+function yes = has_sources (model)
+  yes = isfield(model,'runtime_info') && isstruct(model.runtime_info) && isscalar(model.runtime_info) ...
+        && all(isfield(model.runtime_info,{'kind','sources'})) ...
+        && ischar(model.runtime_info.kind) && strcmp(model.runtime_info.kind,'octave-blocks-runtime-info-v1') ...
+        && iscell(model.runtime_info.sources) && numel(model.runtime_info.sources)==numel(model.blocks);
+endfunction
+
+function ids = category_ids (model, field, types)
+  if (isfield(model,'runtime_info'))
+    info = model.runtime_info;
+    if (isstruct(info) && isscalar(info) && all(isfield(info,{'kind',field})) ...
+        && ischar(info.kind) && strcmp(info.kind,'octave-blocks-runtime-info-v1'))
+      candidate = info.(field);
+      if (isnumeric(candidate) && isreal(candidate) && ndims(candidate)==2 && rows(candidate)==1 ...
+          && all(isfinite(candidate)) && all(candidate==fix(candidate)) ...
+          && all(candidate>=1 & candidate<=numel(model.blocks)) && all(diff(candidate)>0))
+        ids = candidate; return;
+      endif
+    endif
+  endif
+  ids = reshape (find (ismember({model.blocks.type},types)), 1, []);
 endfunction
 
 function require_inputs (inputs, count, type)
