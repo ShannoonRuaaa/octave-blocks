@@ -19,7 +19,30 @@ twice. A drag still records one Undo entry, and moving back to the saved
 position clears the dirty marker when the drag finishes. Graphics handles stay
 in editor state and are excluded from model files and Undo/Redo snapshots.
 
-## Measured selection callbacks
+## Additional audited changes (2026-11-13)
+
+Pure selection now skips model reinstallation and content-history comparison.
+A coherency key includes current and saved snapshots before reusing dirty/scene
+classification, preserving external model/settings/saved-state invalidation.
+Incident-wire indexes avoid scanning every edge to select wires for a drag;
+graphics validity and block-position work remain, so the entire drag is not
+constant-time or O(degree).
+
+Six interleaved samples per version used the same hidden Qt callback benchmark,
+with twelve clicks plus `drawnow` per sample:
+
+| Diagram | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| 10 blocks | .02623 s/click | .02450 s/click | 6.6% lower |
+| 40 blocks | .08498 s/click | .07838 s/click | 7.8% lower |
+
+The expanded Qt regression passed external model/settings/saved-state changes,
+dirty markers, deleted graphics, nonincident-wire stability, ordinary selection,
+drag/Undo and Run. These timings measure callbacks/rendering, not OS mouse-event
+delivery. See [OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) and
+[benchmarks/README.md](benchmarks/README.md) for samples, protocol and limits.
+
+## Earlier retained-graphics measurements
 
 On Windows with GNU Octave 11.3.0's Qt runtime, six selection-plus-mouse-up
 cycles were timed for each hidden test figure:

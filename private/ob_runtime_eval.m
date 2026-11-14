@@ -1,18 +1,28 @@
 function [current, states] = ob_runtime_eval (model, edges, order, time, states, left_limit = false, sample = [], inherited_interval = [], events = struct (), flow = struct ())
-  current = cell (1, numel (model.blocks));
-  if (isempty (sample)), sample = false (1, numel (model.blocks)); endif
-  loop_at = zeros (1, numel (model.blocks)); loops = {};
+  count = numel (model.blocks);
+  current = cell (1, count);
+  if (isempty (sample)), sample = false (1, count); endif
+  loops = {};
   if (isfield (model, 'algebraic_loops')), loops = model.algebraic_loops; endif
-  cached = isfield(model,'runtime_info') && isstruct(model.runtime_info) ...
-           && isfield(model.runtime_info,'kind') ...
-           && strcmp(model.runtime_info.kind,'octave-blocks-runtime-info-v1');
+  info = [];
+  if (isfield(model,'runtime_info')), info = model.runtime_info; endif
+  % Preparation validates immutable graph indices. At a solver stage check
+  % cache structure/version; do not rescan the complete loop map's values.
+  cached = isstruct(info) && isscalar(info) ...
+           && all(isfield(info,{'kind','loop_at','sources'})) ...
+           && ischar(info.kind) && strcmp(info.kind,'octave-blocks-runtime-info-v1') ...
+           && isnumeric(info.loop_at) && isreal(info.loop_at) ...
+           && rows(info.loop_at)==1 && numel(info.loop_at)==count ...
+           && iscell(info.sources) && numel(info.sources)==count;
   if (cached)
-    info = model.runtime_info;
     loop_at = info.loop_at;
     source_map = info.sources;
   else
+    loop_at = zeros (1, count);
     for k = 1:numel (loops), loop_at(loops{k}) = k; endfor
   endif
+  has_modes = isfield(flow,'modes');
+  conditional_ready = false;
   solved = false (1, numel (loops));
   for id = order
     group = loop_at(id);
@@ -24,9 +34,8 @@ function [current, states] = ob_runtime_eval (model, edges, order, time, states,
       continue;
     endif
     block = model.blocks(id);
-    if (cached), sources = source_map{id};
-    else sources = edges(edges(:, 2) == id, 1); endif
-    inputs = current(sources(:)');
+    if (cached), inputs = current(source_map{id});
+    else inputs = current(edges(edges(:, 2) == id, 1)'); endif
     switch (block.type)
       case 'External Input'
         require_inputs (inputs, 0, block.type);
@@ -50,7 +59,7 @@ function [current, states] = ob_runtime_eval (model, edges, order, time, states,
       case {'Gain', 'Sum', 'Product', 'Saturation', 'Dead Zone', 'Switch', ...
             'Function', 'Scope', 'Inport', 'Outport'}
         mode = [];
-        if (isfield (flow, 'modes')), mode = flow.modes{id}; endif
+        if (has_modes), mode = flow.modes{id}; endif
         current{id} = ob_direct_output (block, inputs, id, mode);
       case 'Multiple Function'
         if (isempty (inputs)), error ('ob_run: Function needs an input'); endif
@@ -61,22 +70,49 @@ function [current, states] = ob_runtime_eval (model, edges, order, time, states,
         require_inputs (inputs, 1, block.type);
         current{id} = inputs{1}{block.value};
       case 'Conditional Subsystem'
+        % Most RHS graphs contain no atomic child. Prepare child-only flags
+        % once, lazily, rather than on every evaluation of every flat body.
+        if (!conditional_ready)
+          has_children = isfield(flow,'children');
+          has_origin = isfield(events,'origin');
+          has_spacing = isfield(events,'spacing');
+          has_options = isfield(events,'options');
+          has_reconcile = isfield(events,'reconcile');
+          has_paths = isfield(events,'paths');
+          accepted = isfield(events,'accepted') && events.accepted;
+          descriptor_fields = {'kind','options','needs_flow','clocked','continuous_controls', ...
+                               'input_ports','output_ids','output_ports'};
+          option_fields = {'mode','states','outputs','initial_outputs','initial_control','control'};
+          conditional_map = {};
+          if (cached && isfield(info,'conditional') && iscell(info.conditional) ...
+              && numel(info.conditional)==count)
+            conditional_map = info.conditional;
+          endif
+          conditional_ready = true;
+        endif
         child_events = struct ('origin',time,'paths',{{}});
-        if (isfield(events,'origin')), child_events.origin = events.origin; endif
-        if (isfield(events,'spacing')), child_events.spacing = events.spacing; endif
-        if (isfield(events,'options')), child_events.options = events.options; endif
-        if (isfield(events,'reconcile')), child_events.reconcile = events.reconcile; endif
+        if (has_origin), child_events.origin = events.origin; endif
+        if (has_spacing), child_events.spacing = events.spacing; endif
+        if (has_options), child_events.options = events.options; endif
+        if (has_reconcile), child_events.reconcile = events.reconcile; endif
         child_flow = struct ();
-        if (isfield(flow,'children') && !isempty(flow.children{id}))
+        if (has_children && !isempty(flow.children{id}))
           child_flow = flow.children{id};
         endif
         child_events.flow = child_flow;
-        accepted = isfield(events,'accepted') && events.accepted;
         child_events.accepted = accepted;
-        descriptor = ob_runtime_execution (model,id);
+        descriptor = [];
+        if (!isempty(conditional_map)), descriptor = conditional_map{id}; endif
+        if (!(isstruct(descriptor) && isscalar(descriptor) ...
+              && all(isfield(descriptor,descriptor_fields)) ...
+              && ischar(descriptor.kind) && strcmp(descriptor.kind,'octave-blocks-execution-descriptor-v1') ...
+              && isstruct(descriptor.options) && isscalar(descriptor.options) ...
+              && all(isfield(descriptor.options,option_fields))))
+          descriptor = ob_runtime_execution (model,id);
+        endif
         execution = descriptor.options;
         child_events.execution_descriptor = descriptor;
-        if (isfield(events,'paths'))
+        if (has_paths)
           for path = events.paths
             if (numel(path{1}) > 1 && path{1}(1) == id)
               child_events.paths{end+1} = path{1}(2:end);
@@ -122,7 +158,7 @@ function [current, states] = ob_runtime_eval (model, edges, order, time, states,
 endfunction
 
 function validate_discrete_input (state, input, id)
-  if (! isnumeric (input) || ! isreal (input) || ! isequal (size (state), size (input)) ...
+  if (! isnumeric (input) || ! isreal (input) || ! size_equal (state, input) ...
       || any (! isfinite (input(:))))
     error ("ob_run: discrete input at block %d must be finite, real, and match its state shape", id);
   endif

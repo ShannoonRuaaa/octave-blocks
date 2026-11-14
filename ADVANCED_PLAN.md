@@ -8,6 +8,21 @@ Simulink compatibility.
 Current status: paused at the user's request after the existing agents finished
 their assignments. The advanced goal is incomplete.
 
+## Optimization completion (2026-11-13)
+
+The optimization audit is complete. The publication branch
+`codex/optimized-release` is based on release `2ae43f3` and contains only the
+audited improvements, tests, benchmarks and documentation. Separate experimental
+C event-runtime changes remain on the local development branch.
+
+The measured development version passed 21 Octave suites, 25 graph/edge/snapshot
+BIST checks, 167 strict C99 cases and the expanded Qt editor gate. All 157
+compiled numeric models matched Octave with worst scaled error 0; ten API
+harnesses passed. The optimization-only publication branch subsequently passed
+the same complete gate. See [OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for measured
+results, reproduction instructions and limits. This task does not resume or
+complete the advanced compatibility goal.
+
 ## Publication verification (2026-11-11)
 
 The implemented feature set passed a fresh complete gate: eighteen Octave

@@ -91,6 +91,47 @@ function test_ob_editor_graphics ()
     press_button(fig,'Connect'); state = guidata(fig);
     assert(all(isgraphics(state.graphics.handles)) && numel(state.graphics.bodies)==4);
 
+    % Selection shortcuts must detect external model/settings/saved changes,
+    % retain graphics ownership, and never create a content-edit Undo entry.
+    extra = octave_blocks(ob_example()); figures(end+1)=extra;
+    external=guidata(extra); old_body=external.graphics.bodies(2);
+    external.model.blocks(2).value=7; guidata(extra,external);
+    click_block(extra,2); external=guidata(extra);
+    assert(!isgraphics(old_body) && external.model.blocks(2).value==7);
+    assert(isempty(external.undo) && !isempty(strfind(get(extra,'name'),'*')));
+    feval(get(extra,'windowbuttonupfcn'),extra,[]);
+    external=guidata(extra); external.saved=struct('model',external.model, ...
+        'config',external.config,'options',external.options); guidata(extra,external);
+    click_block(extra,3); external=guidata(extra);
+    assert(isempty(strfind(get(extra,'name'),'*')) && isempty(external.undo));
+    feval(get(extra,'windowbuttonupfcn'),extra,[]);
+    external=guidata(extra); retained=sort(findall(external.axes));
+    external.config=[0 2 .1]; guidata(extra,external); click_block(extra,1);
+    external=guidata(extra);
+    assert(!isempty(strfind(get(extra,'name'),'*')) && isempty(external.undo));
+    assert(isequal(sort(findall(external.axes)),retained));
+    feval(get(extra,'windowbuttonupfcn'),extra,[]);
+    external=guidata(extra); delete(external.graphics.bodies(3));
+    click_block(extra,2); external=guidata(extra);
+    assert(all(isgraphics(external.graphics.handles)) && external.selected==2);
+
+    % Moving a branch consumer must leave every unrelated wire unchanged.
+    branch=octave_blocks(ob_multioutput_example()); figures(end+1)=branch;
+    branching=guidata(branch); other=branching.graphics.wires([1 3],1);
+    old_x=get(other,'xdata'); old_y=get(other,'ydata');
+    click_block(branch,3); branching=guidata(branch);
+    point=get(branching.axes,'currentpoint');
+    branching.drag_origin=point(1,1:2)-[.04 .03]; guidata(branch,branching);
+    feval(get(branch,'windowbuttonmotionfcn'),branch,[]);
+    branching=guidata(branch);
+    assert(isequal(get(other,'xdata'),old_x) && isequal(get(other,'ydata'),old_y));
+    destination=branching.graphics.edges(:,3)==3;
+    moved_wire=branching.graphics.wires(find(destination,1),1);
+    moved_x=get(moved_wire,'xdata'); moved_y=get(moved_wire,'ydata');
+    assert(abs(moved_x(end)-(branching.model.blocks(3).x-.105))<1e-14);
+    assert(abs(moved_y(end)-branching.model.blocks(3).y)<1e-14);
+    feval(get(branch,'windowbuttonupfcn'),branch,[]);
+
     % Hierarchy navigation must invalidate the old scene even when both
     % diagrams happen to have the same number of blocks.
     nested = ob_subsystem_example ();

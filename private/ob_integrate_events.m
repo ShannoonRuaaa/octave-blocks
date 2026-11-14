@@ -121,14 +121,18 @@ function memory = reconciliation_memory (previous, snapshot, flow, time, reporte
   % Preserve records already emitted at this timestamp even when activation
   % changes the set of active descendants after the scheduler accepts it.
   if (all(isfield(previous,{'time','snapshot','reported'})) && previous.time == time)
-    for index = 1:numel(snapshot.descriptors)
-      for old = 1:numel(previous.snapshot.descriptors)
-        if (isequal(snapshot.descriptors(index),previous.snapshot.descriptors(old)))
-          reported(index) |= previous.reported(old);
-          break;
-        endif
+    if (same_layout(snapshot,previous.snapshot))
+      reported |= previous.reported;
+    else
+      for index = 1:numel(snapshot.descriptors)
+        for old = 1:numel(previous.snapshot.descriptors)
+          if (isequal(snapshot.descriptors(index),previous.snapshot.descriptors(old)))
+            reported(index) |= previous.reported(old);
+            break;
+          endif
+        endfor
       endfor
-    endfor
+    endif
   endif
   memory = struct ('time',time,'snapshot',snapshot,'flow',flow,'reported',reported);
 endfunction
@@ -150,11 +154,13 @@ function records = boundary_departures (memory, snapshot, flow, time)
   % the incoming regime until a subsequent advance establishes its departure.
   % Match individual descriptors because enabled bodies may appear/disappear
   % at a major hit; a newly active guard has no previous continuous history.
+  matching = same_layout(snapshot,memory.snapshot);
   for index = reshape (find (snapshot.values == 0), 1, [])
     guard = snapshot.descriptors(index);
     if (strcmp(guard.type,'Conditional Subsystem')), continue; endif
-    for previous = 1:numel (memory.snapshot.descriptors)
-      if (! isequal (guard, memory.snapshot.descriptors(previous))), continue; endif
+    if (matching), candidates=index; else candidates=1:numel(memory.snapshot.descriptors); endif
+    for previous = candidates
+      if (!matching && !isequal(guard,memory.snapshot.descriptors(previous))), continue; endif
       if (memory.snapshot.values(previous) != 0 || memory.reported(previous)), break; endif
       incoming = regime_side (guard, mode_at(memory.flow,guard.path,guard.channel));
       outgoing = regime_side (guard, mode_at(flow,guard.path,guard.channel));
@@ -221,7 +227,7 @@ function [snapshot, flow] = settle_modes (model, edges, order, ids, states, begi
 endfunction
 
 function count = control_count (flow)
-  count = sum (! cellfun (@isempty, flow.modes));
+  count = sum (! cellfun ('isempty', flow.modes));
   for child = flow.children
     if (! isempty (child{1})), count += control_count (child{1}); endif
   endfor
@@ -343,21 +349,38 @@ function side = regime_side (guard, mode)
 endfunction
 
 function require_layout (before, after)
-  if (! isequal (before.descriptors, after.descriptors) || ! same_shapes (before.flow, after.flow))
+  if (! same_layout(before,after))
     error ('ob_run: zero-crossing guard layout changed inside an integration interval');
   endif
 endfunction
 
+function yes = same_layout (before, after)
+  yes = numel(before.descriptors)==numel(after.descriptors) ...
+      && numel(before.values)==numel(after.values) ...
+      && isequal(before.descriptors,after.descriptors) ...
+      && same_shapes(before.flow,after.flow);
+endfunction
+
 function yes = same_shapes (before, after)
-  yes = numel (before.modes) == numel (after.modes);
+  yes = numel(before.modes)==numel(after.modes) ...
+      && numel(before.children)==numel(after.children);
   if (! yes), return; endif
-  for id = 1:numel (before.modes)
-    if (! isequal (size(before.modes{id}),size(after.modes{id})))
-      yes = false; return;
-    endif
-    left = before.children{id}; right = after.children{id};
-    if (isempty(left) && isempty(right)), continue; endif
-    if (isempty(left) || isempty(right) || ! same_shapes(left,right))
+  left_modes=before.modes(:); right_modes=after.modes(:);
+  if (any(cellfun('ndims',left_modes)>2) || any(cellfun('ndims',right_modes)>2))
+    % Ordinary modes are matrices; retain exact layouts for legacy callers
+    % containing arrays with additional dimensions as well.
+    for id = 1:numel(left_modes)
+      if (!size_equal(left_modes{id},right_modes{id})), yes=false; return; endif
+    endfor
+  elseif (any(cellfun('size',left_modes,1)!=cellfun('size',right_modes,1)) ...
+          || any(cellfun('size',left_modes,2)!=cellfun('size',right_modes,2)))
+    yes=false; return;
+  endif
+  left_empty=cellfun('isempty',before.children(:));
+  right_empty=cellfun('isempty',after.children(:));
+  if (any(left_empty!=right_empty)), yes=false; return; endif
+  for id = reshape(find(!left_empty),1,[])
+    if (!same_shapes(before.children{id},after.children{id}))
       yes = false; return;
     endif
   endfor
