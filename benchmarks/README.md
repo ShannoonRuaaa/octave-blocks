@@ -4,7 +4,10 @@
 checksums, CPU times, integration steps and event counts used in
 [OPTIMIZATION_AUDIT.md](../OPTIMIZATION_AUDIT.md). Version 1 is baseline `8aeec48`;
 version 2 is the optimized source. The baseline's benchmarked runtime, graph,
-input and editor files also match the published `2ae43f3` release.
+input and editor files also match the published `2ae43f3` release. Use that public
+commit as the reproduction baseline; `8aeec48` identifies the original local
+measurement checkout. The optimized production files on `codex/optimized-release`
+are identical to the measured development version.
 
 Three rounds alternate A/B/B/A and B/A/A/B, giving six samples for each version
 and workload. The comparison scripts clear functions and assert the loaded

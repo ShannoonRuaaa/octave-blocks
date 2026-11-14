@@ -1,13 +1,15 @@
 # Optimization report audit — 2026-11-13
 
 Status: optimization implementation, full regression verification and measured
-comparison are complete. The changes are saved locally on
-`codex/performance-audit`; nothing from this audit has been pushed to GitHub.
+comparison are complete. The publication branch is `codex/optimized-release`,
+based on published release `2ae43f3`. It contains the optimization changes without
+the separate experimental C event runtime from the local development branch.
 
 The input was `octave_blocks_optimization_report.md`, supplied from Downloads.
 Its proposed installer and nineteen replacement files were not supplied or run.
 The changes here were implemented independently against local checkpoint
-`8aeec48`, preserving the unfinished experimental C work and public export guard.
+`8aeec48`, then isolated onto the published release. All optimized production
+files match the measured development version. The public export guard remains.
 
 ## Findings
 
@@ -72,6 +74,12 @@ The final `Launch-Blocks.ps1 -SelfTest` completed with exit 0:
   matched every channel against Octave with worst scaled error 0; all ten model
   API harnesses passed.
 - The expanded Qt editor regression passed.
+
+The isolated `codex/optimized-release` publication branch subsequently passed
+the same complete gate with exit 0, including the 167 supported C cases and Qt
+checks, without the experimental C event-runtime changes. Its local log is
+`.validation-artifacts/optimization-publication-full-gate.log`; details are in
+[VALIDATION.md](VALIDATION.md).
 
 Tests additionally cover 49 exact shape-equivalence cases, accepted numeric
 query types above the binary-search cutoff, sparse large-table boundary queries,
