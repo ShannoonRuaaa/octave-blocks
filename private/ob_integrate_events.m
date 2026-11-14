@@ -370,15 +370,15 @@ function yes = same_shapes (before, after)
     % Ordinary modes are matrices; retain exact layouts for legacy callers
     % containing arrays with additional dimensions as well.
     for id = 1:numel(left_modes)
-      if (!isequal(size(left_modes{id}),size(right_modes{id}))), yes=false; return; endif
+      if (!size_equal(left_modes{id},right_modes{id})), yes=false; return; endif
     endfor
-  elseif (!isequal(cellfun('size',left_modes,1),cellfun('size',right_modes,1)) ...
-          || !isequal(cellfun('size',left_modes,2),cellfun('size',right_modes,2)))
+  elseif (any(cellfun('size',left_modes,1)!=cellfun('size',right_modes,1)) ...
+          || any(cellfun('size',left_modes,2)!=cellfun('size',right_modes,2)))
     yes=false; return;
   endif
   left_empty=cellfun('isempty',before.children(:));
   right_empty=cellfun('isempty',after.children(:));
-  if (!isequal(left_empty,right_empty)), yes=false; return; endif
+  if (any(left_empty!=right_empty)), yes=false; return; endif
   for id = reshape(find(!left_empty),1,[])
     if (!same_shapes(before.children{id},after.children{id}))
       yes = false; return;

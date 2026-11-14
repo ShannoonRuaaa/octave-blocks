@@ -29,8 +29,8 @@ function test_ob_performance_graph ()
     rng (previous_rng);
   end_unwind_protect
 
-  % Check both lookup branches, including the exact last knot on tables long
-  % enough to use binary search. Left limits apply only to ZOH interpolation.
+  % Small tables retain the original find route. Left limits apply only to
+  % ZOH interpolation, including the exact last knot.
   for count = [1 2 16 17 73]
     times = (0:count-1)' / 8;
     values = [(1:count)' (1:count)'.^2];
@@ -44,6 +44,34 @@ function test_ob_performance_graph ()
       endfor
       assert(isequal(ob_input_value(signal,times(end),true), ...
                     values(max(1,count-strcmp(method{1},'zoh')),:)));
+    endfor
+  endfor
+  % Sparse requests cover actual binary search on a large table, without
+  % querying every knot. Include endpoints, an interior knot, and inter-knot
+  % samples for both interpolation modes and both left-limit settings.
+  times=(0:8192)'/8; values=[times times.^2];
+  queries=[-1 0 1/32 times(4097) times(4097)+1/32 times(end) times(end)+1];
+  for method={'zoh','linear'}
+    signal=ob_input_signal(times,values,[1 2],method{1});
+    for time=queries
+      for left=[false true]
+        assert(isequal(ob_input_value(signal,time,left),legacy_input_value(signal,time,left)));
+      endfor
+    endfor
+  endfor
+  % lookup coerces mixed numeric classes: large integer queries can round up
+  % to the next double knot, and single queries can merge many double knots.
+  % Preserve the original mixed-class comparisons, including strict ZOH left
+  % limits, rather than performing a lossy conversion before interval search.
+  tables={2^53+(0:8192)'*2,[0;1+(-4095:4096)'*eps(1)]};
+  queries={uint64(2^53)+uint64(3),single(1)};
+  for index=1:numel(tables)
+    for method={'zoh','linear'}
+      signal=ob_input_signal(tables{index},(1:numel(tables{index}))',[1 1],method{1});
+      for left=[false true]
+        assert(isequal(ob_input_value(signal,queries{index},left), ...
+                       legacy_input_value(signal,queries{index},left)));
+      endfor
     endfor
   endfor
   fprintf ('Performance graph ordering parity passed (480 randomized comparisons); input lookup boundary parity passed\n');

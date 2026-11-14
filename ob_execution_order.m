@@ -11,9 +11,7 @@ function [order, edges, stateful, loops] = ob_execution_order (model, allow_loop
   stateful = delayed | strcmp (types, "Rate Transition") | strcmp (types, 'Conditional Subsystem');
   direct = edges(! delayed(edges(:, 2)), :);
   indegree = zeros (1, n);
-  for k = 1:rows (direct)
-    indegree(direct(k, 2)) += 1;
-  endfor
+  if (!isempty(direct)), indegree = accumarray(direct(:,2),1,[n 1])'; endif
   [forward, targets] = adjacency (n, direct);
   queue = zeros (1, n); ready = find (indegree == 0);
   tail = numel (ready); queue(1:tail) = ready; head = 1;
@@ -37,9 +35,7 @@ function [order, edges, stateful, loops] = ob_execution_order (model, allow_loop
   dag = unique ([membership(direct(:, 1))' membership(direct(:, 2))'], 'rows');
   dag = dag(dag(:, 1) != dag(:, 2), :);
   indegree = zeros (1, numel (components));
-  for k = 1:rows (dag)
-    indegree(dag(k, 2)) += 1;
-  endfor
+  if (!isempty(dag)), indegree = accumarray(dag(:,2),1,[numel(components) 1])'; endif
   [dag_forward, dag_targets] = adjacency (numel(components), dag);
   ready = find (indegree == 0); tail = numel (ready); head = 1;
   queue(1:tail) = ready; used = 0;
@@ -68,13 +64,15 @@ endfunction
 
 function [offsets, targets] = adjacency (n, edges)
   % Compact adjacency preserves the original edge order within each source.
-  counts = zeros (n, 1);
-  for k = 1:rows(edges), counts(edges(k,1)) += 1; endfor
-  offsets = [1; 1+cumsum(counts)]; cursor = offsets(1:n);
-  targets = zeros (rows(edges), 1);
-  for k = 1:rows(edges)
-    source = edges(k,1); targets(cursor(source)) = edges(k,2); cursor(source) += 1;
-  endfor
+  if (isempty(edges))
+    offsets = ones (n+1, 1); targets = zeros (0, 1); return;
+  endif
+  counts = accumarray (edges(:,1), 1, [n 1]);
+  offsets = [1; 1+cumsum(counts)];
+  % The original row is an explicit secondary key: ordering does not depend
+  % on a sorting implementation's treatment of equal source IDs.
+  [unused, permutation] = sortrows ([edges(:,1) (1:rows(edges))'], [1 2]);
+  targets = edges(permutation,2);
 endfunction
 
 function [components, membership] = strongly_connected (n, edges, forward, targets)
@@ -169,3 +167,20 @@ endfunction
 %! model.edges = [(1:count)' [2:count 1]'];
 %! [order, ~, ~, loops] = ob_execution_order (model, true);
 %! assert (order, 1:count); assert (loops, {1:count});
+
+%!test
+%! % Large four-port chains exercise queue progression independently of the
+%! % legacy two-column edge-normalization cost.
+%! count = 10000;
+%! model.blocks = repmat (struct ('type','Gain'),1,count);
+%! model.edges = [(1:count-1)' ones(count-1,1) (2:count)' ones(count-1,1)];
+%! [order,~,~,loops] = ob_execution_order(model,true);
+%! assert (order,1:count); assert (isempty(loops));
+
+%!test
+%! % A single source releasing many targets must retain historical FIFO IDs.
+%! count = 30000;
+%! model.blocks = repmat (struct ('type','Gain'),1,count);
+%! model.edges = [count*ones(count-1,1) ones(count-1,1) (1:count-1)' ones(count-1,1)];
+%! [order,~,~,loops] = ob_execution_order(model,true);
+%! assert (order,[count 1:count-1]); assert (isempty(loops));

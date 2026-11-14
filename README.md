@@ -274,6 +274,11 @@ for the advanced functionality roadmap.
 exports and compares all signal channels against Octave references. A C99
 compiler is required for those checks; the script uses Octave's bundled GCC
 by default. It then runs the Qt retained-graphics checks in `Test-Editor.ps1`.
+The full gate now includes the three `test_ob_performance_*` compatibility
+suites and graph/edge/snapshot BIST checks. See
+[OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for corrected audit findings and
+measured results, and [benchmarks/README.md](benchmarks/README.md) to reproduce
+the before/after comparisons.
 Verification artifacts are retained in the reported directories. See
 [UI_PERFORMANCE.md](UI_PERFORMANCE.md) for measured editor improvements and
 [REVIEW_GUIDE.md](REVIEW_GUIDE.md) for architecture and review instructions.

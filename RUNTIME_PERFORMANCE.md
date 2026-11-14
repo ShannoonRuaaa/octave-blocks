@@ -21,7 +21,36 @@ and compares complete future contexts after removing metadata from both sides.
 Internal input-table isolation tests also retain finite/shape failure rollback.
 See [RUNTIME.md](RUNTIME.md) for the public context contract.
 
-## Measurements
+## Audited optimization measurements (2026-11-13)
+
+Further profiling removed repeated immutable routing/category scans, duplicate
+option normalization, interpreted cache-tag/shape comparisons, growing state
+vectors and redundant output lookups. Optional category indexes retain legacy
+fallbacks. Dynamic domains/shapes and public context validation remain checked.
+The input lookup also preserves mixed numeric query and exact left-limit rules.
+
+Interleaved ABBA/BAAB measurements in a single process, with functions cleared
+between source versions, produced six samples per version/case:
+
+| Workload | Baseline median | Optimized median | Change |
+| --- | ---: | ---: | ---: |
+| Sampled enabled, 101 outputs | 1.0361 s | .7414 s | 28.4% lower |
+| Continuous enabled/events, 101 outputs | 2.2869 s | 1.7563 s | 23.2% lower |
+| Primitive event, two outputs | .1828 s | .1642 s | 10.2% lower |
+| Graph ordering, 10,000 blocks | .46164 s | .12999 s | 71.8% lower |
+| 500 input queries, 100,000 rows | .03300 s | .02242 s | 32.1% lower |
+
+Analytical outputs and counts remained 2/72/0, 2/102/0, and 1.25/2/1 for
+output/integration-steps/events respectively. CPU medians corroborated the
+runtime improvements. Small input-table cases had approximately 3–4% overhead
+in this run, under .001 seconds per 500 queries. No universal gain is claimed.
+
+Separate-process timings drifted substantially, so they were retained but not
+used for these conclusions. See [OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md)
+for corrected report claims, complete verification and limits, and
+[benchmarks/README.md](benchmarks/README.md) for data and reproduction.
+
+## Earlier cache integration measurements
 
 Matched Windows/Octave 11.3 CLI measurements used one warm-up and the median of
 three unprofiled runs for each model. All runs checked analytical outputs and
@@ -52,8 +81,9 @@ Retained reports:
 - `<TEMP>/ob-runtime-cache-profile-e8977bdfa9c04b048f26df0a79590008.txt`
 - `<TEMP>/ob-runtime-cache-final-97bb3c98046644db9041a9a94be18b64.txt`
 
-The next measured candidates are guard-descriptor reconstruction/deep comparison
-and remaining evaluator/graphics snapshot work. Any further caching must retain
+Further candidates include changing-layout descriptor matching and remaining
+evaluator/graphics work. Stable-layout guard comparisons and several evaluator
+scans were addressed in the audit above. Any further caching must retain
 guard layout-change detection, input/value validation, external graphics
 invalidation and checkpoint compatibility. The numerical/C and Qt regression
 gates remain required when changing those boundaries.

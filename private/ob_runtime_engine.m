@@ -387,7 +387,7 @@ function source = block_source (runtime, id)
   if (isfield(runtime.model,'runtime_info'))
     info = runtime.model.runtime_info;
     if (isstruct(info) && isscalar(info) && all(isfield(info,{'kind','sources'})) ...
-        && isequal(info.kind,'octave-blocks-runtime-info-v1') ...
+        && ischar(info.kind) && strcmp(info.kind,'octave-blocks-runtime-info-v1') ...
         && iscell(info.sources) && numel(info.sources)==numel(runtime.model.blocks))
       source = info.sources{id}; return;
     endif
@@ -399,7 +399,7 @@ function ids = conditional_ids (runtime)
   if (isfield(runtime.model,'runtime_info'))
     info = runtime.model.runtime_info;
     if (isstruct(info) && isscalar(info) && all(isfield(info,{'kind','conditional_ids'})) ...
-        && isequal(info.kind,'octave-blocks-runtime-info-v1'))
+        && ischar(info.kind) && strcmp(info.kind,'octave-blocks-runtime-info-v1'))
       candidate = info.conditional_ids;
       if (isnumeric(candidate) && isreal(candidate) && ndims(candidate)==2 && rows(candidate)==1 ...
           && all(isfinite(candidate)) && all(candidate==fix(candidate)) ...
@@ -412,7 +412,7 @@ function ids = conditional_ids (runtime)
 endfunction
 
 function next = capture (type, state, input, interval, id)
-  if (! isnumeric (input) || ! isreal (input) || ! isequal (size (state), size (input)) ...
+  if (! isnumeric (input) || ! isreal (input) || ! size_equal (state, input) ...
       || any (! isfinite (input(:))))
     error ('ob_run: discrete input at block %d must be finite, real, and match its state shape', id);
   endif

@@ -8,10 +8,25 @@ Simulink compatibility.
 Current status: paused at the user's request. The advanced goal is incomplete.
 Experimental event-enabled C work is retained on `codex/event-c-export` at
 `8aeec48`; it has not passed full integration verification or been published.
-The subsequent optimization audit is saved on `codex/performance-audit`, with
-focused checks passing and full verification/after-change timing pending. See
-[OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for claims, evidence and resume work.
+The subsequent optimization audit is complete on `codex/performance-audit`, with
+full verification and before/after measurements recorded. See
+[OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for claims, evidence and limits.
 The validated public baseline remains commit `2ae43f3`.
+
+## Optimization completion (2026-11-13)
+
+The independent audit fixes passed 21 Octave suites, 25 graph/edge/snapshot BIST
+checks, 167 strict C99 cases and the expanded Qt editor gate. All 157 compiled
+numeric models matched Octave with worst scaled error 0; ten API harnesses passed.
+Interleaved measurements showed 10–28% lower runtime medians, 60–72% lower graph
+ordering medians, 32% lower large-table input-query median, and 7–8% lower editor
+selection medians. Small input-table cases had a small overhead; the report
+records this rather than claiming universal gains. Values/step/event counts
+matched. Reproduction scripts and raw timing samples are checked in.
+
+This completes the optimization task, not the advanced compatibility goal.
+Experimental C event integration remains guarded and unverified in full; it was
+not resumed by this optimization work. No optimization changes have been pushed.
 
 ## Event C implementation pause checkpoint (2026-11-12)
 
