@@ -186,10 +186,18 @@ control/data values, shapes, finite domains, and times remain checked during
 execution.
 
 A continuous control requires `zero_crossings=true`; runtime initialization
-rejects the model otherwise. C generation rejects a model containing continuous
-controls even if the caller turns that global option off. Turning it off does
-not silently convert the declared model to sampled timing. Generated event
-code remains future work; see [CODEGEN.md](CODEGEN.md).
+and C generation reject the model otherwise. RK4 C export supports declared
+continuous enable/trigger controls through the typed event runtime. Turning
+events off cannot silently convert a declared continuous gate to sampled timing.
+Adaptive solver emission remains unsupported and fails before file replacement.
+See [CODEGEN.md](CODEGEN.md) for options, static-shape restrictions and APIs.
+
+Generated contexts store cumulative `event_count` and `last_event_time` instead
+of Octave's detailed event array. Accepted gate changes, trigger history,
+enabled intervals and inner clocks live in per-instance contexts. Trials use
+copies, and a failed API operation leaves the complete caller context intact.
+Nonsettling/chattering regimes return `OB_EVENT_ERROR=4`. `maxstep` bounds the
+RK4 search; matching signs can still hide multiple crossings and tangencies.
 
 ## Verification and reference scope
 
@@ -199,8 +207,10 @@ integration, repeated triggers with current data, triggered Delay capture,
 zero endpoints/plateaus, logical controls, global inner clocks, root clock
 isolation, source jumps, primitive-to-gate ordering, coincident activation,
 nested inactivity, forks/checkpoints, rollback, persistence, and rejection paths.
-These are the intended checks; this document does not assert a final full-gate
-result. Verification status belongs in [ADVANCED_PLAN.md](ADVANCED_PLAN.md).
+Strict generated-C model/API comparisons are in `Test-EventCodegen.ps1`,
+`Test-EventCodegenEdges.ps1` and `Test-EventCodegenHierarchy.ps1`. These are
+regression commands, not a claim that every compatibility case is covered.
+Current completed verification belongs in [VALIDATION.md](VALIDATION.md).
 
 MathWorks describes enabled activation at major evaluations, inner discrete
 sample timing, and retained/reset behavior in
@@ -215,8 +225,9 @@ Its trigger-initialization options are described in the
 [Trigger reference](https://www.mathworks.com/help/simulink/slref/trigger.html).
 
 The comparison uses official documentation, analytic reference values, and
-Octave execution. The installed MATLAB environment lacks a runnable Simulink
-engine, so no live Simulink trajectory or full nested-policy comparison is
-claimed. Automatic rate propagation, nested reset-policy overrides, broader
-gate variants, implicit DAE support, and event-enabled C export remain tracked
-advanced-goal work.
+Octave execution. The retained MATLAB environment probe reported no runnable
+Simulink engine; current availability has not been rechecked. No live Simulink
+trajectory or full nested-policy comparison is claimed. Automatic rate
+propagation, nested reset-policy overrides, broader gate variants, implicit
+DAE support and adaptive C emission remain tracked advanced-goal work in
+[COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md).

@@ -136,14 +136,15 @@ octave_blocks (model);
 The example enables execution on `[.375,.875)`. Its `.25` inner clock runs at
 `.5` and `.75`, retaining its global phase. This follows the discrete-clock
 rule illustrated by [MathWorks' enabled subsystem example](https://www.mathworks.com/help/simulink/ug/enabled-subsystems.html).
-The checks use analytical traces; a live Simulink engine is still unavailable.
+The checks use analytical traces; the retained environment probe reported no
+runnable Simulink engine and has not been repeated for this milestone.
 Automatic sample-time propagation to all algebraic blocks and Outports remains
 open; these ports retain this simulator's inherited evaluation contract.
 Generated C supports the same inner clocks through a root-owned inventory
 and transient event frames. Clock phase and pending captures survive inactive
 periods; initialization/reset affects child state, not global ticks.
-That C support uses sampled controls; continuous-control models are rejected
-before replacing an export file.
+RK4 C export also supports declared continuous controls with
+`zero_crossings=true`; omitting the required option fails before replacement.
 
 ## Hierarchy, scopes, and checkpoints
 
@@ -179,9 +180,11 @@ with all three solvers. `test_ob_enabled_multirate` additionally checks global
 phase/offsets, skipped and hidden hits, inherited control-clock unions, pause
 and reset behavior, matrix-compatible contexts, nested clock routing, mixed
 continuous/discrete bodies, checkpoints, and transactional failures.
-Current limitations include combined enable-and-trigger variants, general event location,
-and data feedback across an atomic boundary (currently conservatively treated
-as a direct dependency).
+Current limitations include combined enable-and-trigger/resettable variants,
+broader event classes beyond registered primitive and continuous-control
+guards, and data feedback across an atomic boundary (currently conservatively
+treated as a direct dependency). First-evaluation trigger initialization,
+nested reset-policy overrides and full sample-time propagation remain gaps.
 
 Conditional C generation uses recursive typed child contexts and numeric
 output proxies. The same sampled mode, reset/hold, and inherited-interval rules
@@ -192,18 +195,25 @@ the parent's RK4 stages in generated C, including nested active states, matrix
 states, current parent stage inputs, and endpoint output snapshots. The C
 exporter preserves a separate major-hit snapshot for discrete Delay/Euler
 captures. Host-input errors and nonfinite derivatives roll back the entire
-parent/child context. Adaptive solver emission remains unsupported.
+parent/child context. With `zero_crossings=true`, RK4 C generation also locates
+registered primitives and explicitly continuous enable/trigger controls in
+active enabled descendants. Accepted lifecycle changes preserve clock phase;
+trial stages cannot commit child execution. Generated contexts retain event
+counts/latest time rather than an unbounded event log. Continuous controls
+require the event option; unsupported adaptive solver emission still fails
+before source replacement. See [CONTINUOUS_CONTROLS.md](CONTINUOUS_CONTROLS.md)
+for initialization, plateau and event-search limits.
 Unsupported models are rejected
 before replacing an existing source. See [CODEGEN.md](CODEGEN.md) for metadata
 and API details. The broader milestone remains open in
-[ADVANCED_PLAN.md](ADVANCED_PLAN.md).
+[COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md).
 
 ## MATLAB and REA evidence
 
-The installed MATLAB R2026b Update 1 was launched for comparison. Its recorded
+MATLAB R2026b Update 1 was launched during development for comparison. Its recorded
 [environment probe](matlab-environment.json) reports no installed Simulink and
-no `load_system` function, despite a successful feature-license test. A live
-Simulink trace comparison is therefore still pending.
+no `load_system` function, despite a successful feature-license test. Current
+availability has not been rechecked; a live Simulink trace comparison remains pending.
 [reference_ob_conditional.m](reference_ob_conditional.m) builds temporary
 comparison models when a local Simulink engine is available; it does not alter
 existing models.

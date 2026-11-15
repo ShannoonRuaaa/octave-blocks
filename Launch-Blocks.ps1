@@ -32,6 +32,9 @@ if ($SelfTest) {
     & $executable --quiet --eval "addpath('$sourcePath'); test_ob_performance_graph(); test_ob_performance_metadata(); test_ob_performance_events(); [passed,total]=test(fullfile('$sourcePath','ob_execution_order.m'),'quiet'); assert(total>0 && passed==total); [passed,total]=test(fullfile('$sourcePath','ob_edges.m'),'quiet'); assert(total>0 && passed==total); addpath(fullfile('$sourcePath','private')); [passed,total]=test(fullfile('$sourcePath','private','ob_zc_snapshot.m'),'quiet'); assert(total>0 && passed==total);"
     if ($LASTEXITCODE -ne 0) { throw 'Optimization compatibility verification failed.' }
     & (Join-Path $PSScriptRoot 'Test-Codegen.ps1') -OctaveHome $OctaveHome
+    & (Join-Path $PSScriptRoot 'Test-EventCodegen.ps1') -OctaveHome $OctaveHome
+    & (Join-Path $PSScriptRoot 'Test-EventCodegenEdges.ps1') -OctaveHome $OctaveHome
+    & (Join-Path $PSScriptRoot 'Test-EventCodegenHierarchy.ps1') -OctaveHome $OctaveHome
     & (Join-Path $PSScriptRoot 'Test-Editor.ps1') -OctaveHome $OctaveHome
     return
 }

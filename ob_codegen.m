@@ -2,12 +2,6 @@ function info = ob_codegen (model, file, config = [0 10 0.1], options = struct (
   % Export a validated static real-double model as standalone, allocation-free C99.
   config = ob_validate_config (config);
   options = ob_solver_options (options);
-  if (ob_has_continuous_control (model))
-    error ('ob_codegen: continuous subsystem control event code is not yet generated');
-  endif
-  if (options.zero_crossings)
-    error ('ob_codegen: zero-crossing event code is not yet generated; disable zero_crossings to export');
-  endif
   if (! strcmp (options.solver, "rk4"))
     error ("ob_codegen: C export requires rk4; adaptive solver code is not yet generated");
   endif
@@ -18,6 +12,9 @@ function info = ob_codegen (model, file, config = [0 10 0.1], options = struct (
   if (! strcmpi (extension, ".c")), error ("ob_codegen: output must have a .c extension"); endif
   if (isempty (folder)), folder = pwd (); endif
   if (! exist (folder, "dir")), error ("ob_codegen: output directory does not exist"); endif
+  if (options.zero_crossings || ob_has_continuous_control(model))
+    info = ob_codegen_conditional (model, file, config, options); return;
+  endif
   [flat, signal_map, paths] = ob_compile_model (model);
   [order, edges, stateful] = ob_execution_order (flat);
   types = {flat.blocks.type};

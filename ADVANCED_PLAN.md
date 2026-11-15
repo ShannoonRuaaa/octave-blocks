@@ -5,28 +5,36 @@ subsystems, variable-step solvers, and code generation. This goal supersedes
 the first-release stopping point. A completed milestone does not mean full
 Simulink compatibility.
 
-Current status: paused at the user's request. The advanced goal is incomplete.
-Experimental event-enabled C work is retained on `codex/event-c-export` at
-`8aeec48`; it has not passed full integration verification or been published.
-The subsequent optimization audit is complete on `codex/performance-audit`, with
-full verification and before/after measurements recorded. See
-[OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for claims, evidence and limits.
-The validated public baseline remains commit `2ae43f3`.
+Current status: active, resumed by the user on 2026-11-14. The advanced goal
+is incomplete. The optimization release is merged into public `main` at
+`3cbf61c` (PR #1). See [OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for its
+measured scope and limits.
 
-## Optimization completion (2026-11-13)
+## Event C integration resumed (2026-11-14)
 
-The independent audit fixes passed 21 Octave suites, 25 graph/edge/snapshot BIST
-checks, 167 strict C99 cases and the expanded Qt editor gate. All 157 compiled
-numeric models matched Octave with worst scaled error 0; ten API harnesses passed.
-Interleaved measurements showed 10–28% lower runtime medians, 60–72% lower graph
-ordering medians, 32% lower large-table input-query median, and 7–8% lower editor
-selection medians. Small input-table cases had a small overhead; the report
-records this rather than claiming universal gains. Values/step/event counts
-matched. Reproduction scripts and raw timing samples are checked in.
+Development continues on `codex/event-c-integration`, combining the saved
+experimental C event runtime with the merged optimization release. The public
+event-export route is implemented and its registered check set passed: 21
+Octave suites, 25 BIST checks and 235 strict C99 compilation/execution cases.
+All 219 numerical C models matched Octave with worst scaled error 0; sixteen
+API harnesses passed. This includes independent edge and multi-level hierarchy
+checks and two exact editor-exported models. The original gate's process handle
+became unavailable after Qt callbacks; its completed stages were retained and
+the final Qt/C stage and BIST were explicitly rerun successfully. Full evidence
+and command coverage are in [VALIDATION.md](VALIDATION.md).
 
-This completes the optimization task, not the advanced compatibility goal.
-Experimental C event integration remains guarded and unverified in full; it was
-not resumed by this optimization work. No optimization changes have been pushed.
+The public route uses RK4, fixed shapes and the documented C Function subset;
+continuous controls require `zero_crossings=true`. The continuous-control demo
+now expresses the same gate with exportable arithmetic, retaining subsystem
+and Scope paths. Active descendants, source jumps, coincident clocks,
+equality/plateau memory, chattering and transactional failure/retry have
+acceptance coverage. A metadata test initially used future batch event records;
+sequential runtime references preserve the documented delayed plateau-report
+contract. No runtime change was made for that test-oracle correction.
+
+This completes the event-enabled RK4 C milestone. The earlier pause records
+below are historical. [COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md) is the
+current gap ledger and acceptance roadmap; the broader goal remains active.
 
 ## Event C implementation pause checkpoint (2026-11-12)
 
@@ -198,6 +206,8 @@ still need event/source-boundary advancement. These changes remain pending.
     events, pauses/resets, nested clocks, continuous coupling, and rollback.
   - [x] Locate explicitly declared continuous enable/trigger controls in Octave,
     preserving gate-only lifecycle, child clock phase and checkpoint histories.
+  - [x] Generate RK4 primitive and continuous-control event C, with nested
+    lifecycle/clock, metadata, rollback and exact editor-export acceptance.
   - [ ] Verify live Simulink traces and complete nested policy/event variants.
 - [ ] Algebraic loops and event handling: identify dependency components,
   solve supported loop systems with convergence diagnostics, detect general

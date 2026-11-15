@@ -81,8 +81,10 @@ Data is saved with the model and participates in Undo/Redo. See
 
 **Export C** generates standalone C99 for supported fixed-size real-double
 models, including matrices, state blocks, nested subsystems, and selected
-builtin Function blocks. Sampled conditional Subsystems also export as typed
-child contexts with retained/reset state and held outputs. Choose `rk4` in Settings before export. The generated
+builtin Function blocks. Conditional Subsystems export as typed child contexts
+with their supported state/output policies. With zero crossings enabled, RK4
+exports also locate registered primitives and declared continuous controls.
+Choose `rk4` in Settings before export. The generated
 source has a reusable C API and an optional CSV runner; see [CODEGEN.md](CODEGEN.md)
 for supported operations, compiler commands, return codes, and limitations.
 Octave's workspace variable `ob_last_export` contains the export metadata.
@@ -105,7 +107,9 @@ for port order, shape requirements, and solver limitations at crossings.
 Saturation, and Dead Zone with RK4, ode45, or ode15s. It defaults to 0. Set it
 to 1 to split integration at computed signal crossings; the maximum-step
 setting also bounds the RK4 event search. Events appear in
-`ob_last_result.events`. Event-enabled C export is currently rejected.
+`ob_last_result.events`. RK4 C export accepts this option and stores cumulative
+event count/latest time in each generated context; it does not keep an unbounded
+event log. Continuous controls require the option. Adaptive C solvers remain unsupported.
 See [ZERO_CROSSINGS.md](ZERO_CROSSINGS.md) for initial-zero behavior, matrix
 channels, event history, sampling rules, and remaining limitations.
 
@@ -252,7 +256,8 @@ Nesting is limited to 32 levels.
 
 `ob_continuous_control_example` returns a model and event-enabled options for
 an enable interval between sparse output requests. Continuous-control models
-currently run in Octave only. Runtime execution also caches immutable routing
+run in Octave and export through the RK4 event runtime with
+`zero_crossings=true`. Runtime execution also caches immutable routing
 and conditional metadata; see [RUNTIME_PERFORMANCE.md](RUNTIME_PERFORMANCE.md)
 for measured improvements and the cache/checkpoint contract.
 
@@ -274,6 +279,11 @@ for the advanced functionality roadmap.
 exports and compares all signal channels against Octave references. A C99
 compiler is required for those checks; the script uses Octave's bundled GCC
 by default. It then runs the Qt retained-graphics checks in `Test-Editor.ps1`.
+The full gate also runs the focused event-export checks in `Test-EventCodegen.ps1`,
+`Test-EventCodegenEdges.ps1` and `Test-EventCodegenHierarchy.ps1`; each compiles
+and compares event-enabled models through the public exporter. See
+[EVENT_CODEGEN_DEVELOPMENT.md](EVENT_CODEGEN_DEVELOPMENT.md) for runtime
+architecture and [COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md) for open milestones.
 The full gate now includes the three `test_ob_performance_*` compatibility
 suites and graph/edge/snapshot BIST checks. See
 [OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for corrected audit findings and

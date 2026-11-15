@@ -249,9 +249,11 @@ function test_ob_continuous_controls ()
     assert (strcmp(restored.blocks(7).value.execution.control,'continuous'));
     assert_close (ob_scope_data(ob_run(restored,[0 1],loaded),8)',[-9 4]);
     stream = fopen(source,'w'); assert(stream>=0); fputs(stream,sentinel); fclose(stream);
-    assert_error (@() ob_codegen(model,source,[0 1 .1],options), 'continuous');
-    assert (strcmp(fileread(source),sentinel));
-    assert_error (@() ob_codegen(model,source,[0 1 .1]), 'continuous');
+    exported = gate_options('rk4');
+    info = ob_codegen(model,source,[0 1 .1],exported);
+    assert (info.zero_crossings && info.event_guard_count>0);
+    stream = fopen(source,'w'); assert(stream>=0); fputs(stream,sentinel); fclose(stream);
+    assert_error (@() ob_codegen(model,source,[0 1 .1]), 'zero_crossings');
     assert (strcmp(fileread(source),sentinel));
   unwind_protect_cleanup
     if (exist(file,'file')), unlink(file); endif

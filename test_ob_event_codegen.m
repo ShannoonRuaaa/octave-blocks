@@ -6,6 +6,7 @@ function test_ob_event_codegen (directory, verify = false, pattern = '.*', exper
     return;
   endif
   if (! exist(directory,'dir')), mkdir(directory); endif
+  check_protected_exports(directory);
   [fixtures, specifications] = test_ob_event_codegen_cases ();
   manifest = struct ('name',{},'source',{},'standalone',{},'expected',{});
   exported = {};
@@ -57,6 +58,33 @@ function test_ob_event_codegen (directory, verify = false, pattern = '.*', exper
     write_text (fullfile(directory,source),[strjoin(lines,char(10)) char(10)]);
     manifest(end+1) = struct('name',name,'source',source,'standalone',false,'expected','');
   endfunction
+endfunction
+
+function check_protected_exports(directory)
+  source = fullfile(directory,'protected-event.c');
+  sentinel = sprintf('existing caller source\n');
+  options = struct('solver','rk4','zero_crossings',true);
+  model = ob_zero_crossing_example();
+  invalid = model; invalid.blocks(1).value = Inf;
+  [continuous, unused] = ob_continuous_control_example();
+  rejected = { ...
+    @()ob_codegen(model,source,[0 1 1],struct('solver','ode45','zero_crossings',true)), ...
+    @()ob_codegen(continuous,source,[0 1 1]), ...
+    @()ob_codegen(invalid,source,[0 1 1],options), ...
+    @()ob_codegen(ob_algebraic_example(),source,[0 1 1],options)};
+  fragments = {'rk4','zero_crossings','finite','algebraic'};
+  unwind_protect
+    for k=1:numel(rejected)
+      write_text(source,sentinel); caught=false;
+      try rejected{k}(); catch err
+        caught=!isempty(strfind(lower(err.message),fragments{k}));
+      end_try_catch
+      assert(caught,['event export must reject invalid input: ' fragments{k}]);
+      assert(strcmp(fileread(source),sentinel),'invalid event export replaced caller file');
+    endfor
+  unwind_protect_cleanup
+    if(exist(source,'file')),unlink(source);endif
+  end_unwind_protect
 endfunction
 
 function verify_exports (directory)

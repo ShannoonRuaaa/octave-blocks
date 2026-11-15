@@ -1,4 +1,4 @@
-function [cases, api] = test_ob_event_codegen_edges (directory = '', verify = false)
+function [cases, api] = test_ob_event_codegen_edges (directory = '', verify = false, experimental = false)
   % Independent edge specifications, with optional C preparation/verification.
   % Compile the emitted edge manifest with the same strict flags as the main
   % event suite, then call this function with verify=true to compare channels.
@@ -50,7 +50,12 @@ function [cases, api] = test_ob_event_codegen_edges (directory = '', verify = fa
   manifest = struct('name',{},'source',{},'standalone',{},'expected',{});
   for item = cases
     source=[item.name '.c']; expected_file=[item.name '.expected.csv'];
-    info=ob_codegen(item.model,fullfile(directory,source),item.config,item.options);
+    if (experimental)
+      % Developer opt-in only; the public exporter retains its event guard.
+      info=ob_codegen_conditional(item.model,fullfile(directory,source),item.config,item.options);
+    else
+      info=ob_codegen(item.model,fullfile(directory,source),item.config,item.options);
+    endif
     result=ob_run(item.model,ob_time_grid(item.config(1),item.config(2),item.config(3)),item.options);
     expected=result.t;
     for block=1:numel(result.compiled_model.blocks)

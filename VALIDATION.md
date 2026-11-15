@@ -1,5 +1,52 @@
 # Validation report
 
+## Event-enabled C milestone — 2026-11-14
+
+The complete registered check set passed on `codex/event-c-integration` through
+the public exporter. No production changes followed these checks.
+
+| Check | Result |
+| --- | --- |
+| Octave numerical/editor-core suites | All 21 passed, including zero crossings, continuous controls and three optimization suites |
+| Graph/edge/snapshot BIST | 9/9, 4/4 and 12/12 |
+| Existing supported C exports | 167 strict C99 cases: 157 numeric models and ten API harnesses; worst scaled error 0 |
+| Main event C gate | 45 cases: 43 numeric models, 392 channels, two API harnesses; worst scaled error 0 |
+| Independent event edge gate | Seven cases: six numeric models, 30 channels, guard-overflow API; worst scaled error 0 |
+| Nested hierarchy/event metadata gate | Fourteen cases: eleven numeric models, 76 channels, three API harnesses; worst scaled error 0 |
+| Qt editor and exact generated sources | Retained graphics and actual Export C callbacks passed; two exact C exports, sixteen channels, worst scaled error 0 |
+
+In total, 235 C cases compiled/executed with `-std=c99 -O2 -Wall -Wextra
+-Werror`: 219 numerical models and sixteen API harnesses. New coverage includes
+multi-level active/dormant ancestors, sampled/continuous mixes, state/output
+policies, inherited Euler intervals, private source jumps, coincident clocks,
+simultaneous guards, plateau memory, guard-subtraction overflow, chatter,
+rollback/retry and independent instances. Qt tests use scoped dialog responses
+to invoke the actual callback, including export from an inner view, cancellation,
+option propagation and protected-file failures. This is callback-level Qt
+verification, not a new native mouse/dialog inspection.
+
+`Launch-Blocks.ps1 -SelfTest` ran through all numerical/C stages and Qt callbacks;
+its execution handle became unavailable before a unified exit status or the
+final Qt-exported C comparison was retained. The complete final `Test-Editor.ps1`
+stage and explicit BIST were then rerun successfully with exit 0. The completed
+checks establish the registered set; no uninterrupted full-command exit is
+claimed for that first run. Local logs:
+
+- `.validation-artifacts/event-c-20261114-full-gate.log`: main completed stages.
+- `.validation-artifacts/event-c-20261114-final-stage-checks-v2.log`: final BIST
+  and Qt/C stage, including both exact GUI exports. The first focused BIST
+  invocation omitted the private-helper path; the successful rerun uses the
+  same setup as the registered launcher.
+- Earlier independent probes: `event-c-20261114-integration.log`,
+  `event-c-20261114-edges.log`, `event-c-20261114-hierarchy.log` and
+  `event-c-20261114-editor.log` in the same ignored directory.
+
+Final Qt/C artifacts are under
+`<TEMP>/octave-blocks-editor-44e692c07119424d9adabf7a79d218f7`.
+Each C gate prints its own artifact directory in the main log. The public
+support contract is [CODEGEN.md](CODEGEN.md); remaining advanced work and
+reference limits are in [COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md).
+
 ## Optimization verification — 2026-11-13
 
 The complete updated `Launch-Blocks.ps1 -SelfTest` passed: 21 Octave suites,
