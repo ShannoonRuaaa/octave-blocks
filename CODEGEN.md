@@ -1,5 +1,9 @@
 # Standalone C generation
 
+Event-runtime architecture and focused regression commands are described in
+[EVENT_CODEGEN_DEVELOPMENT.md](EVENT_CODEGEN_DEVELOPMENT.md). Current verification
+status is recorded in [VALIDATION.md](VALIDATION.md).
+
 Use **Export C** in the editor or call the exporter directly in Octave:
 
 ```octave
@@ -30,7 +34,8 @@ validation and source generation. The editor places export metadata in
 | Rate Transition | Samples its current input at its configured hit and holds it between hits; no extra Unit Delay. |
 | Integrator | RK4 with all continuous states integrated together; discrete states held during intermediate stages. |
 | Subsystem, Inport, Outport | Virtual boundaries are flattened; explicit ports, branches, hierarchy, and multiple subsystem outputs are retained in metadata. |
-| Conditional Subsystem | Sampled enabled/rising/falling/either execution with typed nested contexts, lazy initialization, and held/reset policies. Enabled bodies may contain continuous states and inherited or independent inner clocks. |
+| Conditional Subsystem | Sampled or explicitly continuous enabled/rising/falling/either control with typed nested contexts and lazy initialization. Enabled bodies support held/reset state/output policies, continuous states and inherited or independent inner clocks. Continuous controls require `zero_crossings=true`. |
+| Registered zero crossings | With `zero_crossings=true`, localize Switch/Saturation/Dead Zone guards and declared continuous controls under RK4, including active enabled descendants. |
 | Scope | Signals remain available as numeric channels in the API and CSV output. |
 | Selected builtin Function blocks | Elementwise unary math and supported binary operations below, with statically checked arity and broadcasting. |
 | Two-output Function calls | Actual builtin size, max, or min with one scalar/matrix input; dimensions or first-occurrence value/index pairs. |
@@ -83,7 +88,8 @@ pointers into parent or stack storage. See [CONDITIONAL.md](CONDITIONAL.md).
 
 See [CONTROLS.md](CONTROLS.md) for nonlinear block equations and solver limits.
 Switch evaluates both data branches; it does not gate execution of upstream
-blocks. General zero-crossing events are not generated.
+blocks. Registered event behavior and search limits are described below;
+arbitrary event registration is not supported.
 
 Arbitrary `.m` Function blocks, complex/integer/single/sparse/N-D parameters,
 adaptive solver code, changing signal shapes, and unsupported block types are
@@ -109,6 +115,9 @@ support tools. `Test-Codegen.ps1` sets and restores that PATH automatically:
 ./Test-Codegen.ps1
 ./Test-Codegen.ps1 -OctaveHome 'C:\path\to\Octave-11.3.0'
 ./Test-Codegen.ps1 -Compiler 'C:\path\to\gcc.exe' -OutputDirectory './c-verification'
+./Test-EventCodegen.ps1
+./Test-EventCodegenEdges.ps1
+./Test-EventCodegenHierarchy.ps1
 ```
 
 The script generates fixtures and Octave references, compiles with
@@ -142,9 +151,11 @@ code controls the output schedule by passing a strictly increasing finite
 timing as `ob_run` with the corresponding output times. A shortened final
 interval is supported. `ob_model_outputs` recomputes outputs at the current time.
 
-Return codes are `OB_OK`, `OB_BAD_ARGUMENT`, `OB_NONFINITE`, and `OB_INPUT_ERROR`. Initialization
-and stepping commit the context only on success; failures leave the previous
-context intact. Initialize before using a context, and check every return code.
+Return codes are `OB_OK=0`, `OB_BAD_ARGUMENT=1`, `OB_NONFINITE=2`, and
+`OB_INPUT_ERROR=3`. Typed exports additionally define `OB_EVENT_ERROR=4` for
+nonsettling/chattering event regimes or exhausted event-progress limits.
+Initialization and stepping commit the context only on success; failures leave
+the previous context intact. Initialize before using a context, and check every return code.
 Large models use proportionally large context and stack scratch arrays; host
 applications must provide sufficient memory.
 
@@ -167,8 +178,10 @@ logical subsystem output ports to their flattened Outport blocks. Parameters
 are compiled constants; regenerate the source after changing them. Exported
 symbols currently use the `ob_` prefix, so multiple separately generated models
 cannot yet be linked into one executable without namespacing their symbols.
-Exports containing conditional children also set `info.typed_conditional=true`;
-exports using only multi-output functions set it to false.
+Every export includes `info.typed_conditional`; it is true for conditional
+children and false for flat, event-only or multi-output models without them.
+Every path also includes `info.zero_crossings` and `info.event_guard_count`,
+which are false and zero respectively for ordinary event-off exports.
 Their private child symbols have separate generated namespaces; the public
 root API retains the `ob_` prefix.
 Exports with enabled inner clocks define `OB_CLOCK_COUNT`, `ob_clock_period`,
@@ -176,7 +189,11 @@ Exports with enabled inner clocks define `OB_CLOCK_COUNT`, `ob_clock_period`,
 context owns `clock_tick`; child resets do not reset it. Export metadata
 provides `info.clock_count` and `info.clocks` with path/rate entries. Temporary
 `ob_clock_frame` pointers are function arguments, never retained in a context.
-Typed exports also report `info.continuous_state_count`, counting continuous
+Those metadata fields are also present for flat exports. With no explicit
+clocks, the count is zero and the inventory is an empty path/rate struct.
+Equal rates on different blocks retain separate entries; this is a per-block
+inventory, not a count of distinct period/offset pairs.
+All export paths report `info.continuous_state_count`, counting continuous
 scalar components across the entire context tree. When continuous children
 require a shared solve, generated `OB_CONTINUOUS_COUNT` gives that total;
 `OB_STATE_COUNT` continues to describe only the root numeric state array.
@@ -258,17 +275,58 @@ output file. This restriction also appears in MathWorks' documented algebraic
 loop limitations. See [ALGEBRAIC.md](ALGEBRAIC.md) for the supported simulation
 scope and reference comparison.
 
-The simulation option `zero_crossings = true` is also rejected before output
-replacement. The generated RK4 kernel currently evaluates control primitives
-at its ordinary stages; it does not emit the event-localizing kernel described
-in [ZERO_CROSSINGS.md](ZERO_CROSSINGS.md). Disable the option to export the
-existing fixed-step behavior. This restriction is specific to the current
-Octave Blocks exporter; it is not a Simulink code-generation restriction.
+## Event-enabled RK4 export
 
-Models declaring `execution.control='continuous'` are also rejected, even when
-`zero_crossings` is omitted or false. Turning off the event option cannot
-silently reinterpret a declared continuous gate as sampled. See
-[CONTINUOUS_CONTROLS.md](CONTINUOUS_CONTROLS.md).
+Pass the same event options used for Octave simulation:
+
+```octave
+options = struct ('solver', 'rk4', 'zero_crossings', true, 'maxstep', .1);
+info = ob_codegen (ob_zero_crossing_example (), 'events.c', [0 1 1], options);
+```
+
+The public exporter selects the typed event runtime even for a model without
+conditional children. Its metadata reports `info.zero_crossings=true` and
+`info.event_guard_count`, the static registered-guard inventory size. Inactive
+descendants may own inventory entries without contributing active guards.
+`typed_conditional` describes conditional children, not whether events are on.
+
+Trial RK4 stages freeze the incoming Switch/Saturation/Dead Zone regimes while
+guards use raw source values. Located crossings settle outgoing modes before
+continuing. Accepted continuous gates dispatch lifecycle changes separately
+from clock hits; trials cannot commit child state or trigger history. Known
+Step/input boundaries and explicit clocks split integration. Coincident clocks
+execute once; primitive events do not consume unrelated inherited captures.
+
+`maxstep` bounds searched RK4 segments independently of requested output times.
+The default `Inf` does not add a bound. Sign-based detection cannot guarantee
+all crossings or tangencies between samples; choose a bound appropriate to the
+control frequency and dynamics. Localization does not make a coarse nonlinear
+RK4 trajectory exact. See [ZERO_CROSSINGS.md](ZERO_CROSSINGS.md) for the model's
+registered guards and [CONTINUOUS_CONTROLS.md](CONTINUOUS_CONTROLS.md) for gate
+initialization, equality and plateau rules.
+
+Event-enabled `ob_model` contexts contain cumulative `event_count` and
+`last_event_time`; the latter is meaningful only when the count is nonzero.
+Simultaneous guard records can increase the count more than once at one time.
+There is no unbounded C event log and these fields do not replace the detailed
+Octave `result.events` records. At a zero plateau ending on a requested stop,
+the following advance may first establish and report the outgoing transition
+at that previous stop. `ob_model_outputs` does not perform that forward search.
+
+Event failures return `OB_EVENT_ERROR`; finite guard-subtraction overflow returns
+`OB_NONFINITE`. Initialization, output evaluation, provider replacement and
+steps preserve the complete caller context on failure, including nested states,
+clocks and event memory. Callback effects outside the context cannot be rolled
+back. A successful provider change recomputes current outputs without advancing
+state or replaying past events.
+
+A model declaring `execution.control='continuous'` requires
+`zero_crossings=true`; omitting or disabling it fails before file replacement.
+Adaptive C solver selection is also rejected before replacement. Disabling
+events on a model with only sampled controls selects ordinary RK4 behavior;
+it does not assert equality with an event-enabled trajectory. General events,
+adaptive C solvers and the broader gaps in
+[COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md) remain unfinished.
 
 ## Independent sample clocks
 

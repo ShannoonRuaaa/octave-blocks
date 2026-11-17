@@ -42,8 +42,7 @@ function output = ob_control_output (block, inputs, id, mode = [])
       if (isscalar (selected))
         if (selected), output = inputs{1}; else output = inputs{3}; endif
       else
-        output = inputs{3};
-        output(selected) = inputs{1}(selected);
+        output = ifelse (selected, inputs{1}, inputs{3});
       endif
     otherwise
       error ("ob_run: unsupported control block '%s'", block.type);

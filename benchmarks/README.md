@@ -34,3 +34,25 @@ source directory. Separate-process wall times showed substantial drift on the
 test machine, so the final report uses the interleaved measurements instead.
 Avoid concurrent tests or benchmarks. Small differences and these few models
 do not establish universal speed guarantees.
+
+## PR #2 audit measurements
+
+`pr2-audit-20261116-ui.json` retains all 36 same-process motion samples, their
+order, source SHA256 hashes and summary. Version labels identify the exact
+`39fc357` editor and the final working-tree editor. The candidate source hash
+identifies the measured file independently of its later Git commit.
+
+Use `benchmark_ob_editor_drag([10 40 100],12,1)` under Qt for these workloads.
+For comparisons, load only the baseline `octave_blocks.m` from an isolated
+directory, keep the shared benchmark/helper path available, close its figures,
+clear functions and assert `which('octave_blocks')` whenever switching sources.
+Use the recorded three ABBA/BAAB rounds, including each helper's warmup, rather
+than comparing two long-running processes. Repeat with the updated source.
+Capture every returned sample, including stalls. Small diagrams had overhead
+in the recorded run; these measurements are not a universal gain claim.
+
+`pr2-audit-20261116-codegen.json` records an isolated adjacency overlay comparison
+and the printed sample precision. It shows an indexing improvement but no
+material total generation gain. The overlay isolates indexing from the event,
+input and UI changes; it does not benchmark the whole PR as one transformation.
+See [PR2_AUDIT.md](../PR2_AUDIT.md) for findings and measured scope.

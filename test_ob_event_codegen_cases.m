@@ -27,6 +27,9 @@ function [cases, api] = test_ob_event_codegen_cases ()
   add ('event_root_discrete_clocks',root_clocks(rising),[0 1 1],[1.25 .75 0 1]);
   stateless = rising; stateless.blocks(6).type = 'Scope'; stateless.blocks(6).value = [];
   add ('event_no_continuous_states',stateless,[0 1 1],[3 3]);
+  % Empty continuous-state inventories must retain their schema through
+  % enabled child recursion, including when event mode has no guards.
+  add ('event_nested_discrete_only',ob_enabled_multirate_example(),[0 1 1],[.375 .25]);
   add ('event_virtual_primitive',nested_primitive('virtual'),[0 1 1],1.25);
   add ('event_sampled_enabled_primitive',nested_primitive('sampled'),[0 1 1],1.25);
   add ('event_continuous_enabled_primitive',nested_primitive('continuous'),[0 1 1],1.25);

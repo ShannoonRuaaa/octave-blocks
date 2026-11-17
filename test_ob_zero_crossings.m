@@ -265,8 +265,8 @@ function test_ob_zero_crossings ()
   reshaped.edges = [1 1 3 1;2 1 3 2;3 1 4 1;4 1 5 1];
   assert_error (@() ob_run(reshaped,[1 2],options), 'layout');
 
-  % Event configuration survives ordinary model files. C must not silently
-  % export a fixed-step model with different event-enabled dynamics.
+  % Event configuration survives ordinary model files and reaches the C
+  % event runtime. Unsupported adaptive C export preserves existing files.
   file = [tempname() '.mat'];
   source = [tempname() '.c'];
   sentinel = sprintf ('existing C source\n');
@@ -278,7 +278,12 @@ function test_ob_zero_crossings ()
     assert_close (ob_scope_data(ob_run(restored,[0 1],loaded),7)', [0 1.25]);
     stream = fopen (source, 'w'); assert (stream >= 0);
     fputs (stream, sentinel); fclose (stream);
-    assert_error (@() ob_codegen(rising,source,[0 1 1],options), 'zero');
+    exported = event_options('rk4');
+    info = ob_codegen(rising,source,[0 1 1],exported);
+    assert (info.zero_crossings && info.event_guard_count==1);
+    stream = fopen(source,'w'); assert(stream>=0); fputs(stream,sentinel); fclose(stream);
+    exported.solver = 'ode45';
+    assert_error (@() ob_codegen(rising,source,[0 1 1],exported), 'rk4');
     assert (strcmp (fileread(source), sentinel));
   unwind_protect_cleanup
     if (exist(file,'file')), unlink(file); endif

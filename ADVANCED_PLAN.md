@@ -5,8 +5,88 @@ subsystems, variable-step solvers, and code generation. This goal supersedes
 the first-release stopping point. A completed milestone does not mean full
 Simulink compatibility.
 
-Current status: paused at the user's request after the existing agents finished
-their assignments. The advanced goal is incomplete.
+Current status: active, resumed by the user on 2026-11-14. The advanced goal
+is incomplete. The optimization release is merged into public `main` at
+`3cbf61c` (PR #1). See [OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for its
+measured scope and limits.
+
+## Event C integration resumed (2026-11-14)
+
+The subsequent 2026-11-16 report review and fixes passed a fresh uninterrupted
+full gate: 23 Octave suites, 25 BIST checks and 241 strict C99 cases, including
+220 numerical models with worst scaled error 0. The audit disproves the claimed
+inverted initializer check, fixes confirmed issues and records performance
+tradeoffs. See [PR2_AUDIT.md](PR2_AUDIT.md) and [VALIDATION.md](VALIDATION.md).
+The broad compatibility scope below remains incomplete.
+
+Development continues on `codex/event-c-integration`, combining the saved
+experimental C event runtime with the merged optimization release. The public
+event-export route is implemented and its registered check set passed: 21
+Octave suites, 25 BIST checks and 235 strict C99 compilation/execution cases.
+All 219 numerical C models matched Octave with worst scaled error 0; sixteen
+API harnesses passed. This includes independent edge and multi-level hierarchy
+checks and two exact editor-exported models. The original gate's process handle
+became unavailable after Qt callbacks; its completed stages were retained and
+the final Qt/C stage and BIST were explicitly rerun successfully. Full evidence
+and command coverage are in [VALIDATION.md](VALIDATION.md).
+
+The public route uses RK4, fixed shapes and the documented C Function subset;
+continuous controls require `zero_crossings=true`. The continuous-control demo
+now expresses the same gate with exportable arithmetic, retaining subsystem
+and Scope paths. Active descendants, source jumps, coincident clocks,
+equality/plateau memory, chattering and transactional failure/retry have
+acceptance coverage. A metadata test initially used future batch event records;
+sequential runtime references preserve the documented delayed plateau-report
+contract. No runtime change was made for that test-oracle correction.
+
+This completes the event-enabled RK4 C milestone. The earlier pause records
+below are historical. [COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md) is the
+current gap ledger and acceptance roadmap; the broader goal remains active.
+
+## Event C implementation pause checkpoint (2026-11-12)
+
+The typed emitter now has separate experimental root and child runtimes,
+frozen primitive modes through nested/shared stages, static clock/guard
+inventories, accepted lifecycle/reconciliation and transactional context APIs.
+These are implementation changes under test, not a completed compatibility
+milestone. The public `ob_codegen` rejection checks remain in place. See
+[EVENT_CODEGEN_DEVELOPMENT.md](EVENT_CODEGEN_DEVELOPMENT.md) for the internal
+opt-in, architecture and remaining acceptance work.
+
+Verification completed before pausing:
+
+- The supported-export regression gate passed 167 strict C99 cases: 157 numeric
+  models with worst scaled error 0, and ten model API harnesses. Artifacts:
+  `.validation-artifacts/event-c-legacy-20261112/`.
+- All 43 event fixtures passed their analytical Octave checks; experimental
+  preparation generated 43 model sources and two API harnesses. Strict C
+  compilation then stopped on a falling-guard negative literal emitted as
+  `x--0.35`. The first two rising executables ran; the final full-channel
+  comparison phase was not reached. Artifacts:
+  `.validation-artifacts/event-c-20261112-integration/`.
+- Guard boundaries and Dead Zone subtraction operands were parenthesized to
+  fix negative C literals. Subsequent focused falling-switch and negative-bound
+  Dead Zone models both compiled with strict C99 flags, executed and matched
+  every numeric channel with scaled error 0. These checks validate the final
+  literal fix; they do not replace the interrupted full experimental run.
+  Artifacts: `.validation-artifacts/event-c-negative-closure/`.
+- Six additional edge specifications passed analytical Octave checks, including
+  guard-free models, large/tiny time scales, lazy/dormant child guards and finite
+  inputs causing guard-subtraction overflow. Their C preparation/API harness
+  remains unverified. Inventory and isolated event-math helper checks passed.
+
+No engine or UI implementation files changed in this increment. The previous
+complete application gate is the published 2026-11-11 record in
+[VALIDATION.md](VALIDATION.md). The supported C gate above preceded the final
+negative-literal parenthesization; the two focused checks exercised that fix.
+
+Resume by rerunning `Test-EventCodegen.ps1 -ExperimentalTyped` from clean
+artifacts. Complete all 45 compiled cases and final channel comparisons, then
+compile the independent edge models/API and resolve any lifecycle/clock/memory
+failures without weakening their analytical expectations. Rerun the supported
+C gate and full application gate before enabling public export. Updating the
+old public-rejection test expectations and public support documentation remains
+pending. No new goal work should run while paused.
 
 ## Optimization completion (2026-11-13)
 
@@ -133,6 +213,8 @@ still need event/source-boundary advancement. These changes remain pending.
     events, pauses/resets, nested clocks, continuous coupling, and rollback.
   - [x] Locate explicitly declared continuous enable/trigger controls in Octave,
     preserving gate-only lifecycle, child clock phase and checkpoint histories.
+  - [x] Generate RK4 primitive and continuous-control event C, with nested
+    lifecycle/clock, metadata, rollback and exact editor-export acceptance.
   - [ ] Verify live Simulink traces and complete nested policy/event variants.
 - [ ] Algebraic loops and event handling: identify dependency components,
   solve supported loop systems with convergence diagnostics, detect general

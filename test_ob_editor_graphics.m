@@ -132,10 +132,115 @@ function test_ob_editor_graphics ()
     assert(abs(moved_y(end)-branching.model.blocks(3).y)<1e-14);
     feval(get(branch,'windowbuttonupfcn'),branch,[]);
 
+    % A trusted callback skips the coordinate-discovery loop. External moves
+    % of nonselected blocks invalidate that hint and update every moved block
+    % and incident wire, while retaining the existing scene objects.
+    probe=octave_blocks(ob_multioutput_example()); figures(end+1)=probe;
+    click_block(probe,2); probing=guidata(probe);
+    retained=sort(findall(probing.axes));
+    assert(getappdata(probe,'ob_state_listener') && !getappdata(probe,'ob_external_state'));
+    [scans,checks]=profile_motion(probe,[.02 .01]); assert(scans==0 && checks==0);
+    probing=guidata(probe); assert_diagram_geometry(probing);
+    probing.model.blocks(1).x += .015;
+    probing.model.blocks(3).y -= .025;
+    probing.config=[0 3 .05]; probing.options.solver='ode45';
+    probing.saved=struct('model',probing.model,'config',probing.config,'options',probing.options);
+    external_saved=probing.saved;
+    guidata(probe,probing);
+    assert(getappdata(probe,'ob_external_state') && !getappdata(branch,'ob_external_state'));
+    [scans,checks]=profile_motion(probe,[.04 .02]); assert(scans==1 && checks==1);
+    probing=guidata(probe); assert_diagram_geometry(probing);
+    assert(isequal(sort(findall(probing.axes)),retained));
+    assert(isequal(probing.config,[0 3 .05]) && strcmp(probing.options.solver,'ode45'));
+    assert(isequal(probing.saved,external_saved));
+    assert(!isempty(strfind(get(probe,'name'),'*')) && isempty(probing.undo));
+    % External saved-state updates also apply during geometry-only drawing.
+    saved_model=probing.model;
+    saved_model.blocks(2).x=probing.drag_position(1)+.05;
+    saved_model.blocks(2).y=probing.drag_position(2)+.03;
+    probing.saved=struct('model',saved_model,'config',probing.config,'options',probing.options);
+    guidata(probe,probing);
+    assert(profile_motion(probe,[.05 .03])==0);
+    assert(isempty(strfind(get(probe,'name'),'*')));
+    assert(!getappdata(probe,'ob_external_state') && !getappdata(probe,'ob_state_guard'));
+    feval(get(probe,'windowbuttonupfcn'),probe,[]); probing=guidata(probe);
+    assert(numel(probing.undo)==1 && !probing.dragging);
+    after_drag=probing.model; press_button(probe,'Undo'); probing=guidata(probe);
+    assert(isequal(probing.model,ob_multioutput_example()));
+    press_button(probe,'Redo'); probing=guidata(probe);
+    assert(isequal(probing.model,after_drag)); assert_diagram_geometry(probing);
+
+    % Attribute, edge-port and deleted-graphics changes cannot take the hint.
+    click_block(probe,2); probing=guidata(probe); old_body=probing.graphics.bodies(2);
+    probing.model.blocks(2).outputs=3;
+    probing.model.edges(2,2)=3; set(probe,'__guidata__',probing);
+    assert(getappdata(probe,'ob_external_state'));
+    profile_motion(probe,[.02 0]); probing=guidata(probe);
+    assert(!isgraphics(old_body) && probing.graphics.outputs(2)==3);
+    assert(isequal(probing.graphics.edges,ob_edges(ob_model_at(probing.model,probing.path))));
+    assert_diagram_geometry(probing);
+    delete(probing.graphics.bodies(1));
+    profile_motion(probe,[.03 0]); probing=guidata(probe);
+    assert(all(isgraphics(probing.graphics.handles))); assert_diagram_geometry(probing);
+    probing.graphics=rmfield(probing.graphics,'diagram'); guidata(probe,probing);
+    profile_motion(probe,[.04 0]); probing=guidata(probe);
+    assert_diagram_geometry(probing);
+    feval(get(probe,'windowbuttonupfcn'),probe,[]);
+
+    % A stale selected block cancels the anchor instead of moving a different
+    % block; mouse-up keeps exactly one Undo entry for the completed movement.
+    click_block(probe,2); profile_motion(probe,[.01 0]); probing=guidata(probe);
+    edited=probing.model; old_undo=numel(probing.undo);
+    probing.selected=3; guidata(probe,probing);
+    profile_motion(probe,[.08 0]); probing=guidata(probe);
+    assert(!probing.dragging && isequal(probing.model,edited));
+    assert(numel(probing.undo)==old_undo+1);
+    feval(get(probe,'windowbuttonupfcn'),probe,[]); probing=guidata(probe);
+    assert(numel(probing.undo)==old_undo+1);
+
+    % Reentrant property listeners must consume only the editor's own write
+    % token; a nested external guidata write stays invalid until verified.
+    reentrant=@rewrite_state;
+    setappdata(probe,'test_rewrite',true);
+    addlistener(probe,'__guidata__',reentrant);
+    click_block(probe,2); probing=guidata(probe);
+    assert(probing.config(2)==4 && !getappdata(probe,'ob_state_guard'));
+    dellistener(probe,'__guidata__',reentrant);
+    assert(isequal(probing.graphics.draw_key.current.config,probing.config));
+    feval(get(probe,'windowbuttonupfcn'),probe,[]);
+
+    % A throwing listener cannot leave an internal-write token behind.
+    disp('Checking guard recovery; intentional state-listener error diagnostics below are expected.');
+    throwing=@throw_state;
+    addlistener(probe,'__guidata__',throwing);
+    try
+      click_block(probe,2);
+    catch err
+      assert(!isempty(strfind(err.message,'intentional state-listener failure')));
+    end_try_catch
+    dellistener(probe,'__guidata__',throwing);
+    assert(!getappdata(probe,'ob_state_guard'));
+    probing=guidata(probe); probing.config(2)=5; guidata(probe,probing);
+    assert(getappdata(probe,'ob_external_state'));
+    feval(get(probe,'windowbuttonupfcn'),probe,[]);
+
+    % If provenance observation is unavailable, the full equality check is
+    % still required even with an otherwise current scene.
+    click_block(probe,2); setappdata(probe,'ob_state_listener',false);
+    [scans,checks]=profile_motion(probe,[.01 0]); assert(scans==0 && checks==1);
+    setappdata(probe,'ob_state_listener',true);
+    feval(get(probe,'windowbuttonupfcn'),probe,[]);
+
     % Hierarchy navigation must invalidate the old scene even when both
     % diagrams happen to have the same number of blocks.
     nested = ob_subsystem_example ();
     second = octave_blocks(nested); figures(end+1) = second;
+    click_block(second,1); state=guidata(second);
+    state.path=1; state.selected=1; guidata(second,state);
+    profile_motion(second,[.03 .01]); state=guidata(second);
+    assert(!state.dragging && isequal(state.model,nested) && isequal(state.path,1));
+    assert(isequal(state.graphics.diagram,ob_model_at(nested,1)) && isempty(state.undo));
+    press_button(second,'Up');
     click_block(second,1); feval(get(second,'windowbuttonupfcn'),second,[]);
     press_button(second,'Enter'); state = guidata(second);
     assert(isequal(state.path,1) && isequal(state.graphics.diagram,ob_model_at(nested,1)));
@@ -197,6 +302,54 @@ function test_ob_editor_graphics ()
     set(0,'defaultfigurevisible',previous);
   end_unwind_protect
   disp ('Octave Blocks retained editor graphics tests passed');
+endfunction
+
+function [scans,checks] = profile_motion (fig,delta)
+  state=guidata(fig); point=get(state.axes,'currentpoint');
+  point(:,1:2)=repmat(state.drag_origin+delta,2,1);
+  set(state.axes,'currentpoint',point);
+  assert(isequal(get(state.axes,'currentpoint'),point));
+  profile clear; profile on;
+  unwind_protect
+    feval(get(fig,'windowbuttonmotionfcn'),fig,[]);
+  unwind_protect_cleanup
+    profile off;
+  end_unwind_protect
+  info=profile('info'); scans=0; checks=0;
+  for entry=info.FunctionTable'
+    if (!isempty(strfind(entry.FunctionName,'ob_moved_blocks'))), scans += entry.NumCalls; endif
+    if (!isempty(strfind(entry.FunctionName,'ob_motion_coherent'))), checks += entry.NumCalls; endif
+  endfor
+endfunction
+
+function rewrite_state (fig,evt)
+  if (getappdata(fig,'test_rewrite'))
+    setappdata(fig,'test_rewrite',false);
+    state=guidata(fig); state.config(2)=4; guidata(fig,state);
+  endif
+endfunction
+
+function throw_state (fig,evt)
+  error('intentional state-listener failure');
+endfunction
+
+function assert_diagram_geometry (state)
+  diagram=ob_model_at(state.model,state.path); cache=state.graphics;
+  assert(isequal(cache.diagram,diagram));
+  for id=1:numel(diagram.blocks)
+    x=get(cache.bodies(id),'xdata'); y=get(cache.bodies(id),'ydata');
+    assert(max(abs(x(:)'-(diagram.blocks(id).x+[-.105 .105 .105 -.105])))<1e-14);
+    assert(max(abs(y(:)'-(diagram.blocks(id).y+[-.052 -.052 .052 .052])))<1e-14);
+  endfor
+  for k=1:rows(cache.edges)
+    edge=cache.edges(k,:); x=get(cache.wires(k,1),'xdata'); y=get(cache.wires(k,1),'ydata');
+    source=diagram.blocks(edge(1)); target=diagram.blocks(edge(3));
+    assert(abs(x(1)-source.x-.105)<1e-14 && abs(x(end)-target.x+.105)<1e-14);
+    source_offset=0; target_offset=0;
+    if(cache.outputs(edge(1))>1), source_offset=.072*((cache.outputs(edge(1))+1)/2-edge(2))/(cache.outputs(edge(1))-1); endif
+    if(cache.inputs(edge(3))>1), target_offset=.072*((cache.inputs(edge(3))+1)/2-edge(4))/(cache.inputs(edge(3))-1); endif
+    assert(abs(y(1)-source.y-source_offset)<1e-14 && abs(y(end)-target.y-target_offset)<1e-14);
+  endfor
 endfunction
 
 function click_block (fig,id)

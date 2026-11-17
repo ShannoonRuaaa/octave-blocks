@@ -63,7 +63,20 @@ function fig = octave_blocks (initial_model = ob_example ())
   state.options = ob_solver_options ();
   state.path = [];
   state.saved = ob_snapshot (state);
-  guidata (fig, state);
+  % guidata writes this property in Octave. Track writes outside the editor
+  % separately from its replaceable state; unsupported runtimes fall back to
+  % deep scene comparison on every motion.
+  setappdata (fig, 'ob_state_guard', false);
+  setappdata (fig, 'ob_external_state', true);
+  setappdata (fig, 'ob_external_revision', 0);
+  listener = false;
+  try
+    addlistener (fig, '__guidata__', @ob_state_changed);
+    listener = true;
+  catch
+  end_try_catch
+  setappdata (fig, 'ob_state_listener', listener);
+  ob_store_state (fig, state);
   ob_draw (fig);
 endfunction
 
@@ -185,6 +198,7 @@ function ob_action (src, action, data)
         state.dragging = true;
         state.drag_moved = false;
         state.drag_before = before;
+        state.drag_target = struct ('id',data,'path',state.path);
         point = get (state.axes, "currentpoint");
         state.drag_origin = point(1, 1:2);
         state.drag_position = [diagram.blocks(data).x, diagram.blocks(data).y];
@@ -452,26 +466,40 @@ function ob_action (src, action, data)
       && ! isequal (before, ob_snapshot (state)))
     state = ob_record (state, before);
   endif
-  guidata (fig, state);
+  ob_store_state (fig, state);
   ob_draw (fig, false, selection_only);
 endfunction
 
 function ob_drag (fig)
   state = guidata (fig);
-  if (! state.dragging || state.selected < 1), return; endif
+  if (! state.dragging), return; endif
+  % A programmatic selection/navigation change must not reuse an old anchor.
+  diagram = ob_model_at (state.model, state.path);
+  if (state.selected < 1 || state.selected > numel(diagram.blocks) ...
+      || ! isfield(state,'drag_target') ...
+      || state.drag_target.id != state.selected ...
+      || ! isequal(state.drag_target.path,state.path))
+    if (isfield(state,'drag_moved') && state.drag_moved ...
+        && ! isequal(state.drag_before,ob_snapshot(state)))
+      state = ob_record (state, state.drag_before);
+    endif
+    state.dragging = false;
+    if (state.selected > numel(diagram.blocks)), state.selected = 0; endif
+    ob_store_state (fig, state); ob_draw (fig); return;
+  endif
   point = get (state.axes, "currentpoint");
   shift = point(1, 1:2) - state.drag_origin;
   if (norm (shift) < 0.002), return; endif
   position = state.drag_position + shift;
-  diagram = ob_model_at (state.model, state.path);
   position = [max(0.11,min(0.89,position(1))) max(0.06,min(0.94,position(2)))];
-  if (isequal(position,[diagram.blocks(state.selected).x diagram.blocks(state.selected).y])), return; endif
+  previous_position = [diagram.blocks(state.selected).x diagram.blocks(state.selected).y];
+  if (isequal(position,previous_position)), return; endif
   diagram.blocks(state.selected).x = position(1);
   diagram.blocks(state.selected).y = position(2);
   state.drag_moved = true;
   state.model = ob_set_model_at (state.model, state.path, diagram);
-  guidata (fig, state);
-  ob_draw (fig, true);
+  ob_store_state (fig, state);
+  ob_draw (fig, true, false, struct('id',state.selected,'position',previous_position));
 endfunction
 
 function ob_stop_drag (fig)
@@ -484,12 +512,14 @@ function ob_stop_drag (fig)
     state = ob_record (state, state.drag_before);
   endif
   state.dragging = false;
-  guidata (fig, state);
+  ob_store_state (fig, state);
   if (moved), ob_draw (fig); endif
 endfunction
 
-function ob_draw (fig, geometry_only = false, selection_only = false)
+function ob_draw (fig, geometry_only = false, selection_only = false, motion = [])
   state = guidata (fig);
+  provenance = get(fig,'__appdata__');
+  revision = provenance.ob_external_revision;
   ax = state.axes;
   diagram = ob_model_at (state.model, state.path);
   % One coherency check preserves externally changed model/settings/saved data.
@@ -499,7 +529,21 @@ function ob_draw (fig, geometry_only = false, selection_only = false)
       && all(isfield(state.graphics,{'draw_key','dirty'})) ...
       && isequal(state.graphics.draw_key,key);
   if (cached_selection), dirty = state.graphics.dirty;
-  else dirty = geometry_only || ! isequal(state.saved,key.current); endif
+  else
+    dirty = false;
+    if (geometry_only)
+      % Different saved coordinates already prove that the snapshots differ.
+      % Fall back to full equality when an external save matches this motion.
+      try
+        saved_diagram = ob_model_at (state.saved.model, state.path);
+        id = state.selected;
+        dirty = ! isequal([saved_diagram.blocks(id).x saved_diagram.blocks(id).y], ...
+                         [diagram.blocks(id).x diagram.blocks(id).y]);
+      catch
+      end_try_catch
+    endif
+    if (! dirty), dirty = ! isequal(state.saved,key.current); endif
+  endif
   title_text = "Octave Blocks";
   if (dirty), title_text = [title_text " *"]; endif
   set (fig, "name", title_text);
@@ -528,17 +572,40 @@ function ob_draw (fig, geometry_only = false, selection_only = false)
   set (state.status, "string", [breadcrumb " : " status_text]);
   if (isfield(state,'graphics'))
     cache = state.graphics;
-    valid = isfield(cache,'incident') && numel(cache.incident)==numel(diagram.blocks) ...
+    valid = all(isfield(cache,{'incident','path','blocks','handles','diagram','selected', ...
+                              'bodies','edges','wires','inputs','outputs'})) ...
+            && numel(cache.incident)==numel(diagram.blocks) ...
             && isequal(cache.path,state.path) && numel(cache.blocks)==numel(diagram.blocks) ...
             && all(isgraphics(cache.handles));
+    moved = [];
+    if (valid && geometry_only)
+      % Reconstruct the scene immediately before ob_drag's single mutation.
+      % Full equality detects external edits, including other coordinates; the
+      % private motion hint alone is never evidence that the cache is current.
+      provenance = get(fig,'__appdata__');
+      coherent_motion = ! isempty(motion) && provenance.ob_state_listener ...
+                         && ! provenance.ob_external_state;
+      if (! coherent_motion && ! isempty(motion))
+        coherent_motion = ob_motion_coherent(cache.diagram,diagram,motion);
+      endif
+      if (coherent_motion)
+        moved = motion.id;
+      else
+        % External multi-block moves can still retain their graphics. Changes
+        % to ports, attributes or edges require a complete scene rebuild.
+        current_scene = diagram; previous_scene = cache.diagram;
+        current_scene.blocks = rmfield(current_scene.blocks,{'x','y'});
+        previous_scene.blocks = rmfield(previous_scene.blocks,{'x','y'});
+        valid = isequal(current_scene,previous_scene);
+        if (valid), moved = ob_moved_blocks(cache.diagram,diagram); endif
+      endif
+    endif
     if (valid && (geometry_only || cached_selection || isequal(cache.diagram,diagram)))
       if (geometry_only)
-        moved = [];
-        for id = 1:numel(diagram.blocks)
+        for id = reshape(moved,1,[])
           delta = [diagram.blocks(id).x-cache.diagram.blocks(id).x ...
                    diagram.blocks(id).y-cache.diagram.blocks(id).y];
           if (any(delta != 0))
-            moved(end+1) = id;
             for object = cache.blocks{id}
               if (strcmp(get(object,'type'),'text'))
                 point = get(object,'position'); point(1:2) += delta;
@@ -566,7 +633,8 @@ function ob_draw (fig, geometry_only = false, selection_only = false)
       endif
       cache.diagram = diagram; cache.selected = state.selected;
       cache.draw_key = key; cache.dirty = dirty;
-      state.graphics = cache; guidata(fig,state);
+      state.graphics = cache; ob_store_state(fig,state);
+      ob_scene_verified(fig,revision);
       return;
     endif
   endif
@@ -640,7 +708,61 @@ function ob_draw (fig, geometry_only = false, selection_only = false)
   endfor
   hold (ax, "off");
   cache.handles = [cache.wires(:)' cache.blocks{:}];
-  state.graphics = cache; guidata(fig,state);
+  state.graphics = cache; ob_store_state(fig,state);
+  ob_scene_verified(fig,revision);
+endfunction
+
+function coherent = ob_motion_coherent (cached, diagram, motion)
+  before_motion = diagram;
+  before_motion.blocks(motion.id).x = motion.position(1);
+  before_motion.blocks(motion.id).y = motion.position(2);
+  coherent = isequal(cached,before_motion);
+endfunction
+
+function ob_store_state (fig, state)
+  data = get(fig,'__appdata__'); previous = data.ob_state_guard;
+  data.ob_state_guard = true; set(fig,'__appdata__',data);
+  unwind_protect
+    guidata(fig,state);
+  unwind_protect_cleanup
+    if (isgraphics(fig))
+      data = get(fig,'__appdata__'); data.ob_state_guard = previous;
+      set(fig,'__appdata__',data);
+    endif
+  end_unwind_protect
+endfunction
+
+function ob_state_changed (fig, evt)
+  data = get(fig,'__appdata__');
+  if (data.ob_state_guard)
+    % Consume this write's token before other listeners run. A listener that
+    % writes guidata recursively is an external mutation and invalidates us.
+    data.ob_state_guard = false;
+  else
+    data.ob_external_state = true;
+    data.ob_external_revision += 1;
+  endif
+  set(fig,'__appdata__',data);
+endfunction
+
+function ob_scene_verified (fig, revision)
+  if (isgraphics(fig))
+    data = get(fig,'__appdata__');
+    if (data.ob_external_revision==revision)
+      data.ob_external_state = false; set(fig,'__appdata__',data);
+    endif
+  endif
+endfunction
+
+function moved = ob_moved_blocks (before, after)
+  % Only used when external edits prevent trusting the single-block hint.
+  moved = [];
+  for id = 1:numel(after.blocks)
+    if (before.blocks(id).x != after.blocks(id).x ...
+        || before.blocks(id).y != after.blocks(id).y)
+      moved(end+1) = id;
+    endif
+  endfor
 endfunction
 
 function ob_select_block (src, evt)

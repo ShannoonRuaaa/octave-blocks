@@ -4,11 +4,12 @@ Octave Blocks can locate computed Switch, Saturation, and Dead Zone transitions
 between requested output times. Enable the feature with
 `options.zero_crossings = true`; its default is `false`.
 
-The opt-in default preserves the existing fixed-step and generated-C execution
+The opt-in default preserves the ordinary fixed-step and generated-C execution
 mode. It is a compatibility choice for the current implementation, not full
 Simulink zero-crossing parity. Explicit continuous enable/trigger controls are
 also supported; see [CONTINUOUS_CONTROLS.md](CONTINUOUS_CONTROLS.md).
-Event-enabled C generation and broader event registration remain advanced-goal work.
+RK4 C generation supports the same registered guards; broader event
+registration remains advanced-goal work.
 
 ## Run the example
 
@@ -176,17 +177,29 @@ adaptive zero-crossing guard bands or all its Zeno-handling policies.
 
 ## C generation and verification scope
 
-`ob_codegen` explicitly rejects `zero_crossings = true` before replacing a C
-output file. Disabling the option selects the existing numerical mode; it does
-not establish equality with an event-enabled run. No event-enabled generated-C
-parity is claimed. See [CODEGEN.md](CODEGEN.md).
+`ob_codegen` accepts `zero_crossings=true` with `solver='rk4'`, selecting a
+typed event runtime with frozen incoming regimes, raw guards and accepted
+outgoing-mode reconciliation. Pass an appropriate `maxstep` to bound searched
+segments; it cannot guarantee arbitrary multiple or tangential roots. Adaptive
+C solvers remain unsupported and fail before replacing an output file.
+
+Generated contexts retain cumulative `event_count` and `last_event_time`, not
+an unbounded copy of Octave's detailed event array. Output reads do not search
+beyond the accepted time; a later advance can report a plateau departure at
+the previous stop. Nonsettling/chattering behavior returns `OB_EVENT_ERROR=4`
+without committing caller state. See [CODEGEN.md](CODEGEN.md) for metadata,
+other return codes, transactional APIs and export options.
 
 Run `test_ob_zero_crossings()` for the feature's numerical regression coverage.
 The suite checks analytic rising/falling and state-defined Switch transitions,
 Saturation/Dead Zone integrals, matrix/simultaneous guards, bounded oscillatory
 searches, zero plateaus, exact output boundaries, clock coincidences, runtime
 forks/checkpoints, hierarchy, small/large time scales, failure rollback,
-chattering, guard-layout changes, persistence, and protected C-file rejection.
+chattering, guard-layout changes, persistence, event-export metadata and
+protected invalid C-export rejection. Run `Test-EventCodegen.ps1`,
+`Test-EventCodegenEdges.ps1` and `Test-EventCodegenHierarchy.ps1` for strict
+compiled full-channel comparisons and API checks. Current completed results
+belong in [VALIDATION.md](VALIDATION.md).
 The tests and independent probes use analytic expectations and native Octave.
 
 MathWorks describes zero-crossing detection as bracketing registered guard
@@ -204,4 +217,6 @@ and controls localization/restarts itself. See
 [Octave's MATLAB-compatible solvers](https://docs.octave.org/latest/Matlab_002dcompatible-solvers.html)
 and [MATLAB event-location limitations](https://www.mathworks.com/help/matlab/math/ode-event-location.html).
 The MathWorks comparison uses public documentation, not a running Simulink
-trajectory; live Simulink is unavailable in the installed MATLAB environment.
+trajectory. The retained environment probe reported no runnable Simulink;
+current availability has not been rechecked. See
+[REFERENCE_EVIDENCE.md](REFERENCE_EVIDENCE.md) for the evidence limits.
