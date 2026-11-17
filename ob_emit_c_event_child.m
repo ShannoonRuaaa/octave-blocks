@@ -203,4 +203,4 @@ function expression=clock_test(ids)
   if (isempty(terms)), expression='0'; else expression=strjoin(terms,'||'); endif
 endfunction
 
-function value=num(x), value=sprintf('%.17g',x); endfunction
+function value=num(x), value=ob_c_number_list(x); endfunction

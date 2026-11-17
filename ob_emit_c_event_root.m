@@ -313,6 +313,5 @@ function entries=continuous_entries(u,access,guard)
 endfunction
 
 function text=num(value)
-  text=sprintf('%.17g',value);
-  if(isempty(strfind(text,'.'))&&isempty(strfind(lower(text),'e'))),text=[text '.0'];endif
+  text=ob_c_number_list(value);
 endfunction

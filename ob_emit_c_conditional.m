@@ -763,11 +763,10 @@ function yes=has_multiply(u)
   for child=u.children,if(!isempty(child{1})),yes|=has_multiply(child{1});endif;endfor
 endfunction
 function text=num(value)
-  text=sprintf('%.17g',value);
-  if(isempty(strfind(text,'.'))&&isempty(strfind(lower(text),'e'))),text=[text '.0'];endif
+  text=ob_c_number_list(value);
 endfunction
 function text=nums(values)
-  text=strjoin(arrayfun(@num,values,'uniformoutput',false),',');
+  text=ob_c_number_list(values);
 endfunction
 function text=ints(values)
   if(isempty(values)),text='0';else text=sprintf('%d,',values);text(end)=[];endif

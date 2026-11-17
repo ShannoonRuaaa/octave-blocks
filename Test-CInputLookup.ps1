@@ -40,7 +40,7 @@ $octaveArtifacts = $artifactRoot.Replace('\', '/').Replace("'", "''")
 $inputLookupPreviousPath = $env:PATH
 try {
     $env:PATH = $binRoot + [IO.Path]::PathSeparator + (Split-Path -Parent $Compiler) + [IO.Path]::PathSeparator + $env:PATH
-    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); test_ob_c_input_lookup('$octaveArtifacts');"
+    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); test_ob_c_input_lookup('$octaveArtifacts'); test_ob_c_number_format('$octaveArtifacts');"
     if ($LASTEXITCODE -ne 0) { throw 'C input lookup harness preparation failed.' }
     foreach ($continuous in @(0, 1)) {
         $source = Join-Path $artifactRoot "c-input-lookup-$continuous.c"
@@ -50,5 +50,11 @@ try {
         if ($Benchmark -and $continuous -eq 1) { & $binary '--benchmark' } else { & $binary }
         if ($LASTEXITCODE -ne 0) { throw "C input lookup oracle failed for continuous=$continuous" }
     }
-    Write-Output "C input lookup verification passed. Artifacts: $artifactRoot"
+    $formatSource = Join-Path $artifactRoot 'c-number-format.c'
+    $formatBinary = Join-Path $artifactRoot 'c-number-format.exe'
+    & $Compiler '-std=c99' '-O2' '-Wall' '-Wextra' '-Werror' '-pedantic-errors' $formatSource '-lm' '-o' $formatBinary
+    if ($LASTEXITCODE -ne 0) { throw 'C number formatting compilation failed.' }
+    & $formatBinary
+    if ($LASTEXITCODE -ne 0) { throw 'C number formatting bitwise checks failed.' }
+    Write-Output "C input lookup and number formatting verification passed. Artifacts: $artifactRoot"
 } finally { $env:PATH = $inputLookupPreviousPath }

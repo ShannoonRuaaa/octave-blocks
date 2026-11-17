@@ -75,7 +75,8 @@ facilities when their contracts fit. For example, codegen adjacency uses
 listeners. New advanced numerical work should evaluate existing libraries
 before introducing a new solver implementation. Small generated helpers still
 need to preserve the documented self-contained C99 target; its standard
-`bsearch` does not provide the insertion position needed by input lookup.
+`bsearch` does not directly return an insertion position, so input lookup uses
+a bounded interval comparator and explicit endpoint handling around it.
 
 For drag changes, inspect write provenance as well as graphics. Internal
 `guidata` writes consume a per-figure observer token; external and reentrant

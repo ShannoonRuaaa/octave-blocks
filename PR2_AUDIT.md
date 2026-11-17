@@ -96,6 +96,11 @@ not presented as a full-simulation speed guarantee or zero small-table cost.
 
 ## Scope
 
+The report was subsequently expanded with built-in/library proposals. Their
+separate assessment and implemented replacements are in
+[BUILTIN_REVIEW.md](BUILTIN_REVIEW.md); earlier verification counts above apply
+to this first audit checkpoint, not the later expanded change set.
+
 The broader architectural items in the supplied report remain tracked in
 [COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md). This audit does not complete
 combined/resettable gates, adaptive C solvers, DAE handling, arbitrary Octave

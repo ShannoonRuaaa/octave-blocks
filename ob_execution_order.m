@@ -31,7 +31,7 @@ function [order, edges, stateful, loops] = ob_execution_order (model, allow_loop
     error ("ob_execution_order: algebraic loop without a stateful block");
   endif
 
-  [components, membership] = strongly_connected (n, direct, forward, targets);
+  [components, membership] = strongly_connected (n, direct);
   dag = unique ([membership(direct(:, 1))' membership(direct(:, 2))'], 'rows');
   dag = dag(dag(:, 1) != dag(:, 2), :);
   indegree = zeros (1, numel (components));
@@ -75,47 +75,25 @@ function [offsets, targets] = adjacency (n, edges)
   targets = edges(permutation,2);
 endfunction
 
-function [components, membership] = strongly_connected (n, edges, forward, targets)
-  % Iterative Kosaraju traversal avoids the interpreter's recursion limit for
-  % long diagrams.  Component IDs follow their smallest original block ID.
-  [reverse, sources] = adjacency (n, edges(:,[2 1]));
-  seen = false (1, n); finished = zeros (1, n); completed = 0;
-  stack = cursor = zeros (1, n);
-  for root = 1:n
-    if (seen(root)), continue; endif
-    seen(root) = true; depth = 1; stack(1) = root; cursor(1) = forward(root);
-    while (depth > 0)
-      id = stack(depth);
-      if (cursor(depth) < forward(id+1))
-        target = targets(cursor(depth)); cursor(depth) += 1;
-        if (! seen(target))
-          seen(target) = true; depth += 1; stack(depth) = target; cursor(depth) = forward(target);
-        endif
-      else
-        completed += 1; finished(completed) = id; depth -= 1;
-      endif
-    endwhile
+function [components, membership] = strongly_connected (n, edges)
+  % A structural diagonal gives a perfect matching, so dmperm's fine blocks
+  % are exactly the graph's SCCs (including isolated vertices). Its block
+  % order is deliberately ignored: historical IDs follow the smallest block
+  % ID, and the existing FIFO condensation traversal decides execution order.
+  graph = sparse (edges(:,1), edges(:,2), true, n, n) | speye (n);
+  [permutation, unused, boundaries] = dmperm (graph);
+  count = numel (boundaries)-1;
+  components = cell (1, count);
+  smallest = zeros (1, count);
+  for component = 1:count
+    ids = sort (permutation(boundaries(component):boundaries(component+1)-1));
+    components{component} = ids;
+    smallest(component) = ids(1);
   endfor
-  membership = zeros (1, n); components = cell (1, n); component = 0;
-  ids = zeros (1, n);
-  for root = fliplr (finished)
-    if (membership(root) != 0), continue; endif
-    component += 1;
-    membership(root) = component; depth = 1; stack(1) = root; used = 0;
-    while (depth > 0)
-      id = stack(depth); depth -= 1; used += 1; ids(used) = id;
-      for source = sources(reverse(id):reverse(id+1)-1)'
-        if (membership(source) == 0)
-          membership(source) = component; depth += 1; stack(depth) = source;
-        endif
-      endfor
-    endwhile
-    components{component} = sort (ids(1:used));
-  endfor
-  components = components(1:component);
-  [~, permutation] = sort (cellfun (@(ids) ids(1), components));
-  components = components(permutation);
-  for component = 1:numel (components)
+  [unused, canonical] = sort (smallest);
+  components = components(canonical);
+  membership = zeros (1, n);
+  for component = 1:count
     membership(components{component}) = component;
   endfor
 endfunction

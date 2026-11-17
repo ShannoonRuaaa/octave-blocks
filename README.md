@@ -294,6 +294,9 @@ are registered in the full gate as well. The latter strictly compiles generated
 sampling/boundary helpers and compares them against independent scan oracles.
 See [PR2_AUDIT.md](PR2_AUDIT.md) for the subsequent report review, including
 disproven claims, confirmed changes and verification scope.
+The expanded built-in and solver/library recommendations are assessed in
+[BUILTIN_REVIEW.md](BUILTIN_REVIEW.md), including unsafe shape substitutions
+and the actual installed backend availability.
 Verification artifacts are retained in the reported directories. See
 [UI_PERFORMANCE.md](UI_PERFORMANCE.md) for measured editor improvements and
 [REVIEW_GUIDE.md](REVIEW_GUIDE.md) for architecture and review instructions.

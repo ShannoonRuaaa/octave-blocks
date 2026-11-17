@@ -94,11 +94,5 @@ function text = integers (values)
 endfunction
 
 function text = numbers (values)
-  tokens = arrayfun (@(value)sprintf('%.17g',value),values,'uniformoutput',false);
-  for index = 1:numel(tokens)
-    if (isempty(strfind(tokens{index},'.')) && isempty(strfind(lower(tokens{index}),'e')))
-      tokens{index} = [tokens{index} '.0'];
-    endif
-  endfor
-  text = strjoin (tokens,',');
+  text = ob_c_number_list (values);
 endfunction

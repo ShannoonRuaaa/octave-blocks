@@ -46,7 +46,9 @@ function model = ob_transfer_function (numerator, denominator, x0 = [])
   if (n == 0)
     model = ob_state_space (zeros(0),zeros(0,1),zeros(1,0),D,x0);
   else
-    A = [zeros(n-1,1) eye(n-1);-fliplr(denominator(2:end))];
+    % Reverse both axes of Octave's companion form to retain the documented
+    % derivative-state order and the meaning of nonzero initial states.
+    A = rot90 (compan (denominator), 2);
     B = [zeros(n-1,1);1];
     C = fliplr(numerator(2:end)-D*denominator(2:end));
     if (any(!isfinite(C)))

@@ -1,5 +1,26 @@
 # Validation report
 
+## Expanded built-in/library review — 2026-11-16
+
+The final `Launch-Blocks.ps1 -SelfTest` completed uninterrupted with exit 0:
+26 Octave suites, 25 BIST checks and 242 strict C99 cases. All 220 numerical
+models matched Octave with worst scaled error 0; seventeen API harnesses and
+five helper executables passed. New coverage includes 1,320 exact historical
+graph comparisons, matrix-control and transfer-state checks, 4,123 bitwise
+C-number round trips, and the existing 222,775 lookup oracles now exercising
+standard `bsearch`. Broyden acceleration retains the original checked-Jacobian
+fallback, successful-status requirement, fresh residual and conditioning checks.
+
+The final source hashes were unchanged throughout verification. Logs and result
+metadata are in `.validation-artifacts/builtin-audit-20261116/`; the final log
+ends with `FULL_GATE_COMPLETED_SUCCESSFULLY`. An earlier run was intentionally
+superseded before adopting the validated standard-library lookup adapter.
+Final Qt artifacts: `<TEMP>/octave-blocks-editor-eee29f3da33f4bac98b7d562b7c98bc8`.
+Expected throwing-listener errors and ill-posed algebraic test warnings occur
+inside intentional failure tests; the registered recovery assertions passed.
+See [BUILTIN_REVIEW.md](BUILTIN_REVIEW.md) for accurate recommendations, installed
+library availability, conditional backend proposals and measured scope.
+
 ## PR #2 audit verification — 2026-11-16
 
 The final `Launch-Blocks.ps1 -SelfTest` completed uninterrupted with exit 0.

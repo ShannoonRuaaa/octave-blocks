@@ -313,15 +313,11 @@ function info = ob_codegen (model, file, config = [0 10 0.1], options = struct (
 endfunction
 
 function text = c_number (value)
-  text = sprintf ('%.17g', value);
-  if (isempty (strfind (text, '.')) && isempty (strfind (lower(text), 'e')))
-    text = [text '.0'];
-  endif
+  text = ob_c_number_list (value);
 endfunction
 
 function text = number_list (values)
-  items = arrayfun (@c_number, values, 'uniformoutput', false);
-  text = strjoin (items, ',');
+  text = ob_c_number_list (values);
 endfunction
 
 function text = integer_list (values)
