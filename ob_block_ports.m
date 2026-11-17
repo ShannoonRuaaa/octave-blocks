@@ -17,6 +17,7 @@ function [inputs, outputs, minimum] = ob_block_ports (block)
       inputs = sum (strcmp (types, "Inport"));
       outputs = sum (strcmp (types, "Outport"));
       if (! strcmp (ob_execution_mode(block.value), 'virtual')), inputs += 1; endif
+      if (ob_is_combined_mode (ob_execution_mode(block.value))), inputs += 1; endif
     otherwise
       error ("ob_block_ports: unknown type '%s'", block.type);
   endswitch

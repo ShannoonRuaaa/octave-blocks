@@ -12,6 +12,15 @@ measured scope and limits.
 
 ## Event C integration resumed (2026-11-14)
 
+The 2026-11-17 combined-control milestone is in development on
+`codex/combined-controls`. Runtime and generated C support two trailing controls,
+three trigger directions, held/reset policies, and separate continuous guards.
+See [COMBINED_CONTROLS.md](COMBINED_CONTROLS.md) for the contract, reference
+limitations, and checks. The registered checks passed in separate numerical/C
+and desktop-enabled Qt runs: 27 Octave suites, 25 BIST checks and 269 strict
+C99 cases. See [VALIDATION.md](VALIDATION.md) for the restricted Qt launch
+limitation. The broad goal remains active.
+
 The subsequent 2026-11-16 report review and fixes passed a fresh uninterrupted
 full gate: 23 Octave suites, 25 BIST checks and 241 strict C99 cases, including
 220 numerical models with worst scaled error 0. The audit disproves the claimed

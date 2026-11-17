@@ -3,8 +3,15 @@ function state = ob_conditional_control (model, state, inputs, time, events, ini
   descriptor = ob_event_execution (model,events);
   options = descriptor.options;
   [unused, control] = ob_conditional_signals (model, inputs, time, false, descriptor.input_ports);
+  combined = ob_is_combined_mode(options.mode);
+  if (combined), control = inputs{end-1}; endif
+  if ((! isnumeric(control) && ! islogical(control)) || ! isreal(control) ...
+      || ! isscalar(control) || ! isfinite(control))
+    error ('ob_run: conditional enable must be a finite real scalar');
+  endif
   active = control > 0; previous = state.was_enabled;
-  state.control_sign = sign (double(control));
+  if (combined), state.enable_sign = sign(double(control));
+  else state.control_sign = sign(double(control)); endif
   if (previous && ! active)
     if (! isempty(state.continuous_active_since))
       state.continuous_elapsed += max(0,time-state.continuous_active_since);
@@ -16,7 +23,8 @@ function state = ob_conditional_control (model, state, inputs, time, events, ini
   endif
   reset = active && !previous && strcmp(options.states,'reset');
   if (reset)
-    state.initialized = false; state.child = [];
+    if (combined), state.reset_pending = true;
+    else state.initialized = false; state.child = []; endif
     state.continuous_elapsed = 0; state.advance_interval = 0;
   endif
   state.was_enabled = active;
@@ -24,7 +32,7 @@ function state = ob_conditional_control (model, state, inputs, time, events, ini
     if (strcmp(options.outputs,'reset')), state.outputs = options.initial_outputs; endif
     return;
   endif
-  if (! initialize), return; endif
+  if (! initialize || combined), return; endif
   if (! state.initialized)
     [signals, unused] = ob_conditional_signals (model, inputs, time, true, descriptor.input_ports);
     child = model; child.inputs = signals;

@@ -23,11 +23,13 @@ function unit = ob_c_conditional_unit (model, input_shapes = {}, prefix = 'ob_',
     shapes = unit.shapes(sources);
     location = strtrim (sprintf('%d ', unit.paths{id}));
     if (strcmp (block.type, 'Conditional Subsystem'))
-      if (prod(shapes{end}) != 1)
+      options = ob_execution_options(block.value,false);
+      controls = 1 + ob_is_combined_mode(options.mode);
+      if (any(cellfun(@prod,shapes(end-controls+1:end)) != 1))
         error ('ob_codegen: conditional control at block %s must be scalar', location);
       endif
       child_prefix = [prefix 'u' num2str(id) '_'];
-      child = ob_c_conditional_unit (block.value, shapes(1:end-1), child_prefix, false);
+      child = ob_c_conditional_unit (block.value, shapes(1:end-controls), child_prefix, false);
       unit.children{id} = child;
       unit.has_continuous_children |= child.has_continuous;
       unit.shapes{id} = [0 0];

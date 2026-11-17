@@ -231,3 +231,5 @@ trajectory or full nested-policy comparison is claimed. Automatic rate
 propagation, nested reset-policy overrides, broader gate variants, implicit
 DAE support and adaptive C emission remain tracked advanced-goal work in
 [COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md).
+
+Combined enable-and-trigger execution is documented separately in [COMBINED_CONTROLS.md](COMBINED_CONTROLS.md). Both controls receive independent scalar guards.

@@ -11,7 +11,7 @@ function lines = ob_emit_c_event_math (root)
       case 'threshold', kinds(index) = 0;
       case 'lower', kinds(index) = 1;
       case 'upper', kinds(index) = 2;
-      case 'control', kinds(index) = 3;
+      case {'control','enable'}, kinds(index) = 3;
       otherwise, error ('ob_emit_c_event_math: unsupported guard side');
     endswitch
     modes(index) = guard.mode_id-1;

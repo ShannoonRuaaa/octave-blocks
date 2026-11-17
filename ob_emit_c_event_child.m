@@ -4,6 +4,8 @@ function lines = ob_emit_c_event_child (u)
   lines = {};
   p = u.prefix; t = [p 'model'];
   enabled = strcmp(u.options.mode,'enabled');
+  combined=ob_is_combined_mode(u.options.mode);
+  extra='';if(combined),extra=',double enable';endif
   continuous_control = strcmp(u.options.control,'continuous');
   delayed = reshape(find(strcmp(u.types,'Unit Delay') | strcmp(u.types,'Discrete Integrator')),1,[]);
   if (enabled), emit_suspend (); endif
@@ -70,7 +72,7 @@ function lines = ob_emit_c_event_child (u)
   add('  m->time=time;m->start_time=frame->origin;m->initialized=1;', ...
       sprintf('  int status=%sevent_process(m,time,input,major,0.0,frame);',p), ...
       '  if(status==OB_OK){memcpy(m->major_value,m->value,sizeof(m->value));}return status;}', ...
-      sprintf('static int %sevent(%s *m,double time,const double *input,double control,double inherited_interval,ob_interval_kind interval_kind,int major,const ob_clock_frame *frame){',p,t), ...
+      sprintf('static int %sevent(%s *m,double time,const double *input,double control%s,double inherited_interval,ob_interval_kind interval_kind,int major,const ob_clock_frame *frame){',p,t,extra), ...
       '  (void)input;(void)inherited_interval;(void)interval_kind;(void)major;', ...
       '  if(!frame||!frame->accepted)return OB_OK;', ...
       '  if(!isfinite(time)||!isfinite(control))return OB_NONFINITE;', ...
@@ -117,12 +119,20 @@ function lines = ob_emit_c_event_child (u)
     add('  if(!active)return OB_OK;');
   else
     if (continuous_control), lifecycle='1'; else lifecycle='major&&!frame->reconcile'; endif
-    add(sprintf('  if(!(%s))return OB_OK;',lifecycle), ...
+    add(sprintf('  if(!(%s))return OB_OK;',lifecycle));
+    if(combined)
+      add('  if(!isfinite(enable))return OB_NONFINITE;', ...
+          '  const int enabled=enable>0.0;');
+      if(strcmp(u.options.states,'reset')),add('  if(enabled&&!m->was_enabled)m->reset_pending=1;');endif
+      add('  m->was_enabled=enabled;m->enable_sign=(enable>0.0)-(enable<0.0);');
+      if(strcmp(u.options.outputs,'reset')),add(sprintf('  if(!enabled)memcpy(m->held,%sinitial,%d*sizeof(double));',p,u.out_count));endif
+    endif
+    add( ...
         '  const int sign=(control>0.0)-(control<0.0);', ...
         '  const int rising=(m->previous_sign<0&&sign>=0)||(m->previous_sign==0&&sign>0);', ...
         '  const int falling=(m->previous_sign>0&&sign<=0)||(m->previous_sign==0&&sign<0);');
-    if (strcmp(u.options.mode,'rising')), active='rising&&!m->last_rising';
-    elseif (strcmp(u.options.mode,'falling')), active='falling&&!m->last_falling';
+    if (any(strcmp(u.options.mode,{'rising','enabled_rising'}))), active='rising&&!m->last_rising';
+    elseif (any(strcmp(u.options.mode,{'falling','enabled_falling'}))), active='falling&&!m->last_falling';
     else active='(rising&&!m->last_rising)||(falling&&!m->last_falling)'; endif
     add(['  active=' active ';']);
     if (continuous_control)
@@ -130,7 +140,9 @@ function lines = ob_emit_c_event_child (u)
     else
       add('  m->last_rising=rising;m->last_falling=falling;');
     endif
-    add('  m->previous_sign=sign;m->control_sign=sign;', ...
+    add('  m->previous_sign=sign;m->control_sign=sign;');
+    if(combined),add('  active=active&&enabled;reset=m->reset_pending;');endif
+    add( ...
         '  if(!active)return OB_OK;', ...
         '  ob_clock_frame triggered=*frame;triggered.reconcile=0;frame=&triggered;', ...
         '  major=1;m->last_sample=time;m->last_executed=0;');
@@ -147,6 +159,7 @@ function lines = ob_emit_c_event_child (u)
     add(sprintf('  else status=%sevent_process(m,time,input,major&&!frame->reconcile,%s,frame);',p,interval));
   endif
   add('  if(status!=OB_OK)return status;');
+  if(combined),add('  m->reset_pending=0;');endif
   emit_held ();
   add('  if(major&&!frame->reconcile)m->last_executed=1;');
   if (enabled)

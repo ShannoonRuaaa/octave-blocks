@@ -14,8 +14,8 @@ function options = ob_execution_options (model, check_body = true)
       options.(field{1}) = supplied.(field{1});
     endfor
   endif
-  if (! ischar (options.mode) || ! any (strcmp (options.mode, {'virtual','enabled','rising','falling','either'})))
-    error ('ob_execution_options: mode must be virtual, enabled, rising, falling, or either');
+  if (! ischar (options.mode) || ! any (strcmp (options.mode, {'virtual','enabled','rising','falling','either','enabled_rising','enabled_falling','enabled_either'})))
+    error ('ob_execution_options: unsupported subsystem execution mode');
   endif
   if (! ischar (options.control) || ! any (strcmp (options.control, {'sampled','continuous'})))
     error ('ob_execution_options: control must be sampled or continuous');
@@ -34,6 +34,7 @@ function options = ob_execution_options (model, check_body = true)
     endif
   endfor
   if (! any (strcmp (options.mode, {'virtual','enabled'})) ...
+      && ! ob_is_combined_mode (options.mode) ...
       && (! strcmp (options.states, 'held') || ! strcmp (options.outputs, 'held')))
     error ('ob_execution_options: triggered subsystems require held states and outputs');
   endif

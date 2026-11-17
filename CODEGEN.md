@@ -34,7 +34,7 @@ validation and source generation. The editor places export metadata in
 | Rate Transition | Samples its current input at its configured hit and holds it between hits; no extra Unit Delay. |
 | Integrator | RK4 with all continuous states integrated together; discrete states held during intermediate stages. |
 | Subsystem, Inport, Outport | Virtual boundaries are flattened; explicit ports, branches, hierarchy, and multiple subsystem outputs are retained in metadata. |
-| Conditional Subsystem | Sampled or explicitly continuous enabled/rising/falling/either control with typed nested contexts and lazy initialization. Enabled bodies support held/reset state/output policies, continuous states and inherited or independent inner clocks. Continuous controls require `zero_crossings=true`. |
+| Conditional Subsystem | Sampled or explicitly continuous enabled/rising/falling/either and combined enabled_rising/enabled_falling/enabled_either control with typed nested contexts and lazy initialization (see [combined controls](COMBINED_CONTROLS.md)). Enabled bodies support held/reset state/output policies, continuous states and inherited or independent inner clocks. Continuous controls require `zero_crossings=true`. |
 | Registered zero crossings | With `zero_crossings=true`, localize Switch/Saturation/Dead Zone guards and declared continuous controls under RK4, including active enabled descendants. |
 | Scope | Signals remain available as numeric channels in the API and CSV output. |
 | Selected builtin Function blocks | Elementwise unary math and supported binary operations below, with statically checked arity and broadcasting. |

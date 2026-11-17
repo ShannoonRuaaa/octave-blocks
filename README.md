@@ -46,7 +46,7 @@ discarding them. Undo history is kept for the current editor session.
 **Subsystem** adds an editable subsystem containing Inport 1 → Gain → Outport 1.
 Select it and use **Enter** to edit its contents; **Up** returns to its parent.
 The status line shows the current path. **Edit** changes its name and execution
-settings. Modes include virtual, enabled, and rising/falling/either trigger;
+settings. Modes include virtual, enabled, rising/falling/either trigger, and combined enabled_rising/enabled_falling/enabled_either (see [combined controls](COMBINED_CONTROLS.md));
 conditional modes add a last control input and support held initial outputs.
 Control timing defaults to sampled. Choose continuous in **Edit** and enable
 zero crossings in **Settings** to locate gate events between output requests;

@@ -42,7 +42,7 @@ initialization, plateau rules and current C restrictions.
 Enabled mode supports independent `held`/`reset` policies. `states='reset'`
 reinitializes the child on its next activation after a disabled hit.
 `outputs='reset'` uses the declared initial output while disabled. Trigger
-modes require held states and outputs. The child initializes lazily on its
+modes without an enable require held states and outputs. Combined modes support independent policies; see [COMBINED_CONTROLS.md](COMBINED_CONTROLS.md). The child initializes lazily on its
 first execution, so inactive Function blocks are not evaluated.
 
 Declare one finite real numeric initial output per numbered Outport. These
@@ -180,7 +180,7 @@ with all three solvers. `test_ob_enabled_multirate` additionally checks global
 phase/offsets, skipped and hidden hits, inherited control-clock unions, pause
 and reset behavior, matrix-compatible contexts, nested clock routing, mixed
 continuous/discrete bodies, checkpoints, and transactional failures.
-Current limitations include combined enable-and-trigger/resettable variants,
+Current limitations include resettable variants,
 broader event classes beyond registered primitive and continuous-control
 guards, and data feedback across an atomic boundary (currently conservatively
 treated as a direct dependency). First-evaluation trigger initialization,

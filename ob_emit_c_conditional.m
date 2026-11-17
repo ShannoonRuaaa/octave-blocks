@@ -73,7 +73,7 @@ function lines = ob_emit_c_conditional (root, times)
       sprintf('  double tick[%d];',count), ...
       '  double time,start_time; int initialized;', ...
       sprintf('  double held[%d];',max(1,u.out_count)), ...
-      '  double last_sample,advance_interval; int was_enabled,previous_sign,last_rising,last_falling,last_executed;');
+      '  double last_sample,advance_interval; int was_enabled,previous_sign,last_rising,last_falling,last_executed,reset_pending,enable_sign;');
     if (!u.root && (event_mode || u.has_continuous || (clock_mode && u.clocked)))
       add(sprintf('  double major_value[%s];',cn(u,'VALUE_STORAGE')));
     endif
@@ -152,6 +152,7 @@ function lines = ob_emit_c_conditional (root, times)
           % The core computes both proxy buffers together, before either is read.
         case 'Conditional Subsystem'
           child=u.children{id};
+          extra='';if(ob_is_combined_mode(child.options.mode)),extra=sprintf(',v[%d]',u.offsets(sources(end-1)));endif
           if(event_mode)
             emit_event_conditional_eval(u,id,sources,child);
             continue;
@@ -165,11 +166,11 @@ function lines = ob_emit_c_conditional (root, times)
                 sprintf('    %smodel local=m->child_%d;',child.prefix,id), ...
                 sprintf('    %smodel *context=event_model?&event_model->child_%d:&local;',child.prefix,id));
             if(child.input_count==0),add('    child_input[0]=0.0;');endif
-            for port=1:numel(sources)-1
+            for port=1:numel(child.input_sizes)
               add(sprintf('    memcpy(child_input+%d,v+%d,%d*sizeof(double));',child.input_offsets(port),u.offsets(sources(port)),child.input_sizes(port)));
             endfor
             add(sprintf('    const int major=hit&&hit[%d];',id-1), ...
-                sprintf('    if(major||(%s)){int status=%sclock_event(context,time,child_input,v[%d],%s,%s,major,frame);',clock_test(child.all_clocks),child.prefix,u.offsets(sources(end)),gate_interval,gate_kind), ...
+                sprintf('    if(major||(%s)){int status=%sclock_event(context,time,child_input,v[%d]%s,%s,%s,major,frame);',clock_test(child.all_clocks),child.prefix,u.offsets(sources(end)),extra,gate_interval,gate_kind), ...
                 '      if(status!=OB_OK)return status;}', ...
                 sprintf('    int status=%sflow(context,time,child_input,left);if(status!=OB_OK)return status;',child.prefix));
             emit_proxy_copies(u,id,child,'context->held');
@@ -180,10 +181,10 @@ function lines = ob_emit_c_conditional (root, times)
                 sprintf('    %smodel local=m->child_%d;',child.prefix,id), ...
                 sprintf('    %smodel *context=event_model?&event_model->child_%d:&local;',child.prefix,id));
             if (child.input_count==0),add('    child_input[0]=0.0;');endif
-            for port=1:numel(sources)-1
+            for port=1:numel(child.input_sizes)
               add(sprintf('    memcpy(child_input+%d,v+%d,%d*sizeof(double));',child.input_offsets(port),u.offsets(sources(port)),child.input_sizes(port)));
             endfor
-            add(sprintf('    if(hit&&hit[%d]){int status=%sgate_event(context,time,child_input,v[%d],%s,%s);',id-1,child.prefix,u.offsets(sources(end)),gate_interval,gate_kind), ...
+            add(sprintf('    if(hit&&hit[%d]){int status=%sgate_event(context,time,child_input,v[%d]%s,%s,%s);',id-1,child.prefix,u.offsets(sources(end)),extra,gate_interval,gate_kind), ...
                 '      if(status!=OB_OK)return status;}', ...
                 sprintf('    int status=%sflow(context,time,child_input,left);if(status!=OB_OK)return status;',child.prefix));
             proxies=u.proxies{id};
@@ -196,10 +197,10 @@ function lines = ob_emit_c_conditional (root, times)
           endif
           add(sprintf('  if(hit&&hit[%d]){',id-1),sprintf('    double child_input[%d];',max(1,child.input_count)));
           if (child.input_count==0),add('    child_input[0]=0.0;');endif
-          for port=1:numel(sources)-1
+          for port=1:numel(child.input_sizes)
             add(sprintf('    memcpy(child_input+%d,v+%d,%d*sizeof(double));',child.input_offsets(port),u.offsets(sources(port)),child.input_sizes(port)));
           endfor
-          add(sprintf('    int status=%sgate_event(&event_model->child_%d,time,child_input,v[%d],%s,%s);',child.prefix,id,u.offsets(sources(end)),gate_interval,gate_kind), ...
+          add(sprintf('    int status=%sgate_event(&event_model->child_%d,time,child_input,v[%d]%s,%s,%s);',child.prefix,id,u.offsets(sources(end)),extra,gate_interval,gate_kind), ...
             '    if(status!=OB_OK)return status;','  }');
         case 'Conditional Output'
           core=sources(1); child=u.children{core}; port=block.value;
@@ -258,16 +259,17 @@ function lines = ob_emit_c_conditional (root, times)
         sprintf('    %smodel local=m->child_%d;',child.prefix,id), ...
         sprintf('    %smodel *context=event_model?&event_model->child_%d:&local;',child.prefix,id));
     if(child.input_count==0),add('    child_input[0]=0.0;');endif
-    for port=1:numel(sources)-1
+    for port=1:numel(child.input_sizes)
       add(sprintf('    memcpy(child_input+%d,v+%d,%d*sizeof(double));', ...
                   child.input_offsets(port),u.offsets(sources(port)),child.input_sizes(port)));
     endfor
+    extra='';if(ob_is_combined_mode(child.options.mode)),extra=sprintf(',v[%d]',u.offsets(sources(end-1)));endif
     interval='inherited_interval';kind='interval_kind';
     if(strcmp(child.options.mode,'enabled')&&u.flat.sample_times(id,1)>0)
       interval=num(u.flat.sample_times(id,1));kind='OB_INTERVAL_PERIOD';
     endif
-    add(sprintf('    int status=%sevent(context,time,child_input,v[%d],%s,%s,hit&&hit[%d],frame);', ...
-                child.prefix,u.offsets(sources(end)),interval,kind,id-1), ...
+    add(sprintf('    int status=%sevent(context,time,child_input,v[%d]%s,%s,%s,hit&&hit[%d],frame);', ...
+                child.prefix,u.offsets(sources(end)),extra,interval,kind,id-1), ...
         '    if(status!=OB_OK)return status;', ...
         sprintf('    status=%sflow(context,time,child_input,left,frame);if(status!=OB_OK)return status;',child.prefix));
     emit_proxy_copies(u,id,child,'context->held');
@@ -443,6 +445,8 @@ function lines = ob_emit_c_conditional (root, times)
 
   function emit_child(u)
     p=u.prefix;t=[p 'model'];
+    combined=ob_is_combined_mode(u.options.mode);
+    extra='';if(combined),extra=',double enable';endif
     add(sprintf('static int %sbody_init(%s *m,double time,const double *input){',p,t));
     emit_numeric_init(u);emit_all_hits(u);
     add(sprintf('  int status=%seval(m,time,m->state,m->value,0,input,hit,m,0.0,0,NULL);',p));
@@ -465,12 +469,19 @@ function lines = ob_emit_c_conditional (root, times)
       '  if(status==OB_OK){m->time=time;');
     if(u.has_continuous),add('    memcpy(m->major_value,m->value,sizeof(m->value));');endif
     add('  } return status;','}', ...
-      sprintf('static int %sgate_event(%s *m,double time,const double *input,double control,double inherited_interval,ob_interval_kind interval_kind){',p,t), ...
+      sprintf('static int %sgate_event(%s *m,double time,const double *input,double control%s,double inherited_interval,ob_interval_kind interval_kind){',p,t,extra), ...
       '  (void)inherited_interval;(void)interval_kind;if(!isfinite(control))return OB_NONFINITE;', ...
       '  if(m->last_executed){');
     if(strcmp(u.options.mode,'enabled')),add('    m->advance_interval=interval_kind==OB_INTERVAL_ELAPSED?time-m->last_sample:inherited_interval;');
     else add('    m->advance_interval=time-m->last_sample;');endif
     add('  }','  m->last_sample=time;m->last_executed=0;int active=0,reset=0;');
+    if(combined)
+      add('  if(!isfinite(enable))return OB_NONFINITE;', ...
+          '  const int enabled=enable>0.0;');
+      if(strcmp(u.options.states,'reset')),add('  if(enabled&&!m->was_enabled)m->reset_pending=1;');endif
+      add('  m->was_enabled=enabled;m->enable_sign=(enable>0.0)-(enable<0.0);');
+      if(strcmp(u.options.outputs,'reset')),add(sprintf('  if(!enabled)memcpy(m->held,%sinitial,%d*sizeof(double));',p,u.out_count));endif
+    endif
     if(strcmp(u.options.mode,'enabled'))
       add('  active=control>0.0;');
       if(strcmp(u.options.states,'reset')),add('  reset=active&&!m->was_enabled;');endif
@@ -481,11 +492,12 @@ function lines = ob_emit_c_conditional (root, times)
       add('  const int sign=(control>0.0)-(control<0.0);', ...
         '  const int rising=(m->previous_sign<0&&sign>=0)||(m->previous_sign==0&&sign>0);', ...
         '  const int falling=(m->previous_sign>0&&sign<=0)||(m->previous_sign==0&&sign<0);');
-      if(strcmp(u.options.mode,'rising')),active='rising&&!m->last_rising';
-      elseif(strcmp(u.options.mode,'falling')),active='falling&&!m->last_falling';
+      if(any(strcmp(u.options.mode,{'rising','enabled_rising'}))),active='rising&&!m->last_rising';
+      elseif(any(strcmp(u.options.mode,{'falling','enabled_falling'}))),active='falling&&!m->last_falling';
       else active='(rising&&!m->last_rising)||(falling&&!m->last_falling)';endif
       add(['  active=' active ';'],'  m->previous_sign=sign;m->last_rising=rising;m->last_falling=falling;');
     endif
+    if(combined),add('  active=active&&enabled;reset=m->reset_pending;');endif
     add('  if(!active)return OB_OK;');
     if(u.input_count>0),add(sprintf('  for(size_t i=0;i<%s;++i)if(!isfinite(input[i]))return OB_NONFINITE;',cn(u,'INPUT_VALUE_COUNT')));endif
     add('  int status;',sprintf('  if(!m->initialized||reset)status=%sbody_init(m,time,input);',p));
@@ -494,6 +506,7 @@ function lines = ob_emit_c_conditional (root, times)
     for port=1:numel(u.out_ids)
       add(sprintf('  memcpy(m->held+%d,m->value+%d,%d*sizeof(double));',u.out_offsets(port),u.offsets(u.out_ids(port)),u.out_sizes(port)));
     endfor
+    if(combined),add('  m->reset_pending=0;');endif
     add('  m->last_executed=1;return OB_OK;','}');
     if (u.has_continuous)
       add(sprintf('static int %sflow(%s *m,double time,const double *input,int left){',p,t), ...

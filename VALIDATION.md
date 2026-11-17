@@ -1,5 +1,39 @@
 # Validation report
 
+## Combined enable and trigger controls — 2026-11-17
+
+The registered checks passed using separate numerical/C and desktop-enabled
+Qt runs against unchanged hashes of 158 source and test files:
+
+- 27 Octave suites and 25 BIST checks.
+- 269 strict C99 compilation/execution cases: 247 numerical models, seventeen
+  API harnesses and five helper executables. Worst scaled numerical error: 0.
+- The new combined-control subset comprises 27 C models and 172 numerical
+  channels, covering trigger directions, held/reset policies, separate
+  continuous guards, matrix data and a nested clocked ancestor.
+- The runtime subset passed with RK4, ode45 and ode15s, including continuous
+  analytical traces, sparse/dense requests, lazy reset, rollback and checkpoint
+  continuation.
+- Desktop-enabled `Test-Editor.ps1` passed, including both exact Qt-exported C
+  models. A separate combined-block Qt probe passed selection on every block
+  part, three input ports and model save/load round-trip.
+
+The restricted `Launch-Blocks.ps1 -SelfTest` run passed all numerical/C stages
+but its final Qt child remained idle before test startup. That verified test
+child was stopped; the supervisor correctly recorded failure. The complete
+editor stage was run separately with desktop access and passed with exit 0.
+This is **not an uninterrupted single-process full-gate pass**.
+Afterward, only trailing empty lines were removed from the new C test runner
+and fixture file; their 27-case C gate was rerun successfully. Production
+source files remained unchanged.
+
+Evidence is retained under `.validation-artifacts/combined-controls-20261117/`:
+`full-gate.log`, `full-gate-result.json` (restricted Qt failure),
+`editor-full.log`, `combined-editor.log`, `full-gate-source-hashes.json` and
+`validation-result.json` (combined stage results). MATLAB environment evidence
+and the independent reference harness limits are described in
+[COMBINED_CONTROLS.md](COMBINED_CONTROLS.md). No live Simulink parity is claimed.
+
 ## Expanded built-in/library review — 2026-11-16
 
 The final `Launch-Blocks.ps1 -SelfTest` completed uninterrupted with exit 0:
