@@ -1,0 +1,13 @@
+function model = ob_combined_continuous_example ()
+  % Two independent continuous guards; the body samples time squared.
+  child = ob_subsystem_template();
+  child.blocks(2).type='Function'; child.blocks(2).name='times'; child.blocks(2).value=[];
+  child.edges=[1 1 2 1;1 1 2 2;2 1 3 1];
+  child.execution=struct('mode','enabled_rising','control','continuous','initial_outputs',{{-9}});
+  model.blocks=struct('type',{'Time','Constant','Sum','Gain','Function','Constant','Sum','Gain','Function','Subsystem','Scope'}, ...
+    'value',{[],-.1,[],2*pi,[],-.2,[],2*pi,[],child,[]}, ...
+    'name',{'Time','Enable phase','Enable time','Enable angle','sin','Trigger phase','Trigger time','Trigger angle','sin','Combined','Output'}, ...
+    'x',{.05,.05,.2,.35,.5,.05,.2,.35,.5,.75,.95}, ...
+    'y',{.5,.8,.8,.8,.8,.2,.2,.2,.2,.5,.5});
+  model.edges=[1 1 3 1;2 1 3 2;3 1 4 1;4 1 5 1;1 1 7 1;6 1 7 2;7 1 8 1;8 1 9 1;1 1 10 1;5 1 10 2;9 1 10 3;10 1 11 1];
+endfunction

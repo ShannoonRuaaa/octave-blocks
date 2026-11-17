@@ -2,14 +2,8 @@ function state = ob_conditional_eval (model, state, inputs, time, inherited_inte
   descriptor = ob_event_execution (model,events);
   options = descriptor.options;
   ports = descriptor.input_ports;
-  if (numel (inputs) != ports + 1)
-    error ('ob_run: conditional Subsystem needs its data ports followed by one control port');
-  endif
-  control = inputs{end};
-  if ((! isnumeric (control) && ! islogical (control)) || ! isreal (control) ...
-      || ! isscalar (control) || ! isfinite (control))
-    error ('ob_run: conditional control must be a finite real scalar');
-  endif
+  combined = ob_is_combined_mode (options.mode);
+  [unused, control] = ob_conditional_signals (model, inputs, time, false, ports);
   clocked = descriptor.clocked;
   continuous_enabled = strcmp(options.mode,'enabled') && strcmp(options.control,'continuous');
   if (major && state.last_executed && ! continuous_enabled)
@@ -31,6 +25,11 @@ function state = ob_conditional_eval (model, state, inputs, time, inherited_inte
       state = ob_conditional_control (model,state,inputs,time,events,false);
     endif
     active = strcmp(options.mode,'enabled') && state.was_enabled;
+  elseif (combined)
+    state = ob_conditional_control (model,state,inputs,time,events,false);
+    [state, edge] = trigger_edge (state,control,options.mode(9:end),options.control);
+    active = state.was_enabled && edge;
+    reset = active && isfield(state,'reset_pending') && state.reset_pending;
   elseif (continuous_enabled)
     state = ob_conditional_control (model,state,inputs,time,events,false);
     active = state.was_enabled;
@@ -90,6 +89,7 @@ function state = ob_conditional_eval (model, state, inputs, time, inherited_inte
       state.child.major_current = state.child.current;
     endif
     state.initialized = true;
+    if (combined), state.reset_pending = false; endif
   else
     if (strcmp (options.mode, 'enabled')), interval = state.advance_interval;
     else interval = time - state.child.time; endif
@@ -104,4 +104,17 @@ function state = ob_conditional_eval (model, state, inputs, time, inherited_inte
   state = ob_refresh_conditional_outputs (model,state,descriptor);
   state.executions(end + 1) = time;
   if (major), state.last_executed = true; endif
+endfunction
+
+function [state, active] = trigger_edge (state,control,mode,control_mode)
+  current_sign = sign(double(control));
+  rising = (state.previous_sign < 0 && current_sign >= 0) || (state.previous_sign == 0 && current_sign > 0);
+  falling = (state.previous_sign > 0 && current_sign <= 0) || (state.previous_sign == 0 && current_sign < 0);
+  active = (any(strcmp(mode,{'rising','either'})) && rising && !state.last_rising) ...
+           || (any(strcmp(mode,{'falling','either'})) && falling && !state.last_falling);
+  changed = current_sign != state.previous_sign;
+  state.previous_sign = current_sign; state.control_sign = current_sign;
+  if (!strcmp(control_mode,'continuous') || (changed && (rising || falling)))
+    state.last_rising = rising; state.last_falling = falling;
+  endif
 endfunction

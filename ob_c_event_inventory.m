@@ -34,20 +34,24 @@ function [unit, guards] = inventory (unit, first, public_prefix, compiled_prefix
       options = ob_execution_options (block.value,false);
       if (strcmp(options.control,'continuous'))
         source = sources(end); boundaries = 0; sides = {'control'};
+        if(ob_is_combined_mode(options.mode)),source=sources(end-1:end);boundaries=[0 0];sides={'enable','control'};endif
       endif
     endif
     if (! isempty(source))
-      channels = unit.sizes(source);
+      combined_control=numel(source)>1;
+      channels = unit.sizes(source(1));
       first_mode = first+numel(guards);
       unit.mode_ids{id} = first_mode+(0:channels-1);
       for boundary = 1:numel(boundaries)
+        descriptor_source=source(1);mode_shift=0;
+        if(combined_control),descriptor_source=source(boundary);mode_shift=boundary-1;endif
         for channel = 1:channels
           event_id = first+numel(guards);
           descriptor = struct ('path',public_path,'compiled_path',compiled_path, ...
               'type',block.type,'side',sides{boundary},'boundary',boundaries(boundary), ...
-              'channel',channel,'unit_prefix',unit.prefix,'block_id',id, ...
-              'source_id',source,'source_offset',unit.offsets(source)+channel-1, ...
-              'mode_id',unit.mode_ids{id}(channel));
+              'channel',channel+mode_shift,'unit_prefix',unit.prefix,'block_id',id, ...
+              'source_id',descriptor_source,'source_offset',unit.offsets(descriptor_source)+channel-1, ...
+              'mode_id',unit.mode_ids{id}(channel)+mode_shift);
           guards(end+1) = descriptor;
           unit.event_ids{id}(end+1) = event_id;
           unit.own_events(end+1) = event_id;

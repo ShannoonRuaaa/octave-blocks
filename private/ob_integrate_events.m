@@ -103,7 +103,13 @@ function [records, changed] = control_reconciliation (snapshot, states, time)
     guard = snapshot.descriptors(index);
     if (! strcmp(guard.type,'Conditional Subsystem')), continue; endif
     state = control_state (states,guard.path);
-    before = state.control_sign; after = sign(snapshot.values(index));
+    if (strcmp(guard.side,'enable'))
+      if (isfield(state,'enable_sign')), before = state.enable_sign;
+      else before = double(state.was_enabled); endif
+    else
+      before = state.control_sign;
+    endif
+    after = sign(snapshot.values(index));
     if (before == after), continue; endif
     changed(index) = true;
     records(end+1) = struct ('time',time,'path',guard.path,'type',guard.type, ...
@@ -337,7 +343,7 @@ function selected = crossed (before, after, descriptors, flow)
 endfunction
 
 function side = regime_side (guard, mode)
-  if (strcmp (guard.side, 'control'))
+  if (any(strcmp (guard.side, {'control','enable'})))
     side = sign(mode);
   elseif (strcmp (guard.side, 'threshold'))
     side = 2*double(mode != 0)-1;

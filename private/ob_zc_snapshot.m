@@ -68,11 +68,13 @@ function snapshot = ob_zc_snapshot (model, edges, current, prefix = [])
       if (!isempty(descriptor))
         continuous = strcmp(descriptor.options.control,'continuous');
         enabled = strcmp(descriptor.options.mode,'enabled');
+        combined = ob_is_combined_mode(descriptor.options.mode);
       else
         continuous = isfield(block.value,'execution') ...
                      && isfield(block.value.execution,'control') ...
                      && strcmp(block.value.execution.control,'continuous');
         enabled = strcmp(ob_execution_mode(block.value),'enabled');
+        combined = ob_is_combined_mode(ob_execution_mode(block.value));
       endif
       if (continuous)
         if (cached_sources), sources = model.runtime_info.sources{id};
@@ -80,24 +82,32 @@ function snapshot = ob_zc_snapshot (model, edges, current, prefix = [])
         if (isempty(sources))
           error ('ob_run: continuous conditional block needs a control input');
         endif
-        control = current{sources(end)};
-        if ((! isnumeric(control) && ! islogical(control)) || ! isreal(control) ...
-            || ! isscalar(control) || ! isfinite(control))
-          error ('ob_run: conditional control must be a finite real scalar');
-        endif
-        control = full (double(control));
-        mode = sign (control);
-        if (mode == 0)
-          if (isfield(state,'control_sign'))
-            mode = state.control_sign;
-          elseif (isfield(state,'previous_sign'))
-            mode = state.previous_sign;
+        controls = current(sources(end-combined:end));
+        modes = zeros(1,numel(controls));
+        for channel = 1:numel(controls)
+          control = controls{channel};
+          if ((! isnumeric(control) && ! islogical(control)) || ! isreal(control) ...
+              || ! isscalar(control) || ! isfinite(control))
+            error ('ob_run: conditional control must be a finite real scalar');
           endif
-        endif
-        snapshot.flow.modes{id} = mode;
-        [values, descriptors] = guards (control,path,block.type,0,'control');
-        snapshot.values = [snapshot.values; values];
-        snapshot.descriptors = [snapshot.descriptors descriptors];
+          control = full(double(control)); mode = sign(control);
+          enable_channel = combined && channel == 1;
+          if (mode == 0)
+            if (enable_channel)
+              if (isfield(state,'enable_sign')), mode = state.enable_sign;
+              else mode = double(state.was_enabled); endif
+            elseif (isfield(state,'control_sign')), mode = state.control_sign;
+            elseif (isfield(state,'previous_sign')), mode = state.previous_sign;
+            endif
+          endif
+          modes(channel) = mode;
+          side = 'control'; if (enable_channel), side = 'enable'; endif
+          [values, descriptors] = guards(control,path,block.type,0,side);
+          descriptors.channel = channel;
+          snapshot.values = [snapshot.values; values];
+          snapshot.descriptors = [snapshot.descriptors descriptors];
+        endfor
+        snapshot.flow.modes{id} = modes;
       endif
       if (enabled && state.initialized && state.was_enabled)
         child = state.child;

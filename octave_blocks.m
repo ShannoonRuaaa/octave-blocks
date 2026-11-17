@@ -223,14 +223,15 @@ function ob_action (src, action, data)
         try
           [candidate, accepted] = ob_edit_subsystem (block);
           if (! accepted), return; endif
-          if (! strcmp (ob_subsystem_mode(block), "virtual") ...
-              && strcmp (ob_subsystem_mode(candidate), "virtual"))
-            % Removing the control port removes only its wire and sample rate.
-            control_port = 1 + sum (strcmp ({block.value.blocks.type}, "Inport"));
+          if (ob_block_ports(candidate) < ob_block_ports(block))
+            % Remove wires only for ports removed by the new execution mode.
+            control_port = 1 + ob_block_ports(candidate);
             wires = ob_edges (diagram);
-            wires(wires(:, 3) == id & wires(:, 4) == control_port, :) = [];
+            wires(wires(:, 3) == id & wires(:, 4) >= control_port, :) = [];
             diagram.edges = wires;
-            if (isfield (diagram, "sample_times")), diagram.sample_times(id, :) = [0 0]; endif
+            if (strcmp(ob_subsystem_mode(candidate),'virtual') && isfield (diagram, "sample_times"))
+              diagram.sample_times(id, :) = [0 0];
+            endif
           endif
           execution = ob_execution_options (candidate.value,false);
           if (strcmp(execution.control,'continuous') && isfield(diagram,'sample_times'))
@@ -559,7 +560,11 @@ function ob_draw (fig, geometry_only = false, selection_only = false, motion = [
       status_text = [status_text " / " mode];
       if (! strcmp (mode, "virtual"))
         control_port = 1 + sum (strcmp ({block.value.blocks.type}, "Inport"));
-        status_text = [status_text sprintf(" (control input %d)", control_port)];
+        if (ob_is_combined_mode (ob_subsystem_mode(block)))
+          status_text = [status_text sprintf(" (enable %d, trigger %d)", control_port, control_port+1)];
+        else
+          status_text = [status_text sprintf(" (control input %d)", control_port)];
+        endif
       endif
     endif
     if (ob_has_sample_time (block))
@@ -680,7 +685,11 @@ function ob_draw (fig, geometry_only = false, selection_only = false, motion = [
         label = sprintf ("%s\n[%s]", block.name, mode);
       else
         control_port = 1 + sum (strcmp ({block.value.blocks.type}, "Inport"));
-        label = sprintf ("%s\n[%s; control=%d]", block.name, mode, control_port);
+        if (ob_is_combined_mode (mode))
+          label = sprintf ("%s\n[%s; enable=%d, trigger=%d]", block.name, mode, control_port, control_port+1);
+        else
+          label = sprintf ("%s\n[%s; control=%d]", block.name, mode, control_port);
+        endif
       endif
     endif
     if (any (strcmp (block.type, {"Inport", "Outport"})))
@@ -878,7 +887,7 @@ function [block, accepted] = ob_edit_subsystem (block)
   initial_text = ob_cell_expression (options.initial_outputs);
   control_text = num2str (options.initial_control, 17);
   defaults = {block.name, options.mode, options.states, options.outputs, initial_text, control_text, options.control};
-  answer = inputdlg ({"Name", "Mode: virtual, enabled, rising, falling, or either", ...
+  answer = inputdlg ({"Name", "Mode: virtual, enabled, rising/falling/either, enabled_rising/enabled_falling/enabled_either", ...
                      "States when re-enabled: held or reset", "Outputs while disabled: held or reset", ...
                      "Initial outputs (Octave cell expression, one per Outport)", ...
                      "Initial trigger control (finite scalar)", "Control timing: sampled or continuous"}, ...
