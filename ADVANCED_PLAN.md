@@ -12,6 +12,13 @@ measured scope and limits.
 
 ## Event C integration resumed (2026-11-14)
 
+The subsequent 2026-11-16 report review and fixes passed a fresh uninterrupted
+full gate: 23 Octave suites, 25 BIST checks and 241 strict C99 cases, including
+220 numerical models with worst scaled error 0. The audit disproves the claimed
+inverted initializer check, fixes confirmed issues and records performance
+tradeoffs. See [PR2_AUDIT.md](PR2_AUDIT.md) and [VALIDATION.md](VALIDATION.md).
+The broad compatibility scope below remains incomplete.
+
 Development continues on `codex/event-c-integration`, combining the saved
 experimental C event runtime with the merged optimization release. The public
 event-export route is implemented and its registered check set passed: 21

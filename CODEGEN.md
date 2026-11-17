@@ -178,8 +178,10 @@ logical subsystem output ports to their flattened Outport blocks. Parameters
 are compiled constants; regenerate the source after changing them. Exported
 symbols currently use the `ob_` prefix, so multiple separately generated models
 cannot yet be linked into one executable without namespacing their symbols.
-Exports containing conditional children also set `info.typed_conditional=true`;
-event or multi-output exports without conditional children set it to false.
+Every export includes `info.typed_conditional`; it is true for conditional
+children and false for flat, event-only or multi-output models without them.
+Every path also includes `info.zero_crossings` and `info.event_guard_count`,
+which are false and zero respectively for ordinary event-off exports.
 Their private child symbols have separate generated namespaces; the public
 root API retains the `ob_` prefix.
 Exports with enabled inner clocks define `OB_CLOCK_COUNT`, `ob_clock_period`,
@@ -187,7 +189,11 @@ Exports with enabled inner clocks define `OB_CLOCK_COUNT`, `ob_clock_period`,
 context owns `clock_tick`; child resets do not reset it. Export metadata
 provides `info.clock_count` and `info.clocks` with path/rate entries. Temporary
 `ob_clock_frame` pointers are function arguments, never retained in a context.
-Typed exports also report `info.continuous_state_count`, counting continuous
+Those metadata fields are also present for flat exports. With no explicit
+clocks, the count is zero and the inventory is an empty path/rate struct.
+Equal rates on different blocks retain separate entries; this is a per-block
+inventory, not a count of distinct period/offset pairs.
+All export paths report `info.continuous_state_count`, counting continuous
 scalar components across the entire context tree. When continuous children
 require a shared solve, generated `OB_CONTINUOUS_COUNT` gives that total;
 `OB_STATE_COUNT` continues to describe only the root numeric state array.

@@ -1,0 +1,36 @@
+{
+  "recorded_on": "2026-11-16",
+  "baseline_commit": "39fc3577511f756dfc9b4a46e3ceccedfb9ac2dc",
+  "scope": "Isolated codegen adjacency changes over the baseline; excludes event settling, input lookup and UI changes.",
+  "precision": "Raw sample seconds below preserve the six-decimal printed timing output; full precision MAT data retained locally.",
+  "protocol": "One warmup, three alternating baseline/candidate measurements in the same process; isolated source roots selected by current directory and cleared functions. Separate isolated indexing comparison.",
+  "legacy_2000": {
+    "baseline_seconds": [
+      3.25647,
+      3.24392,
+      3.26972
+    ],
+    "candidate_seconds": [
+      3.38174,
+      3.24657,
+      3.24911
+    ],
+    "baseline_median_seconds": 3.25647,
+    "candidate_median_seconds": 3.249106
+  },
+  "indexing_2000": {
+    "historical_seconds": [
+      0.0871601,
+      0.0669279,
+      0.0653992
+    ],
+    "bulk_seconds": [
+      0.00720787,
+      0.00420213,
+      0.00363898
+    ],
+    "historical_median_seconds": 0.066928,
+    "bulk_median_seconds": 0.004202
+  },
+  "interpretation": "Indexing improved on this workload; full generation time was essentially unchanged. No total compiler complexity or universal speedup claim."
+}

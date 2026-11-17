@@ -289,6 +289,11 @@ suites and graph/edge/snapshot BIST checks. See
 [OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for corrected audit findings and
 measured results, and [benchmarks/README.md](benchmarks/README.md) to reproduce
 the before/after comparisons.
+Codegen metadata and source/proxy-order regressions and `Test-CInputLookup.ps1`
+are registered in the full gate as well. The latter strictly compiles generated
+sampling/boundary helpers and compares them against independent scan oracles.
+See [PR2_AUDIT.md](PR2_AUDIT.md) for the subsequent report review, including
+disproven claims, confirmed changes and verification scope.
 Verification artifacts are retained in the reported directories. See
 [UI_PERFORMANCE.md](UI_PERFORMANCE.md) for measured editor improvements and
 [REVIEW_GUIDE.md](REVIEW_GUIDE.md) for architecture and review instructions.

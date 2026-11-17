@@ -19,7 +19,32 @@ twice. A drag still records one Undo entry, and moving back to the saved
 position clears the dirty marker when the drag finishes. Graphics handles stay
 in editor state and are excluded from model files and Undo/Redo snapshots.
 
-## Additional audited changes (2026-11-13)
+## Drag audit (2026-11-16)
+
+Ordinary motion now uses a changed-block hint when native `guidata` write
+observation proves that the cached scene is current. Internal writes use a
+per-window token; external and reentrant writes invalidate trust. Missing
+observation, other coordinate changes, changed attributes/edges and lost
+graphics retain equality checks, coordinate discovery or rebuilding. Undo,
+dirty markers, stale selection/path cancellation and incident wires are tested.
+Graphics validation and other costs remain; the whole drag is not O(degree).
+
+Six same-process interleaved samples per version/count against `39fc357`, with
+warmups and twelve actual axis-point motions/callbacks plus `drawnow`, gave:
+
+| Blocks | Before per motion | After | Change |
+| --- | ---: | ---: | ---: |
+| 10 | .010775 s | .011993 s | 1.218 ms / 11.3% more |
+| 40 | .032147 s | .029127 s | 9.4% less |
+| 100 | .047029 s | .033242 s | 29.3% less |
+
+Every sample, including early stalls, was retained. A bounded small-scene
+diagnostic confirms extra callback work; no universal speedup is claimed.
+An earlier deep-equality prototype was discarded after measured regressions.
+These are callback/render timings, not OS input latency. See
+[PR2_AUDIT.md](PR2_AUDIT.md) and its raw-data links for protocol and limits.
+
+## Earlier audited changes (2026-11-13)
 
 Pure selection now skips model reinstallation and content-history comparison.
 A coherency key includes current and saved snapshots before reusing dirty/scene

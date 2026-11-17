@@ -69,6 +69,21 @@ functions; use a fresh Octave process for reproducible UI checks.
 
 ## Model and index conventions
 
+Prefer existing Octave built-ins, numerical solvers and standard-library
+facilities when their contracts fit. For example, codegen adjacency uses
+`accumarray`/`sortrows`/`mat2cell`, and editor invalidation uses native property
+listeners. New advanced numerical work should evaluate existing libraries
+before introducing a new solver implementation. Small generated helpers still
+need to preserve the documented self-contained C99 target; its standard
+`bsearch` does not provide the insertion position needed by input lookup.
+
+For drag changes, inspect write provenance as well as graphics. Internal
+`guidata` writes consume a per-figure observer token; external and reentrant
+writes invalidate trust. Only verified native motion may use the moved-block
+hint directly. Missing observation retains full scene checks. These graphics
+details belong to editor state, never model files or Undo snapshots. See
+[PR2_AUDIT.md](PR2_AUDIT.md) for the measured scope and fallback tests.
+
 `model.blocks` is a struct array with `type`, `value`, `name`, `x`, and `y`.
 Subsystem `value` holds a child model; interface block `value` holds a numbered
 port. Function output count is the optional `outputs` field, independent of

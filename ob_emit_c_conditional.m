@@ -144,7 +144,7 @@ function lines = ob_emit_c_conditional (root, times)
         '  if(input_status!=OB_OK){return input_status;} external=root_input;');
     endif
     for id=u.order
-      block=u.flat.blocks(id); sources=u.edges(u.edges(:,2)==id,1); o=u.offsets(id); n=u.sizes(id);
+      block=u.flat.blocks(id); sources=u.sources{id}; o=u.offsets(id); n=u.sizes(id);
       switch(block.type)
         case 'Multiple Function'
           emit_multiple_function(u,id,sources(1));
@@ -186,7 +186,7 @@ function lines = ob_emit_c_conditional (root, times)
             add(sprintf('    if(hit&&hit[%d]){int status=%sgate_event(context,time,child_input,v[%d],%s,%s);',id-1,child.prefix,u.offsets(sources(end)),gate_interval,gate_kind), ...
                 '      if(status!=OB_OK)return status;}', ...
                 sprintf('    int status=%sflow(context,time,child_input,left);if(status!=OB_OK)return status;',child.prefix));
-            proxies=u.edges(u.edges(:,1)==id,2);
+            proxies=u.proxies{id};
             for proxy=reshape(proxies,1,[])
               port=u.flat.blocks(proxy).value;
               add(sprintf('    memcpy(v+%d,context->held+%d,%d*sizeof(double));',u.offsets(proxy),child.out_offsets(port),child.out_sizes(port)));
@@ -275,7 +275,7 @@ function lines = ob_emit_c_conditional (root, times)
   endfunction
 
   function emit_multiple_function(u,id,source)
-    proxies=u.edges(u.edges(:,1)==id,2);
+    proxies=u.proxies{id};
     outputs=zeros(1,2);
     for proxy=reshape(proxies,1,[]), outputs(u.flat.blocks(proxy).value)=proxy; endfor
     first=u.offsets(outputs(1)); second=u.offsets(outputs(2));
@@ -300,7 +300,7 @@ function lines = ob_emit_c_conditional (root, times)
   endfunction
 
   function emit_proxy_copies(u,id,child,buffer)
-    proxies=u.edges(u.edges(:,1)==id,2);
+    proxies=u.proxies{id};
     for proxy=reshape(proxies,1,[])
       port=u.flat.blocks(proxy).value;
       add(sprintf('    memcpy(v+%d,%s+%d,%d*sizeof(double));',u.offsets(proxy),buffer,child.out_offsets(port),child.out_sizes(port)));
@@ -329,7 +329,7 @@ function lines = ob_emit_c_conditional (root, times)
 
   function emit_clock_captures(u)
     for id=reshape(find((strcmp(u.types,'Unit Delay')|strcmp(u.types,'Discrete Integrator')) & u.clock_ids>0),1,[])
-      source=u.edges(u.edges(:,2)==id,1);o=u.state_offsets(id);n=u.sizes(id);
+      source=u.sources{id};o=u.state_offsets(id);n=u.sizes(id);
       add(sprintf('  if(frame->due[%d]){',u.clock_ids(id)-1));
       if(strcmp(u.types{id},'Unit Delay'))
         add(sprintf('    memcpy(m->pending+%d,m->value+%d,%d*sizeof(double));',o,u.offsets(source),n));
@@ -361,7 +361,7 @@ function lines = ob_emit_c_conditional (root, times)
         sprintf('static int %sclock_execute(%s *m,double time,const double *input,int major,double interval,const ob_clock_frame *frame){',p,t), ...
         '  if(!isfinite(time)||time<m->time||(major&&(!isfinite(interval)||interval<=0.0)))return OB_BAD_ARGUMENT;');
     for id=reshape(find((strcmp(u.types,'Unit Delay')|strcmp(u.types,'Discrete Integrator')) & u.clock_ids==0),1,[])
-      source=u.edges(u.edges(:,2)==id,1);o=u.state_offsets(id);n=u.sizes(id);
+      source=u.sources{id};o=u.state_offsets(id);n=u.sizes(id);
       add('  if(major){');
       if(strcmp(u.types{id},'Unit Delay')),add(sprintf('    memcpy(m->pending+%d,m->major_value+%d,%d*sizeof(double));',o,u.offsets(source),n));
       else add(sprintf('    for(size_t i=0;i<%d;++i)m->pending[%d+i]=m->state[%d+i]+interval*m->major_value[%d+i];',n,o,o,u.offsets(source)));endif
@@ -454,7 +454,7 @@ function lines = ob_emit_c_conditional (root, times)
     if(u.has_continuous),capture='m->major_value';else capture='m->value';endif
     delayed=reshape(find(strcmp(u.types,'Unit Delay')|strcmp(u.types,'Discrete Integrator')),1,[]);
     for id=delayed
-      source=u.edges(u.edges(:,2)==id,1);n=u.sizes(id);o=u.state_offsets(id);
+      source=u.sources{id};n=u.sizes(id);o=u.state_offsets(id);
       if(strcmp(u.types{id},'Unit Delay')),add(sprintf('  memcpy(m->pending+%d,%s+%d,%d*sizeof(double));',o,capture,u.offsets(source),n));
       else add(sprintf('  for(size_t i=0;i<%d;++i)m->pending[%d+i]=m->state[%d+i]+interval*%s[%d+i];',n,o,o,capture,u.offsets(source)));endif
       add(sprintf('  for(size_t i=0;i<%d;++i)if(!isfinite(m->pending[%d+i]))return OB_NONFINITE;',n,o));
@@ -552,7 +552,7 @@ function lines = ob_emit_c_conditional (root, times)
         '  double dt=next_time-model->time;if(!isfinite(dt))return OB_BAD_ARGUMENT;', ...
         '  ob_model work=*model;int status=ob_model_outputs(&work);if(status!=OB_OK)return status;');
     for id=reshape(find((strcmp(u.types,'Unit Delay')|strcmp(u.types,'Discrete Integrator')) & u.clock_ids==0),1,[])
-      source=u.edges(u.edges(:,2)==id,1);o=u.state_offsets(id);n=u.sizes(id);
+      source=u.sources{id};o=u.state_offsets(id);n=u.sizes(id);
       if(strcmp(u.types{id},'Unit Delay')),add(sprintf('  memcpy(work.pending+%d,work.value+%d,%d*sizeof(double));',o,u.offsets(source),n));
       else add(sprintf('  for(size_t i=0;i<%d;++i)work.pending[%d+i]=work.state[%d+i]+dt*work.value[%d+i];',n,o,o,u.offsets(source)));endif
       add(sprintf('  for(size_t i=0;i<%d;++i)if(!isfinite(work.pending[%d+i]))return OB_NONFINITE;',n,o),sprintf('  work.pending_valid[%d]=1;',id-1));
@@ -602,7 +602,7 @@ function lines = ob_emit_c_conditional (root, times)
     for id=explicit
       add(sprintf('  if(hit[%d]){',id-1));
       if(any(id==delayed))
-        source=u.edges(u.edges(:,2)==id,1);o=u.state_offsets(id);n=u.sizes(id);
+        source=u.sources{id};o=u.state_offsets(id);n=u.sizes(id);
         if(strcmp(u.types{id},'Unit Delay')),add(sprintf('    memcpy(m->pending+%d,m->value+%d,%d*sizeof(double));',o,u.offsets(source),n));
         else add(sprintf('    for(size_t i=0;i<%d;++i)m->pending[%d+i]=m->state[%d+i]+ob_sample_period[%d]*m->value[%d+i];',n,o,o,id-1,u.offsets(source)));endif
         add(sprintf('    m->pending_valid[%d]=1;',id-1),sprintf('    for(size_t i=0;i<%d;++i)if(!isfinite(m->pending[%d+i]))return OB_NONFINITE;',n,o));
@@ -639,7 +639,7 @@ function lines = ob_emit_c_conditional (root, times)
       '  double dt=next_time-model->time;if(!isfinite(dt))return OB_BAD_ARGUMENT;', ...
       '  ob_model work=*model;int status=ob_model_outputs(&work);if(status!=OB_OK)return status;');
     for id=inherited
-      source=u.edges(u.edges(:,2)==id,1);o=u.state_offsets(id);n=u.sizes(id);
+      source=u.sources{id};o=u.state_offsets(id);n=u.sizes(id);
       if(strcmp(u.types{id},'Unit Delay')),add(sprintf('  memcpy(work.pending+%d,work.value+%d,%d*sizeof(double));',o,u.offsets(source),n));
       else add(sprintf('  for(size_t i=0;i<%d;++i)work.pending[%d+i]=work.state[%d+i]+dt*work.value[%d+i];',n,o,o,u.offsets(source)));endif
       add(sprintf('  work.pending_valid[%d]=1;',id-1),sprintf('  for(size_t i=0;i<%d;++i)if(!isfinite(work.pending[%d+i]))return OB_NONFINITE;',n,o));
@@ -719,7 +719,7 @@ function lines = ob_emit_c_conditional (root, times)
   function entries=continuous_entries(u,access,guard)
     entries=struct('access',{},'guard',{},'state',{},'source',{},'size',{});
     for id=reshape(find(strcmp(u.types,'Integrator')),1,[])
-      source=u.edges(u.edges(:,2)==id,1);
+      source=u.sources{id};
       entries(end+1)=struct('access',access,'guard',guard,'state',u.state_offsets(id), ...
           'source',u.offsets(source),'size',u.sizes(id));
     endfor
@@ -738,7 +738,7 @@ function lines = ob_emit_c_conditional (root, times)
       '  double v[OB_VALUE_STORAGE];int status=ob_eval(m,time,state,v,left,NULL,NULL,NULL,0.0,0,NULL);', ...
       '  if(status!=OB_OK){return status;} memset(dy,0,OB_STATE_STORAGE*sizeof(double));');
     for id=ids
-      source=u.edges(u.edges(:,2)==id,1);add(sprintf('  memcpy(dy+%d,v+%d,%d*sizeof(double));',u.state_offsets(id),u.offsets(source),u.sizes(id)));
+      source=u.sources{id};add(sprintf('  memcpy(dy+%d,v+%d,%d*sizeof(double));',u.state_offsets(id),u.offsets(source),u.sizes(id)));
     endfor
     add('  return OB_OK;}', ...
       'static int ob_integrate(const ob_model *m,double start,double end,double *state){', ...

@@ -1,5 +1,37 @@
 # Validation report
 
+## PR #2 audit verification — 2026-11-16
+
+The final `Launch-Blocks.ps1 -SelfTest` completed uninterrupted with exit 0.
+All 23 Octave suites and 25 graph/edge/snapshot BIST checks passed. The
+registered C gates compiled/executed 241 strict C99 cases:
+
+| Gate | Numeric models | API/helper executables | Result |
+| --- | ---: | ---: | --- |
+| Existing supported exports | 157 | 10 APIs | Every channel matched; worst scaled error 0 |
+| Main event export | 44 | 3 APIs, 2 math helpers | 398 channels matched; worst scaled error 0 |
+| Independent event edges | 6 | 1 API | 30 channels matched; worst scaled error 0 |
+| Nested hierarchy | 11 | 3 APIs | 76 channels matched; worst scaled error 0 |
+| Exact Qt exports | 2 | 0 | 16 channels matched; worst scaled error 0 |
+| Generated input lookup helpers | 0 | 2 helpers | 222,775 independent oracle checks passed |
+
+That is 220 numerical models, seventeen API harnesses and four helper
+executables. Compilation uses `-std=c99 -O2 -Wall -Wextra -Werror`; focused
+input/math checks additionally passed `-pedantic`. New tests cover provider
+argument combinations, unused-probe avoidance, activity masks, common metadata,
+source/proxy ordering and nested discrete-only event export. Expanded Qt checks
+cover native motion, external state writes, conservative fallback, reentrant
+listeners, stale targets, dirty/Undo behavior and exact exported C. The labelled
+intentional throwing-listener error is expected; recovery assertions passed.
+
+Local evidence is in `.validation-artifacts/pr2-audit-20261116/`: `full-gate.log`
+ends with `FULL_GATE_COMPLETED_SUCCESSFULLY`; `full-gate-result.json` records
+exit 0 and unchanged sources; `source-hashes.json` records SHA256 fingerprints.
+Each C stage prints its artifact directory. Final Qt artifacts:
+`<TEMP>/octave-blocks-editor-75bdfe052e824215af2a7ec6dbffef44`.
+This fresh run supersedes the earlier staged verification for the updated code.
+See [PR2_AUDIT.md](PR2_AUDIT.md) for disputed findings, measurements and limits.
+
 ## Event-enabled C milestone — 2026-11-14
 
 The complete registered check set passed on `codex/event-c-integration` through

@@ -31,7 +31,10 @@ if ($SelfTest) {
     if ($LASTEXITCODE -ne 0) { throw 'Octave Blocks verification failed.' }
     & $executable --quiet --eval "addpath('$sourcePath'); test_ob_performance_graph(); test_ob_performance_metadata(); test_ob_performance_events(); [passed,total]=test(fullfile('$sourcePath','ob_execution_order.m'),'quiet'); assert(total>0 && passed==total); [passed,total]=test(fullfile('$sourcePath','ob_edges.m'),'quiet'); assert(total>0 && passed==total); addpath(fullfile('$sourcePath','private')); [passed,total]=test(fullfile('$sourcePath','private','ob_zc_snapshot.m'),'quiet'); assert(total>0 && passed==total);"
     if ($LASTEXITCODE -ne 0) { throw 'Optimization compatibility verification failed.' }
+    & $executable --quiet --eval "addpath('$sourcePath'); test_ob_codegen_metadata(); test_ob_codegen_adjacency();"
+    if ($LASTEXITCODE -ne 0) { throw 'Code generation audit verification failed.' }
     & (Join-Path $PSScriptRoot 'Test-Codegen.ps1') -OctaveHome $OctaveHome
+    & (Join-Path $PSScriptRoot 'Test-CInputLookup.ps1') -OctaveHome $OctaveHome
     & (Join-Path $PSScriptRoot 'Test-EventCodegen.ps1') -OctaveHome $OctaveHome
     & (Join-Path $PSScriptRoot 'Test-EventCodegenEdges.ps1') -OctaveHome $OctaveHome
     & (Join-Path $PSScriptRoot 'Test-EventCodegenHierarchy.ps1') -OctaveHome $OctaveHome

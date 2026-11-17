@@ -1,5 +1,6 @@
-function lines = ob_c_schedule_lines (flat, edges, offsets, state_offsets, sizes)
+function lines = ob_c_schedule_lines (flat, edges, offsets, state_offsets, sizes, sources = [])
   % Emit event handling after ob_eval; all scheduling state belongs to instance.
+  if (nargin < 6), sources = ob_c_adjacency (numel(flat.blocks), edges); endif
   lines = {};
   types = {flat.blocks.type};
   rates = flat.sample_times;
@@ -38,7 +39,7 @@ function lines = ob_c_schedule_lines (flat, edges, offsets, state_offsets, sizes
   for id = explicit
     add (sprintf ('  if (hit[%d]) {', id-1));
     if (any (id == discrete))
-      source = edges(edges(:, 2) == id, 1);
+      source = sources{id};
       if (strcmp (types{id}, 'Unit Delay'))
         add (sprintf ('    memcpy(model->pending + %d, model->value + %d, %d*sizeof(double));', state_offsets(id), offsets(source), sizes(id)));
       else

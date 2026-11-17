@@ -11,7 +11,7 @@ function lines = ob_emit_c_event_child (u)
       '  (void)major;(void)interval;(void)input;', ...
       '  if(!frame)return OB_BAD_ARGUMENT;');
   for id = delayed
-    o=u.state_offsets(id); n=u.sizes(id); source=u.edges(u.edges(:,2)==id,1);
+    o=u.state_offsets(id); n=u.sizes(id); source=u.sources{id};
     if (u.clock_ids(id)==0)
       add('  if(major&&interval>0.0&&!frame->reconcile){');
       if (strcmp(u.types{id},'Unit Delay'))
@@ -42,7 +42,7 @@ function lines = ob_emit_c_event_child (u)
   add(sprintf('  int status=%seval(m,time,m->state,m->value,0,input,hit,m,interval,major?OB_INTERVAL_INHERITED:OB_INTERVAL_ELAPSED,frame);',p), ...
       '  if(status!=OB_OK)return status;');
   for id = delayed(u.clock_ids(delayed)>0)
-    source=u.edges(u.edges(:,2)==id,1); o=u.state_offsets(id); n=u.sizes(id);
+    source=u.sources{id}; o=u.state_offsets(id); n=u.sizes(id);
     add(sprintf('  if(!frame->reconcile&&frame->due[%d]){',u.clock_ids(id)-1));
     if (strcmp(u.types{id},'Unit Delay'))
       add(sprintf('    memcpy(m->pending+%d,m->value+%d,%d*sizeof(double));',o,u.offsets(source),n));
