@@ -29,7 +29,7 @@ if ($Benchmark) { $extra = 'benchmark_ob_editor_ui([10 40],6);' }
 $expression = @"
 addpath('$source'); diary('$octaveLog');
 try
-  test_ob_editor_graphics(); test_ob_editor_event_export('$octaveExports'); $extra
+  test_ob_editor_graphics(); test_ob_editor_advanced(); test_ob_editor_event_export('$octaveExports'); $extra
   diary off; exit(0);
 catch err
   disp(err.message);

@@ -183,8 +183,9 @@ continuous/discrete bodies, checkpoints, and transactional failures.
 Current limitations include resettable variants,
 broader event classes beyond registered primitive and continuous-control
 guards, and data feedback across an atomic boundary (currently conservatively
-treated as a direct dependency). First-evaluation trigger initialization,
-nested reset-policy overrides and full sample-time propagation remain gaps.
+treated as a direct dependency). First-evaluation trigger initialization
+and full sample-time propagation remain gaps. See [nested Enable state
+policies](COMBINED_CONTROLS.md) for the reset precedence rules.
 
 Conditional C generation uses recursive typed child contexts and numeric
 output proxies. The same sampled mode, reset/hold, and inherited-interval rules

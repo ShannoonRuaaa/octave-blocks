@@ -6,8 +6,11 @@ function [order, edges, stateful, loops] = ob_execution_order (model, allow_loop
   canonical = sortrows (ob_edges (model), [3 4]);
   edges = canonical(:, [1 3]);
   types = {model.blocks.type};
+  % Transport Delay outputs past input history and Limited Integrator applies
+  % its reset at accepted hits, so neither has direct feedthrough.
   delayed = strcmp (types, "Unit Delay") | strcmp (types, "Discrete Integrator") ...
-            | strcmp (types, "Integrator");
+            | strcmp (types, "Integrator") | strcmp (types, "Transport Delay") ...
+            | strcmp (types, "Limited Integrator");
   stateful = delayed | strcmp (types, "Rate Transition") | strcmp (types, 'Conditional Subsystem');
   direct = edges(! delayed(edges(:, 2)), :);
   indegree = zeros (1, n);
@@ -83,19 +86,15 @@ function [components, membership] = strongly_connected (n, edges)
   graph = sparse (edges(:,1), edges(:,2), true, n, n) | speye (n);
   [permutation, unused, boundaries] = dmperm (graph);
   count = numel (boundaries)-1;
-  components = cell (1, count);
-  smallest = zeros (1, count);
-  for component = 1:count
-    ids = sort (permutation(boundaries(component):boundaries(component+1)-1));
-    components{component} = ids;
-    smallest(component) = ids(1);
-  endfor
+  lens = diff (boundaries(:)');
+  components = mat2cell (permutation, 1, lens);
+  components = cellfun (@sort, components, 'UniformOutput', false);
+  smallest = cellfun (@(c) c(1), components);
   [unused, canonical] = sort (smallest);
   components = components(canonical);
+  lens = cellfun (@numel, components);
   membership = zeros (1, n);
-  for component = 1:count
-    membership(components{component}) = component;
-  endfor
+  membership([components{:}]) = repelem (1:count, lens);
 endfunction
 
 %!test

@@ -178,11 +178,16 @@ function rates = derivatives (current, integrators, routes)
 endfunction
 
 function vector = pack_states (states, ids)
-  parts = cell (numel(ids), 1);
-  for item = 1:numel(ids)
-    value = get_state (states, ids{item});
-    parts{item} = double(value(:));
-  endfor
+  if (all (cellfun (@isscalar, ids)))
+    flat_ids = cell2mat (ids);
+    parts = cellfun (@(s) double(s(:)), states(flat_ids), 'UniformOutput', false);
+  else
+    parts = cell (numel(ids), 1);
+    for item = 1:numel(ids)
+      value = get_state (states, ids{item});
+      parts{item} = double(value(:));
+    endfor
+  endif
   vector = vertcat (parts{:});
 endfunction
 

@@ -1,4 +1,4 @@
-function test_ob_combined_codegen (directory, verify = false)
+function test_ob_combined_codegen (directory, verify = false, advanced_only = false)
   % Compare every exported numerical channel, including matrix state outputs.
   manifest_file = fullfile(directory,'combined-manifest.json');
   if (verify)
@@ -15,6 +15,7 @@ function test_ob_combined_codegen (directory, verify = false)
   endif
   if (!exist(directory,'dir')),mkdir(directory);endif
   manifest = struct('name',{},'source',{},'standalone',{},'expected',{});
+  if (!advanced_only)
   for mode = {'enabled_rising','enabled_falling','enabled_either'}
     for states = {'held','reset'}
       for outputs = {'held','reset'}
@@ -48,11 +49,21 @@ function test_ob_combined_codegen (directory, verify = false)
   wrapper.edges=[1 1 5 1;2 1 5 2;3 1 5 3;4 1 5 4;5 1 6 1];
   wrapper.inputs=model.inputs; wrapper.sample_times=zeros(6,2); wrapper.sample_times(5,:)=[.5 0];
   export_case(wrapper,'combined_nested_clock',[0 6 1],struct());
+  for c = ob_nested_reset_cases ()
+    export_case(c.model,c.name,[0 7 1],c.options,c.expected);
+  endfor
+  endif
+  for c = test_ob_advanced_simulink ()
+    export_case(c.model,c.name,c.config,c.options);
+  endfor
   fid=fopen(manifest_file,'w');assert(fid>=0);
   unwind_protect,fputs(fid,jsonencode(manifest));unwind_protect_cleanup,fclose(fid);end_unwind_protect
-  function export_case(model,name,config,options)
+  function export_case(model,name,config,options,scope_expected = [])
           info=ob_codegen(model,fullfile(directory,[name '.c']),config,options);
           result=ob_run(model,ob_time_grid(config(1),config(2),config(3)),options);
+          for port = 1:columns(scope_expected)
+            assert(ob_scope_data(result,3+port),scope_expected(:,port),0);
+          endfor
           expected=result.t;
           for block=1:numel(result.compiled_model.blocks)
             count=prod(info.shapes{block});

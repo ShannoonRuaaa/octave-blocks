@@ -8,7 +8,7 @@ function lines = ob_emit_c_event_child (u)
   extra='';if(combined),extra=',double enable';endif
   continuous_control = strcmp(u.options.control,'continuous');
   delayed = reshape(find(strcmp(u.types,'Unit Delay') | strcmp(u.types,'Discrete Integrator')),1,[]);
-  if (enabled), emit_suspend (); endif
+  emit_suspend ();
   add(sprintf('static int %sevent_process(%s *m,double time,const double *input,int major,double interval,const ob_clock_frame *frame){',p,t), ...
       '  (void)major;(void)interval;(void)input;', ...
       '  if(!frame)return OB_BAD_ARGUMENT;');
@@ -67,7 +67,7 @@ function lines = ob_emit_c_event_child (u)
   endfor
   for id = 1:u.n
     child=u.children{id};
-    if (!isempty(child)), add(sprintf('  %sgate_reset(&m->child_%d,time);',child.prefix,id)); endif
+    if (!isempty(child)), add(sprintf('  %sancestor_reset(&m->child_%d,time);',child.prefix,id)); endif
   endfor
   add('  m->time=time;m->start_time=frame->origin;m->initialized=1;', ...
       sprintf('  int status=%sevent_process(m,time,input,major,0.0,frame);',p), ...
@@ -124,15 +124,16 @@ function lines = ob_emit_c_event_child (u)
       add('  if(!isfinite(enable))return OB_NONFINITE;', ...
           '  const int enabled=enable>0.0;');
       if(strcmp(u.options.states,'reset')),add('  if(enabled&&!m->was_enabled)m->reset_pending=1;');endif
-      add('  m->was_enabled=enabled;m->enable_sign=(enable>0.0)-(enable<0.0);');
+      add(sprintf('  if(!enabled&&m->was_enabled&&m->initialized)%ssuspend(m,time);',p), ...
+          '  m->was_enabled=enabled;m->enable_sign=(enable>0.0)-(enable<0.0);');
       if(strcmp(u.options.outputs,'reset')),add(sprintf('  if(!enabled)memcpy(m->held,%sinitial,%d*sizeof(double));',p,u.out_count));endif
     endif
     add( ...
         '  const int sign=(control>0.0)-(control<0.0);', ...
         '  const int rising=(m->previous_sign<0&&sign>=0)||(m->previous_sign==0&&sign>0);', ...
         '  const int falling=(m->previous_sign>0&&sign<=0)||(m->previous_sign==0&&sign<0);');
-    if (any(strcmp(u.options.mode,{'rising','enabled_rising'}))), active='rising&&!m->last_rising';
-    elseif (any(strcmp(u.options.mode,{'falling','enabled_falling'}))), active='falling&&!m->last_falling';
+    if (any(strcmp(u.options.mode,{'rising','enabled_rising','reset_rising'}))), active='rising&&!m->last_rising';
+    elseif (any(strcmp(u.options.mode,{'falling','enabled_falling','reset_falling'}))), active='falling&&!m->last_falling';
     else active='(rising&&!m->last_rising)||(falling&&!m->last_falling)'; endif
     add(['  active=' active ';']);
     if (continuous_control)
@@ -141,6 +142,10 @@ function lines = ob_emit_c_event_child (u)
       add('  m->last_rising=rising;m->last_falling=falling;');
     endif
     add('  m->previous_sign=sign;m->control_sign=sign;');
+    if(ob_is_resettable_mode(u.options.mode))
+      add('  reset=active;active=1;', ...
+          '  m->advance_interval=interval_kind==OB_INTERVAL_ELAPSED?time-m->last_sample:inherited_interval;');
+    endif
     if(combined),add('  active=active&&enabled;reset=m->reset_pending;');endif
     add( ...
         '  if(!active)return OB_OK;', ...
@@ -150,7 +155,7 @@ function lines = ob_emit_c_event_child (u)
   if (u.input_count>0)
     add(sprintf('  for(size_t i=0;i<%d;++i)if(!isfinite(input[i]))return OB_NONFINITE;',u.input_count));
   endif
-  if (enabled), interval='m->advance_interval'; else interval='time-m->time'; endif
+  if (enabled||ob_is_resettable_mode(u.options.mode)), interval='m->advance_interval'; else interval='time-m->time'; endif
   add('  int status;',sprintf('  if(!m->initialized||reset)status=%sevent_init(m,time,input,major&&!frame->reconcile,frame);',p));
   if (enabled && !u.needs_flow)
     add(sprintf('  else if(major||(%s)||frame->reconcile)status=%sevent_process(m,time,input,major,%s,frame);',clock_test(u.all_clocks),p,interval), ...
@@ -190,10 +195,14 @@ function lines = ob_emit_c_event_child (u)
   endfunction
 
   function emit_suspend ()
-    add(sprintf('static void %ssuspend(%s *m,double time){',p,t), '  (void)m;(void)time;');
+    add(sprintf('static inline void %ssuspend(%s *m,double time){',p,t), '  (void)m;(void)time;');
     for id=1:u.n
       child=u.children{id};
-      if (isempty(child)||!strcmp(child.options.mode,'enabled')), continue; endif
+      if (isempty(child)), continue; endif
+      if (!(strcmp(child.options.mode,'enabled')||ob_is_combined_mode(child.options.mode)))
+        add(sprintf('  if(m->child_%d.initialized)%ssuspend(&m->child_%d,time);',id,child.prefix,id));
+        continue;
+      endif
       access=sprintf('m->child_%d.',id);
       add(sprintf('  if(%sinitialized&&%swas_enabled){',access,access), ...
           sprintf('    if(%slast_executed){',access));
@@ -205,7 +214,7 @@ function lines = ob_emit_c_event_child (u)
       endif
       add(sprintf('      %slast_executed=0;}',access), ...
           sprintf('    if(%sactive_since_valid){%scontinuous_elapsed+=fmax(0.0,time-%sactive_since);%sactive_since_valid=0;}',access,access,access,access), ...
-          sprintf('    %ssuspend(&m->child_%d,time);}',child.prefix,id));
+          sprintf('    %ssuspend(&m->child_%d,time);%swas_enabled=0;}',child.prefix,id,access));
     endfor
     add('}');
   endfunction

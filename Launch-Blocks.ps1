@@ -33,7 +33,7 @@ if ($SelfTest) {
     if ($LASTEXITCODE -ne 0) { throw 'Optimization compatibility verification failed.' }
     & $executable --quiet --eval "addpath('$sourcePath'); test_ob_codegen_metadata(); test_ob_codegen_adjacency(); test_ob_builtin_controls(); test_ob_transfer_builtin(); test_ob_dmperm_order();"
     if ($LASTEXITCODE -ne 0) { throw 'Code generation audit verification failed.' }
-    & $executable --quiet --eval "addpath('$sourcePath'); test_ob_combined_controls();"
+    & $executable --quiet --eval "addpath('$sourcePath'); test_ob_combined_controls(); test_ob_nested_reset(); test_ob_delay_integrator(); test_ob_delay_matlab(); test_ob_simulink_api(); [passed,total]=test(fullfile('$sourcePath','ob_block_parameters.m'),'quiet'); assert(total>0 && passed==total); addpath(fullfile('$sourcePath','private')); [passed,total]=test(fullfile('$sourcePath','private','ob_transport_delay.m'),'quiet'); assert(total>0 && passed==total);"
     if ($LASTEXITCODE -ne 0) { throw 'Combined control verification failed.' }
     & (Join-Path $PSScriptRoot 'Test-CombinedCodegen.ps1') -OctaveHome $OctaveHome
     & (Join-Path $PSScriptRoot 'Test-Codegen.ps1') -OctaveHome $OctaveHome

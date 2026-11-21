@@ -13,10 +13,15 @@ function runtime = ob_suspend_enabled (runtime, time)
   endif
   for id = ids
     state = runtime.states{id};
-    if (!state.initialized || !state.was_enabled), continue; endif
+    if (!state.initialized), continue; endif
     descriptor = ob_runtime_execution (runtime.model,id);
     options = descriptor.options;
-    if (!strcmp(options.mode,'enabled')), continue; endif
+    if (!strcmp(options.mode,'enabled') && !ob_is_combined_mode(options.mode))
+      state.child = ob_suspend_enabled(state.child,time);
+      runtime.states{id} = runtime.current{id} = state;
+      continue;
+    endif
+    if (!state.was_enabled), continue; endif
     if (state.last_executed)
       interval = time-state.last_sample;
       if (runtime.rates(id,1)>0), interval=runtime.rates(id,1); endif
@@ -27,6 +32,9 @@ function runtime = ob_suspend_enabled (runtime, time)
       state.continuous_elapsed += max(0,time-state.continuous_active_since);
       state.continuous_active_since = [];
     endif
+    % Ancestor disable is an effective local disable. Leave trigger history
+    % untouched; the next accepted activation applies this child's policy.
+    state.was_enabled = false;
     state.child = ob_suspend_enabled(state.child,time);
     runtime.states{id} = state;
     runtime.current{id} = state;

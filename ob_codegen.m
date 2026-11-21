@@ -12,6 +12,10 @@ function info = ob_codegen (model, file, config = [0 10 0.1], options = struct (
   if (! strcmpi (extension, ".c")), error ("ob_codegen: output must have a .c extension"); endif
   if (isempty (folder)), folder = pwd (); endif
   if (! exist (folder, "dir")), error ("ob_codegen: output directory does not exist"); endif
+  if (isstruct (model) && isscalar (model) && isfield (model, 'blocks') ...
+      && isstruct (model.blocks) && isfield (model.blocks, 'type'))
+    ob_require_runtime_support (model, options, 'ob_codegen');
+  endif
   if (options.zero_crossings || ob_has_continuous_control(model))
     info = ob_codegen_conditional (model, file, config, options); return;
   endif

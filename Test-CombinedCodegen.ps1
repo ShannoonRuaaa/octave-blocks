@@ -2,7 +2,8 @@
 param(
     [string] $OctaveHome,
     [string] $Compiler,
-    [string] $OutputDirectory
+    [string] $OutputDirectory,
+    [switch] $AdvancedOnly
 )
 
 Set-StrictMode -Version Latest
@@ -39,7 +40,8 @@ $octaveArtifacts = $artifactRoot.Replace('\', '/').Replace("'", "''")
 $eventEdgesPreviousPath = $env:PATH
 try {
     $env:PATH = $binRoot + [IO.Path]::PathSeparator + (Split-Path -Parent $Compiler) + [IO.Path]::PathSeparator + $env:PATH
-    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); test_ob_combined_codegen('$octaveArtifacts',false);"
+    $advanced = if ($AdvancedOnly) { 'true' } else { 'false' }
+    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); test_ob_combined_codegen('$octaveArtifacts',false,$advanced);"
     if ($LASTEXITCODE -ne 0) { throw 'Combined control C preparation failed.' }
     $cases = @(Get-Content -LiteralPath (Join-Path $artifactRoot 'combined-manifest.json') -Raw | ConvertFrom-Json)
     foreach ($case in $cases) {

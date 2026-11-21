@@ -29,7 +29,7 @@ function value = ob_runtime_engine (action, varargin)
   endswitch
 endfunction
 
-function runtime = initialize (model, start_time, options, origin = [], embedded = false, major = true, events = struct ())
+function runtime = initialize (model, start_time, options, origin = [], embedded = false, major = true, events = struct (), reset_source = [])
   if (! valid_time (start_time))
     error ('ob_runtime_init: start_time must be a finite real numeric scalar');
   endif
@@ -71,10 +71,17 @@ function runtime = initialize (model, start_time, options, origin = [], embedded
   runtime.events = struct ('time', {}, 'path', {}, 'type', {}, 'channel', {}, ...
                           'side', {}, 'direction', {}, 'boundary', {});
   runtime.event_memory = struct ();
+  if (! embedded), ob_require_runtime_support (model, options); endif
+  runtime.reset_memory = cell (1, n);
   for id = reshape (find (runtime.stateful), 1, [])
     if (strcmp (runtime.types{id}, 'Conditional Subsystem'))
       descriptor = ob_runtime_execution (runtime.model,id);
       runtime.states{id} = ob_conditional_state (runtime.model.blocks(id).value, runtime.time, descriptor.options);
+    elseif (strcmp (runtime.types{id}, 'Transport Delay'))
+      runtime.states{id} = ob_transport_delay ('init');
+    elseif (strcmp (runtime.types{id}, 'Limited Integrator'))
+      params = ob_runtime_parameters (runtime.model, id);
+      runtime.states{id} = params.initial;
     else
       runtime.states{id} = runtime.model.blocks(id).value;
     endif
@@ -107,6 +114,9 @@ function runtime = initialize (model, start_time, options, origin = [], embedded
       error ('ob_run: sample offset at block %d cannot advance the start time', id);
     endif
   endfor
+  if (!isempty(reset_source))
+    runtime = ob_restore_reset_children(runtime,reset_source);
+  endif
   runtime = process_hits (runtime, runtime.time, major, [], events);
   if (embedded), runtime.major_current = runtime.current; endif
 endfunction
@@ -196,13 +206,19 @@ function runtime = process_hits (runtime, time, at_output, inherited_interval = 
   if (reconcile), at_output = false; events.paths = {}; endif
   nested_due = [];
   if (!reconcile && isfield(runtime,'nested_clocks') && !isempty(runtime.nested_clocks))
-    for k = 1:numel(runtime.nested_clocks)
-      if (!(time == runtime.start_time && runtime.nested_clocks(k).rate(2) > 0) ...
-          && time_equal(runtime.nested_clocks(k).next,time,runtime.start_time,events.spacing))
-        nested_due(end+1) = k;
-        events.paths{end+1} = runtime.nested_clocks(k).path;
-      endif
-    endfor
+    % Vectorize the nested-clock due check using native struct-field extraction
+    % and element-wise arithmetic rather than a scalar iteration.
+    nc = runtime.nested_clocks;
+    nexts   = [nc.next];
+    offsets2 = reshape([nc.rate], 2, []);   % 2-by-K; row 2 = rate(2) = offset
+    at_start = (time == runtime.start_time) & (offsets2(2,:) > 0);
+    sp = events.spacing;
+    tol = min(sp/16, 8*eps(1) * max([realmin() abs(runtime.start_time) abs(time)]));
+    due_mask = !at_start & isfinite(nexts) & (abs(nexts - time) <= tol);
+    nested_due = find(due_mask);
+    if (!isempty(nested_due))
+      events.paths = [events.paths {nc(nested_due).path}];
+    endif
   endif
   if (!reconcile && isfield(runtime,'embedded') && runtime.embedded)
     [runtime.ticks, runtime.next_hits] = ob_clock_rebase(runtime.rates,runtime.explicit,runtime.start_time,time,events.spacing);
@@ -235,8 +251,16 @@ function runtime = process_hits (runtime, time, at_output, inherited_interval = 
   endfor
   flow = struct ();
   if (isfield(events,'flow')), flow = events.flow; endif
+  runtime = apply_integrator_resets (runtime, time, sample, inherited_interval, events, flow);
   [runtime.current, runtime.states] = ob_runtime_eval (runtime.model, runtime.edges, ...
       runtime.order, time, runtime.states, false, sample, inherited_interval, events, flow);
+  for id = ob_runtime_type_ids (runtime.model, 'delay_ids', 'Transport Delay')
+    % Accepted hits record the right limit of each delayed input.
+    source = block_source (runtime, id);
+    params = ob_runtime_parameters (runtime.model, id);
+    runtime.states{id} = ob_transport_delay ('record', params, runtime.states{id}, ...
+                                             time, runtime.current{source}, 'right', id);
+  endfor
   hit = due | (at_output & runtime.inherited) | sample;
   for id = reshape (find (hit), 1, [])
     runtime.sample_hits{id}(end + 1) = time;
@@ -269,6 +293,49 @@ function runtime = process_hits (runtime, time, at_output, inherited_interval = 
     endif
     runtime.nested_clocks(k).tick = tick;
     runtime.nested_clocks(k).next = next;
+  endfor
+endfunction
+
+function runtime = apply_integrator_resets (runtime, time, sample, inherited_interval, events, flow)
+  % Limited Integrator resets are sampled at accepted hits.  A side-effect-free
+  % evaluation supplies each reset signal; triggered states return to their
+  % initial value before the committed evaluation, so it is visible at once.
+  resettable = [];
+  for id = ob_runtime_type_ids (runtime.model, 'limited_ids', 'Limited Integrator')
+    params = ob_runtime_parameters (runtime.model, id);
+    if (! strcmp (params.reset, 'none')), resettable(end+1) = id; endif
+  endfor
+  if (isempty (resettable)), return; endif
+  if (! isfield (runtime, 'reset_memory') || numel (runtime.reset_memory) != numel (runtime.states))
+    runtime.reset_memory = cell (1, numel (runtime.states));
+  endif
+  probe = ob_runtime_eval (runtime.model, runtime.edges, runtime.order, time, ...
+                           runtime.states, false, sample, inherited_interval, events, flow);
+  for id = resettable
+    params = ob_runtime_parameters (runtime.model, id);
+    sources = block_source (runtime, id);
+    signal = probe{sources(2)};
+    if ((! isnumeric (signal) && ! islogical (signal)) || ! isreal (signal) ...
+        || ! isscalar (signal) || ! isfinite (signal))
+      error ('ob_run: Limited Integrator block %d reset must be a finite real scalar', id);
+    endif
+    signal = double (signal);
+    previous = runtime.reset_memory{id};
+    switch (params.reset)
+      case 'level'
+        fire = signal != 0;
+      otherwise
+        fire = false;
+        if (! isempty (previous))
+          before = sign (previous); after = sign (signal);
+          rising = (before < 0 && after >= 0) || (before == 0 && after > 0);
+          falling = (before > 0 && after <= 0) || (before == 0 && after < 0);
+          fire = (rising && any (strcmp (params.reset, {'rising', 'either'}))) ...
+                 || (falling && any (strcmp (params.reset, {'falling', 'either'})));
+        endif
+    endswitch
+    if (fire), runtime.states{id} = params.initial; endif
+    runtime.reset_memory{id} = signal;
   endfor
 endfunction
 
@@ -437,7 +504,11 @@ endfunction
 function spacing = clock_spacing (runtime)
   periods = runtime.rates(runtime.explicit,1)';
   if (isfield(runtime,'nested_clocks') && !isempty(runtime.nested_clocks))
-    for clock = runtime.nested_clocks, periods(end+1) = clock.rate(1); endfor
+    % Extract all nested-clock periods in one vectorized operation instead of
+    % a scalar-append loop.  [structs.field] returns a 1-by-N numeric row when
+    % each field is a 1-by-2 rate vector; take every other element (column 1).
+    nested_rates = [runtime.nested_clocks.rate];
+    periods = [periods nested_rates(1:2:end)];
   endif
   spacing = min ([periods Inf]);
 endfunction

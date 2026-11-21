@@ -3,11 +3,13 @@ function state = ob_conditional_eval (model, state, inputs, time, inherited_inte
   options = descriptor.options;
   ports = descriptor.input_ports;
   combined = ob_is_combined_mode (options.mode);
+  resettable = ob_is_resettable_mode (options.mode);
+  uses_interval = resettable || strcmp (options.mode, 'enabled');
   [unused, control] = ob_conditional_signals (model, inputs, time, false, ports);
   clocked = descriptor.clocked;
   continuous_enabled = strcmp(options.mode,'enabled') && strcmp(options.control,'continuous');
   if (major && state.last_executed && ! continuous_enabled)
-    if (strcmp (options.mode, 'enabled') && ! isempty (inherited_interval))
+    if (uses_interval && ! isempty (inherited_interval))
       state.advance_interval = inherited_interval;
       if (clocked && !fixed_interval && inherited_interval > 0)
         state.advance_interval = min(inherited_interval,time-state.last_sample);
@@ -25,6 +27,9 @@ function state = ob_conditional_eval (model, state, inputs, time, inherited_inte
       state = ob_conditional_control (model,state,inputs,time,events,false);
     endif
     active = strcmp(options.mode,'enabled') && state.was_enabled;
+  elseif (resettable)
+    [state, reset] = trigger_edge (state,control,options.mode(7:end),options.control);
+    active = true;
   elseif (combined)
     state = ob_conditional_control (model,state,inputs,time,events,false);
     [state, edge] = trigger_edge (state,control,options.mode(9:end),options.control);
@@ -80,8 +85,11 @@ function state = ob_conditional_eval (model, state, inputs, time, inherited_inte
   endfor
   if (! state.initialized || reset)
     child = model; child.inputs = signals;
-    if (clocked || continuous_enabled || descriptor.continuous_controls)
-      state.child = ob_runtime_engine ('init-child',child,time,events.options,events.origin,true,major,events);
+    reset_source = [];
+    if (reset && state.initialized && !resettable), reset_source = state.child;
+    elseif (isfield(state,'reset_seed')), reset_source = state.reset_seed; endif
+    if (clocked || continuous_enabled || resettable || descriptor.continuous_controls || !isempty(reset_source))
+      state.child = ob_runtime_engine ('init-child',child,time,events.options,events.origin,true,major,events,reset_source);
     else
       state.child = ob_runtime_init (child, time, events.options);
     endif
@@ -89,9 +97,10 @@ function state = ob_conditional_eval (model, state, inputs, time, inherited_inte
       state.child.major_current = state.child.current;
     endif
     state.initialized = true;
+    if (isfield(state,'reset_seed')), state = rmfield(state,'reset_seed'); endif
     if (combined), state.reset_pending = false; endif
   else
-    if (strcmp (options.mode, 'enabled')), interval = state.advance_interval;
+    if (uses_interval), interval = state.advance_interval;
     else interval = time - state.child.time; endif
     if (clocked)
       state.child = ob_runtime_engine ('clock-hit',state.child,time,signals,interval,major,events);

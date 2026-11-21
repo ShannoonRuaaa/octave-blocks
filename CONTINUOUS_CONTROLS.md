@@ -73,14 +73,14 @@ deactivation, so a held feedthrough output reflects the disable boundary.
 
 Inactive ancestors suppress descendant integration and inner guard evaluation.
 Active enabled ancestors propagate current inputs into nested continuous
-controls. Resetting an ancestor currently reconstructs nested contexts;
-independent descendant reset-policy precedence remains a compatibility gap.
+controls. Descendant Enable state settings take precedence on reactivation;
+see [nested Enable state policies](COMBINED_CONTROLS.md).
 
 Triggered bodies hold their states and outputs between executions. A trigger
 executes its body once using data evaluated at the accepted event time. The
 body still cannot contain continuous Integrators, independent sample clocks,
-or descendants configured with continuous control. Combined enable-and-trigger,
-function-call, and other atomic variants remain outside this implementation.
+or descendants configured with continuous control. Function-call and other
+atomic variants remain outside this implementation.
 
 ## Discrete clocks and elapsed active time
 
@@ -228,7 +228,7 @@ The comparison uses official documentation, analytic reference values, and
 Octave execution. The retained MATLAB environment probe reported no runnable
 Simulink engine; current availability has not been rechecked. No live Simulink
 trajectory or full nested-policy comparison is claimed. Automatic rate
-propagation, nested reset-policy overrides, broader gate variants, implicit
+propagation, broader gate variants, implicit
 DAE support and adaptive C emission remain tracked advanced-goal work in
 [COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md).
 

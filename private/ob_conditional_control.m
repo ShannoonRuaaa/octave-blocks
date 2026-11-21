@@ -24,7 +24,10 @@ function state = ob_conditional_control (model, state, inputs, time, events, ini
   reset = active && !previous && strcmp(options.states,'reset');
   if (reset)
     if (combined), state.reset_pending = true;
-    else state.initialized = false; state.child = []; endif
+    else
+      if (state.initialized), state.reset_seed = state.child; endif
+      state.initialized = false; state.child = [];
+    endif
     state.continuous_elapsed = 0; state.advance_interval = 0;
   endif
   state.was_enabled = active;
@@ -36,7 +39,10 @@ function state = ob_conditional_control (model, state, inputs, time, events, ini
   if (! state.initialized)
     [signals, unused] = ob_conditional_signals (model, inputs, time, true, descriptor.input_ports);
     child = model; child.inputs = signals;
-    state.child = ob_runtime_engine ('init-child',child,time,events.options,events.origin,true,false,events);
+    reset_source = [];
+    if (isfield(state,'reset_seed')), reset_source = state.reset_seed; endif
+    state.child = ob_runtime_engine ('init-child',child,time,events.options,events.origin,true,false,events,reset_source);
+    if (isfield(state,'reset_seed')), state = rmfield(state,'reset_seed'); endif
     state.child.major_current = state.child.current;
     state.initialized = true;
     state = ob_refresh_conditional_outputs (model,state,descriptor);

@@ -14,11 +14,12 @@ function options = ob_execution_options (model, check_body = true)
       options.(field{1}) = supplied.(field{1});
     endfor
   endif
-  if (! ischar (options.mode) || ! any (strcmp (options.mode, {'virtual','enabled','rising','falling','either','enabled_rising','enabled_falling','enabled_either'})))
-    error ('ob_execution_options: unsupported subsystem execution mode');
-  endif
+  options.mode = ob_execution_mode (model);
   if (! ischar (options.control) || ! any (strcmp (options.control, {'sampled','continuous'})))
     error ('ob_execution_options: control must be sampled or continuous');
+  endif
+  if (ob_is_resettable_mode(options.mode) && !strcmp(options.control,'sampled'))
+    error ('ob_execution_options: resettable subsystems currently require sampled reset');
   endif
   if (strcmp (options.mode, 'virtual'))
     % Conditional output contracts do not constrain a virtual interface.
@@ -57,11 +58,22 @@ function options = ob_execution_options (model, check_body = true)
   options.initial_control = double (options.initial_control);
   if (check_body && ! strcmp (options.mode, 'virtual'))
     require_body (model, strcmp (options.mode, 'enabled'));
+    if (ob_is_resettable_mode(options.mode)), require_virtual_descendants (model); endif
   endif
 endfunction
 
+function require_virtual_descendants (model)
+  for id = reshape(find(strcmp({model.blocks.type},'Subsystem')),1,[])
+    child = model.blocks(id).value;
+    if (!strcmp(ob_execution_mode(child),'virtual'))
+      error ('ob_execution_options: resettable bodies currently allow only virtual descendants');
+    endif
+    require_virtual_descendants(child);
+  endfor
+endfunction
+
 function require_body (model, continuous)
-  if (! continuous && any (strcmp ({model.blocks.type}, 'Integrator')))
+  if (! continuous && any (ismember ({model.blocks.type}, {'Integrator', 'Limited Integrator'})))
     error ('ob_execution_options: triggered bodies require discrete blocks; continuous Integrator is not supported');
   endif
   rates = ob_sample_times (model);

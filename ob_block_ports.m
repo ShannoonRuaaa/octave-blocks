@@ -9,6 +9,11 @@ function [inputs, outputs, minimum] = ob_block_ports (block)
       inputs = 2;
     case "Switch"
       inputs = 3;
+    case "Transport Delay"
+      inputs = 1;
+    case "Limited Integrator"
+      params = ob_block_parameters (block);
+      inputs = 1 + ! strcmp (params.reset, 'none');
     case "Function"
       inputs = Inf;
       outputs = ob_function_output_count (block);

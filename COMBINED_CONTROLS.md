@@ -45,10 +45,16 @@ engine availability. `reference_ob_combined.m` retains 18 independent cases;
 MATLAB syntax checks and missing-engine rejection passed, but no Simulink trace
 was produced. This feature does not establish full Simulink parity.
 
-Descendant Enable reset-policy precedence remains a known gap: existing
-context reconstruction does not preserve every child override of a parent
-reset. First-evaluation trigger initialization also retains the project's
-explicit prior-value convention.
+For nested subsystems, MathWorks documents that the [child Enable setting
+takes precedence](https://www.mathworks.com/help/simulink/ug/enabled-subsystems.html).
+Octave Blocks treats an ancestor disable as an effective disable for each
+descendant Enable. On reactivation, a `held` child resumes its own state
+and a `reset` child returns to its initial state, regardless of the parent's
+setting. For a combined child, reset waits for its next accepted trigger;
+its held output remains available until that trigger. Trigger history stays
+frozen while the ancestor is disabled. These lifecycle details and the
+explicit prior trigger value still await direct Simulink comparison.
+`reference_ob_nested_reset.m` is a standalone harness for that comparison.
 
 ## Verification
 
@@ -58,4 +64,8 @@ sparse/dense output requests, rollback, and checkpoint continuation.
 `Test-CombinedCodegen.ps1` compiles strict C99 with warnings treated as errors
 and compares every numerical channel against Octave. It includes the policy
 matrix, continuous sine guards, matrix data, and a nested clocked ancestor.
+`test_ob_nested_reset()` checks independent Unit Delay traces for two and
+three levels of Enable nesting, nested combined controls, and enabled
+subsystems inside trigger-only wrappers. The cases cover both sampled and
+continuous outer Enable handling and also run in C.
 These checks are registered in `Launch-Blocks.ps1 -SelfTest`.

@@ -34,6 +34,13 @@ function fig = octave_blocks (initial_model = ob_example ())
                "units", "normalized", "position", [0.01+(k-1)*0.109 0.76 0.105 0.06], ...
                "callback", @(src, evt) ob_action (src, history_actions{k}, ""));
   endfor
+  advanced_labels = {"Transport Delay", "Limited Int."};
+  advanced_types = {"Transport Delay", "Limited Integrator"};
+  for k = 1:numel (advanced_labels)
+    uicontrol (fig, "style", "pushbutton", "string", advanced_labels{k}, ...
+               "units", "normalized", "position", [0.338+(k-1)*0.109 0.76 0.105 0.06], ...
+               "callback", @(src, evt) ob_action (src, "add", advanced_types{k}));
+  endfor
   subsystem_labels = {"Subsystem", "Inport", "Outport", "Enter", "Up", "Nested demo", ...
                       "Export C", "Inputs", "Input demo"};
   subsystem_actions = {"add", "add", "add", "enter", "up", "example_nested", ...
@@ -54,7 +61,7 @@ function fig = octave_blocks (initial_model = ob_example ())
                "callback", @(src, evt) ob_action (src, rate_actions{k}, rate_data{k}));
   endfor
   status = uicontrol (fig, "style", "text", "units", "normalized", ...
-                      "position", [0.35 0.76 0.63 0.055], ...
+                      "position", [0.56 0.76 0.43 0.055], ...
                       "horizontalalignment", "left");
   state = struct ("model", initial_model, "selected", 0, ...
                   "mode", "select", "source", 0, "axes", ax, ...
@@ -122,7 +129,10 @@ function ob_action (src, action, data)
         ids = find (strcmp ({diagram.blocks.type}, data));
         block.value = numel (ids) + 1;
       endif
-      if (strcmp (data, "Constant") || strcmp (data, "Gain") ...
+      if (any (strcmp (data, {"Transport Delay", "Limited Integrator"})))
+        [block.value, accepted] = ob_advanced_dialog (data, []);
+        if (! accepted), return; endif
+      elseif (strcmp (data, "Constant") || strcmp (data, "Gain") ...
           || strcmp (data, "Unit Delay") || strcmp (data, "Integrator") ...
           || strcmp (data, "Discrete Integrator") ...
           || strcmp (data, "Rate Transition") ...
@@ -262,6 +272,18 @@ function ob_action (src, action, data)
         catch err
           errordlg (err.message, "Invalid Function settings"); return;
         end_try_catch
+      elseif (any (strcmp (block.type, {"Transport Delay", "Limited Integrator"})))
+        [value, accepted] = ob_advanced_dialog (block.type, block.value);
+        if (! accepted), return; endif
+        candidate = block; candidate.value = value;
+        % Turning a reset off removes the wire to the reset port.
+        port_count = ob_block_ports (candidate);
+        wires = ob_edges (diagram);
+        if (any (wires(:, 3) == id & wires(:, 4) > port_count))
+          wires(wires(:, 3) == id & wires(:, 4) > port_count, :) = [];
+          diagram.edges = wires;
+        endif
+        diagram.blocks = ob_store_block (diagram.blocks, id, candidate);
       elseif (any (strcmp (block.type, {"Constant", "Gain", "Step", ...
                                      "Unit Delay", "Integrator", ...
                                      "Discrete Integrator", "Rate Transition", "Inport", "Outport", ...
@@ -554,7 +576,9 @@ function ob_draw (fig, geometry_only = false, selection_only = false, motion = [
   if (state.selected > 0)
     block = diagram.blocks(state.selected);
     status_text = [status_text " / " block.type];
-    if (! isempty (block.value) && ! isstruct (block.value)), status_text = [status_text " = " ob_value_text(block.value)]; endif
+    if (any (strcmp (block.type, {"Transport Delay", "Limited Integrator"})))
+      status_text = [status_text " / " ob_advanced_summary(block)];
+    elseif (! isempty (block.value) && ! isstruct (block.value)), status_text = [status_text " = " ob_value_text(block.value)]; endif
     if (strcmp (block.type, "Subsystem"))
       mode = ob_subsystem_mode (block);
       status_text = [status_text " / " mode];
@@ -562,6 +586,8 @@ function ob_draw (fig, geometry_only = false, selection_only = false, motion = [
         control_port = 1 + sum (strcmp ({block.value.blocks.type}, "Inport"));
         if (ob_is_combined_mode (ob_subsystem_mode(block)))
           status_text = [status_text sprintf(" (enable %d, trigger %d)", control_port, control_port+1)];
+        elseif (ob_is_resettable_mode (mode))
+          status_text = [status_text sprintf(" (reset input %d)", control_port)];
         else
           status_text = [status_text sprintf(" (control input %d)", control_port)];
         endif
@@ -687,6 +713,8 @@ function ob_draw (fig, geometry_only = false, selection_only = false, motion = [
         control_port = 1 + sum (strcmp ({block.value.blocks.type}, "Inport"));
         if (ob_is_combined_mode (mode))
           label = sprintf ("%s\n[%s; enable=%d, trigger=%d]", block.name, mode, control_port, control_port+1);
+        elseif (ob_is_resettable_mode (mode))
+          label = sprintf ("%s\n[%s; reset=%d]", block.name, mode, control_port);
         else
           label = sprintf ("%s\n[%s; control=%d]", block.name, mode, control_port);
         endif
@@ -765,13 +793,11 @@ endfunction
 
 function moved = ob_moved_blocks (before, after)
   % Only used when external edits prevent trusting the single-block hint.
-  moved = [];
-  for id = 1:numel(after.blocks)
-    if (before.blocks(id).x != after.blocks(id).x ...
-        || before.blocks(id).y != after.blocks(id).y)
-      moved(end+1) = id;
-    endif
-  endfor
+  % Compare all x and y coordinates in one vectorized operation using native
+  % struct-array field extraction instead of a scalar loop.
+  bx = [before.blocks.x]; by = [before.blocks.y];
+  ax = [after.blocks.x];  ay = [after.blocks.y];
+  moved = find (bx != ax | by != ay);
 endfunction
 
 function ob_select_block (src, evt)
@@ -887,7 +913,7 @@ function [block, accepted] = ob_edit_subsystem (block)
   initial_text = ob_cell_expression (options.initial_outputs);
   control_text = num2str (options.initial_control, 17);
   defaults = {block.name, options.mode, options.states, options.outputs, initial_text, control_text, options.control};
-  answer = inputdlg ({"Name", "Mode: virtual, enabled, rising/falling/either, enabled_rising/enabled_falling/enabled_either", ...
+  answer = inputdlg ({"Name", "Mode: virtual, enabled, rising/falling/either (also enabled_ or reset_ prefixes)", ...
                      "States when re-enabled: held or reset", "Outputs while disabled: held or reset", ...
                      "Initial outputs (Octave cell expression, one per Outport)", ...
                      "Initial trigger control (finite scalar)", "Control timing: sampled or continuous"}, ...
@@ -925,7 +951,11 @@ endfunction
 function yes = ob_has_sample_time (block)
   yes = any (strcmp (block.type, {"Unit Delay", "Discrete Integrator", "Rate Transition"}));
   if (strcmp (block.type, "Subsystem"))
-    yes = any (strcmp (ob_subsystem_mode(block), {"enabled", "rising", "falling", "either"}));
+    execution = struct ();
+    if (isfield(block.value,'execution')), execution = block.value.execution; endif
+    continuous = isstruct(execution) && isscalar(execution) ...
+                 && isfield(execution,'control') && strcmp(execution.control,'continuous');
+    yes = !strcmp(ob_subsystem_mode(block),'virtual') && !continuous;
   endif
 endfunction
 
@@ -934,6 +964,67 @@ function prompt = ob_control_prompt (type)
     prompt = "Threshold (input 2 >= threshold selects input 1; otherwise input 3):";
   else
     prompt = sprintf ("%s limits [lower upper]:", type);
+  endif
+endfunction
+
+function [value, accepted] = ob_advanced_dialog (type, value)
+  % Parameter dialog for Transport Delay and Limited Integrator blocks.
+  accepted = false;
+  raw = struct ();
+  if (isstruct (value)), raw = value; endif
+  if (strcmp (type, "Transport Delay"))
+    params = struct ("delay", 1, "initial", 0);
+    if (! isempty (value)), params = ob_block_parameters (struct ("type", type, "value", value)); endif
+    answer = inputdlg ({"Delay time in seconds (> 0):", "Initial output (Octave expression):"}, ...
+                       "Transport Delay", 1, {ob_value_text(params.delay), ob_value_text(params.initial)});
+    if (isempty (answer)), return; endif
+    try
+      delay = evalin ("base", answer{1}); initial = evalin ("base", answer{2});
+      candidate = struct ("delay", delay, "initial", initial);
+      if (isnumeric (delay) && isscalar (delay) && isnumeric (initial) && isscalar (initial))
+        candidate = double ([delay initial]);
+      endif
+      ob_block_parameters (struct ("type", type, "value", candidate));
+    catch err
+      errordlg (err.message, "Invalid Transport Delay"); return;
+    end_try_catch
+  else
+    params = struct ("initial", 0, "lower", -Inf, "upper", Inf, "reset", "none");
+    if (! isempty (value)), params = ob_block_parameters (struct ("type", type, "value", value)); endif
+    if (isfield (raw, "initial")), params.initial = raw.initial; endif
+    answer = inputdlg ({"Initial state (Octave expression):", "Lower limit (-Inf for none):", ...
+                        "Upper limit (Inf for none):", "Reset: none, rising, falling, either, or level"}, ...
+                       "Limited Integrator", 1, ...
+                       {ob_value_text(params.initial), ob_value_text(params.lower), ...
+                        ob_value_text(params.upper), params.reset});
+    if (isempty (answer)), return; endif
+    try
+      candidate = struct ("initial", evalin ("base", answer{1}), ...
+                          "lower", evalin ("base", answer{2}), ...
+                          "upper", evalin ("base", answer{3}), ...
+                          "reset", strtrim (answer{4}));
+      ob_block_parameters (struct ("type", type, "value", candidate));
+    catch err
+      errordlg (err.message, "Invalid Limited Integrator"); return;
+    end_try_catch
+  endif
+  value = candidate; accepted = true;
+endfunction
+
+function text = ob_advanced_summary (block)
+  try
+    params = ob_block_parameters (block);
+  catch
+    text = "invalid parameters"; return;
+  end_try_catch
+  if (strcmp (block.type, "Transport Delay"))
+    text = sprintf ("delay %s, initial %s", ob_value_text (params.delay), ob_value_text (params.initial));
+  else
+    text = sprintf ("x0 %s, limits [%s, %s]", ob_value_text (params.initial), ...
+                    ob_value_text (params.lower), ob_value_text (params.upper));
+    if (! strcmp (params.reset, "none"))
+      text = [text sprintf(", %s reset (input 2)", params.reset)];
+    endif
   endif
 endfunction
 

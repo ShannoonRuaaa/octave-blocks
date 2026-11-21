@@ -918,3 +918,49 @@ bounded to 32 levels.
 Each milestone must record its tested scope and remaining gaps. The original
 REA installation scan does not establish implementation details; behavior must
 be grounded in documented interfaces and reproducible numerical checks.
+
+## Advanced block and solver roadmap (2026-11-20)
+
+The `octave_blocks_all_outputs.zip` review adds reusable control and signal
+builders, a structural feedthrough diagnostic, and sampled resettable
+subsystems. Keep the broader Simulink compatibility objective open.
+See [Advanced extensions](ADVANCED_EXTENSIONS.md) for scope and tests.
+
+1. **Resettable subsystems:** the sampled discrete body is implemented.
+   Add continuous reset localization and continuous state resets; define
+   precedence through conditional descendants and verify coincident reset
+   and inner clock events before extending C coverage.
+2. **Integrator reset and limits:** add external reset and state limiting
+   with bound events, inward release, and a state output suitable for
+   feedback. Check analytical trajectories and both execution backends.
+3. **Transport Delay:** specify accepted history, interpolation, initial
+   output, and rollback. Validate short delays against solver stage times and
+   define memory limits before emitting a C history implementation.
+4. **Solver continuity and adaptive C:** test fixed versus dense output
+   requests around clocks and events; use supported Octave solver interfaces
+   and evaluate a separately linked SUNDIALS backend. Confirm availability
+   and API support before choosing a dependency.
+5. **Atomic scheduling:** the per-port diagnostic is available. Use it to
+   design phased state/output evaluation before permitting additional
+   conditional feedback in the scheduler or generated C.
+6. **Library integration:** evaluate the optional Octave `control` package
+   for MIMO and descriptor models and CBLAS for generated matrix products.
+   Require numerical equivalence and representative measurements before
+   adopting either as a backend.
+
+## Transport Delay, integrator limits and command API (2026-11-21)
+
+Roadmap items 2 and 3 are implemented for the Octave runtime. The Limited
+Integrator has output limits and a sampled external reset. Transport Delay
+uses recorded history with cubic Hermite interpolation; delayed
+discontinuities become solver boundaries. Both are rejected in C export,
+zero-crossing runs and conditional bodies, so those remain open. So do
+event-located integrator resets and a bounded C history buffer.
+`test_ob_delay_integrator` (36 analytical cases) and `test_ob_delay_matlab`
+(MATLAB R2026b `dde23` references) cover them; see
+[ADVANCED_EXTENSIONS.md](ADVANCED_EXTENSIONS.md).
+
+[SIMULINK_API.md](SIMULINK_API.md) adds Simulink's programmatic commands over
+Octave Blocks models. `test_ob_simulink_api` covers 26 cases, including a
+strict-C99 export of an API-built model. No live Simulink trace exists for
+either change, because the installed MATLAB has no Simulink.

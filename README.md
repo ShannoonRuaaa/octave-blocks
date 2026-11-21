@@ -113,6 +113,16 @@ event log. Continuous controls require the option. Adaptive C solvers remain uns
 See [ZERO_CROSSINGS.md](ZERO_CROSSINGS.md) for initial-zero behavior, matrix
 channels, event history, sampling rules, and remaining limitations.
 
+**Transport Delay** delays a signal by a fixed time, and **Limited Int.** adds
+an integrator with output limits and an optional reset input. Both run with
+all three solvers; see [advanced extensions](ADVANCED_EXTENSIONS.md) for
+their interpolation, reset timing, MATLAB `dde23` comparison and current
+restrictions (no C export, zero-crossing mode or conditional bodies yet).
+
+Models can also be built from scripts with Simulink's commands
+(`new_system`, `add_block`, `add_line`, `set_param`, `sim`, ...) after
+`addpath(fullfile(pwd, 'simulink'))`; see [SIMULINK_API.md](SIMULINK_API.md).
+
 If an older editor window is already open, close that window and run
 `clear octave_blocks; octave_blocks` to load the latest version.
 
@@ -265,6 +275,9 @@ Continuous state-space and proper SISO transfer-function builders are available
 as `ob_state_space` and `ob_transfer_function`. Their virtual diagrams work in
 the editor and C exporter; try `ob_linear_system_example`. See
 [LINEAR_SYSTEMS.md](LINEAR_SYSTEMS.md) for equations and initial-state conventions.
+See [ADVANCED_EXTENSIONS.md](ADVANCED_EXTENSIONS.md) for PID, discrete linear
+systems, lookup tables, sampled rate limiting and relay, feedthrough
+diagnostics, and sampled resettable subsystems.
 
 Run `test_ob_run; test_ob_editor_core; test_ob_solvers; test_ob_subsystems; test_ob_inputs; test_ob_multirate; test_ob_controls; test_ob_runtime; test_ob_runtime_metadata; test_ob_conditional; test_ob_enabled_continuous; test_ob_enabled_multirate; test_ob_linear_systems; test_ob_matlab_numeric; test_ob_multioutput; test_ob_algebraic; test_ob_zero_crossings; test_ob_continuous_controls` in
 Octave to check execution, editing rules, persistence, adaptive integration,

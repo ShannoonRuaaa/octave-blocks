@@ -19,7 +19,14 @@ function [current, states] = ob_runtime_eval (model, edges, order, time, states,
     source_map = info.sources;
   else
     loop_at = zeros (1, count);
-    for k = 1:numel (loops), loop_at(loops{k}) = k; endfor
+    if (!isempty(loops))
+      % Build the loop membership vector in one pass using native accumarray-
+      % style indexing rather than a k-iteration scalar write loop.
+      lens   = cellfun (@numel, loops);
+      groups = repelem (1:numel(loops), lens);
+      ids_flat = [loops{:}];
+      loop_at(ids_flat) = groups;
+    endif
   endif
   has_modes = isfield(flow,'modes');
   conditional_ready = false;
@@ -151,6 +158,12 @@ function [current, states] = ob_runtime_eval (model, edges, order, time, states,
         current{id} = states{id};
       case {"Unit Delay", "Discrete Integrator", "Integrator"}
         current{id} = states{id};
+      case 'Limited Integrator'
+        params = ob_runtime_parameters (model, id);
+        current{id} = min (max (states{id}, params.lower), params.upper);
+      case 'Transport Delay'
+        params = ob_runtime_parameters (model, id);
+        current{id} = ob_transport_delay ('output', params, states{id}, time, left_limit);
       otherwise
         error ("ob_run: unknown block type '%s'", block.type);
     endswitch
