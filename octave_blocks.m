@@ -666,6 +666,7 @@ function ob_draw (fig, geometry_only = false, selection_only = false, motion = [
       cache.draw_key = key; cache.dirty = dirty;
       state.graphics = cache; ob_store_state(fig,state);
       ob_scene_verified(fig,revision);
+      ob_flush_canvas (fig);
       return;
     endif
   endif
@@ -747,6 +748,16 @@ function ob_draw (fig, geometry_only = false, selection_only = false, motion = [
   cache.handles = [cache.wires(:)' cache.blocks{:}];
   state.graphics = cache; ob_store_state(fig,state);
   ob_scene_verified(fig,revision);
+  ob_flush_canvas (fig);
+endfunction
+
+function ob_flush_canvas (fig)
+  % Octave's Qt GUI applies axes property changes made inside a callback only
+  % at the next graphics flush. A click changes just a patch color, and
+  % nothing else would trigger that flush, so the selection highlight stayed
+  % stale until some unrelated event. Flush once the editor state is stored,
+  % so any callback that runs during the flush sees consistent state.
+  if (isgraphics (fig)), drawnow (); endif
 endfunction
 
 function coherent = ob_motion_coherent (cached, diagram, motion)

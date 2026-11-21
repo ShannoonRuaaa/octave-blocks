@@ -138,3 +138,21 @@ local MAT log after mouse-down/up. Records include the picked graphics owner,
 axes coordinates, selected block, drag state, and block positions. It adds disk
 logging overhead and is not part of the selection benchmark. It does not
 modify an already-open editor or save a model file.
+
+## Selection repaint fix (2026-11-21)
+
+A click on a block updated the selection and the status line, but the
+orange highlight could stay on the previously selected block. The
+selection-only path changes just two patch face colors. Octave's Qt GUI
+pushes axes changes made inside a callback to the screen only at the next
+graphics flush, and no other event triggered one. The status line is a Qt
+widget, so it updated anyway.
+
+`ob_draw` now ends with `drawnow` (via `ob_flush_canvas`), after the editor
+state is stored, so a callback that runs during the flush sees consistent
+state. All callers return right after `ob_draw`. With the existing Qt
+benchmark (which already flushed after each motion), dragging measured 8.2
+ms per motion for 10 blocks and 7.0 ms for 40, with no regression. Scripted
+editor tests read graphics properties, which were always correct, so they
+could not detect this. It was found in a real-window capture whose status
+line and highlight disagreed.
