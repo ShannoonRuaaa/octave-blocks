@@ -22,7 +22,7 @@ test_ob_run();
 test_ob_editor_core();
 ```
 
-Each suite temporarily adds the production root and private helpers it needs,
+Each suite temporarily adds the installed API in `inst/`, examples and private helpers it needs,
 then restores the previous path. Normal application startup does not load tests.
 Run a focused C gate with `./tests/Test-Codegen.ps1`, or the Qt gate with
 `./tests/Test-Editor.ps1`. These resolve the production path from the script

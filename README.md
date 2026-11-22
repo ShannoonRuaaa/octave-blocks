@@ -10,12 +10,12 @@ Octave Blocks is a visual modeling and simulation project built around GNU
 Octave. Connect continuous and discrete blocks, place your own `.m` functions
 in the diagram, and inspect scalar, vector or matrix signals in a Scope.
 
-![Octave Blocks editor displaying the oscillator feedback model](docs/images/editor.png)
+![Octave Blocks editor displaying the oscillator feedback model](doc/images/editor.png)
 
 [Download the preview](https://github.com/ShannoonRuaaa/octave-blocks/releases)
-· [User guide](docs/USER_GUIDE.md)
+· [User guide](doc/USER_GUIDE.md)
 · [Examples](#try-an-example)
-· [Roadmap](COMPATIBILITY_GAPS.md)
+· [Roadmap](doc/COMPATIBILITY_GAPS.md)
 · [Report a problem](https://github.com/ShannoonRuaaa/octave-blocks/issues/new/choose)
 
 ## Start in a minute
@@ -34,14 +34,29 @@ Or open Octave and run:
 
 ```octave
 cd ('/path/to/octave-blocks');
-addpath (pwd ());
+ob_setup ();
 octave_blocks ();
 ```
 
 Click a block to select it, **Connect** to wire two blocks, **Edit** to change
 parameters, and **Run** to plot the result. **Oscillator** loads the feedback
 example shown above. Save and load diagrams as Octave Blocks `.mat` models.
-See the [user guide](docs/USER_GUIDE.md) for input data and subsystem editing.
+See the [user guide](doc/USER_GUIDE.md) for input data and subsystem editing.
+
+## Install as an Octave package
+
+For a packaged release, use Octave�s package manager:
+
+```octave
+pkg install '/path/to/octave-blocks-0.2.1.tar.gz';
+pkg load octave-blocks;
+octave_blocks();
+```
+
+The package archive is produced by `tools/Package-Release.ps1`; older preview
+ZIPs use the source-checkout instructions above. Browse the installed API
+with `pkg describe -verbose octave-blocks`. See [package layout](doc/PACKAGE_LAYOUT.md)
+and the [documentation index](doc/README.md).
 
 ## What you can build
 
@@ -57,7 +72,7 @@ See the [user guide](docs/USER_GUIDE.md) for input data and subsystem editing.
 This is an experimental independent project. Simulink `.slx`/`.mdl` file
 interchange and full Simulink compatibility are unfinished. Arbitrary `.m`
 functions run in Octave; export supports a documented subset of Function blocks.
-See [supported exports](CODEGEN.md) and [compatibility gaps](COMPATIBILITY_GAPS.md).
+See [supported exports](doc/CODEGEN.md) and [compatibility gaps](doc/COMPATIBILITY_GAPS.md).
 
 The newer accelerator, adaptive C export, Transport Delay, Limited Integrator
 and reorganized source layout are under review in
@@ -75,7 +90,7 @@ plot (result.t, ob_scope_data (result, 4));
 xlabel ('Time (s)'); ylabel ('Position');
 ```
 
-![RK4 oscillator output overlapping its analytical cosine reference](docs/images/oscillator.png)
+![RK4 oscillator output overlapping its analytical cosine reference](doc/images/oscillator.png)
 
 Explore `ob_subsystem_example()`, `ob_multirate_example()`,
 `ob_continuous_control_example()` and `ob_linear_system_example()`.
@@ -100,12 +115,12 @@ verification, not for ordinary interpreted simulation.
 
 | Start here | Read more |
 | --- | --- |
-| [User guide](docs/USER_GUIDE.md) | Editor controls, model construction and examples |
-| [Runtime](RUNTIME.md) · [Events](ZERO_CROSSINGS.md) | Resumable execution and event handling |
-| [Subsystems](CONDITIONAL.md) · [Multirate](MULTIRATE.md) | State policies and scheduling |
-| [C export](CODEGEN.md) | Supported blocks, compilation and model APIs |
-| [Validation](VALIDATION.md) | Dated test evidence, reproduction and limits |
-| [Contributing](CONTRIBUTING.md) · [Review guide](REVIEW_GUIDE.md) | Development and code review |
+| [User guide](doc/USER_GUIDE.md) | Editor controls, model construction and examples |
+| [Runtime](doc/RUNTIME.md) · [Events](doc/ZERO_CROSSINGS.md) | Resumable execution and event handling |
+| [Subsystems](doc/CONDITIONAL.md) · [Multirate](doc/MULTIRATE.md) | State policies and scheduling |
+| [C export](doc/CODEGEN.md) | Supported blocks, compilation and model APIs |
+| [Validation](doc/VALIDATION.md) | Dated test evidence, reproduction and limits |
+| [Contributing](CONTRIBUTING.md) · [Review guide](doc/REVIEW_GUIDE.md) | Development and code review |
 
 The merged event-export milestone records 26 Octave suites, 25 BIST checks
 and 242 strict C99 cases. These are recorded results for that milestone,
@@ -119,14 +134,14 @@ All suites, reference fixtures and runners live in [tests/](tests/README.md).
 Generated C, executables and logs default to ignored `tests/.artifacts/`.
 `./Launch-Blocks.ps1 -SelfTest` remains a shortcut to the same runner.
 The editor checks require a desktop session and Qt. See
-[VALIDATION.md](VALIDATION.md) for the full environment.
+[VALIDATION.md](doc/VALIDATION.md) for the full environment.
 
 ## Releases and license
 
 [Releases](https://github.com/ShannoonRuaaa/octave-blocks/releases) provide
 versioned source ZIPs, SHA-256 checksums and feature notes. Preview releases
 are intended for experimentation. See [CHANGELOG.md](CHANGELOG.md) and
-[release instructions](docs/RELEASING.md).
+[release instructions](doc/RELEASING.md).
 
 Distributed under the [MIT license](LICENSE). GNU Octave is a separate dependency.
 Octave Blocks is not affiliated with GNU Octave or MathWorks. MATLAB and

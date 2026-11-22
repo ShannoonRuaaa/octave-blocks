@@ -43,7 +43,7 @@ $octaveExperimental = if ($ExperimentalTyped) { 'true' } else { 'false' }
 $eventCodegenPreviousPath = $env:PATH
 try {
     $env:PATH = $binRoot + [IO.Path]::PathSeparator + (Split-Path -Parent $Compiler) + [IO.Path]::PathSeparator + $env:PATH
-    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); addpath(fullfile('$octaveSource','tests')); test_ob_event_codegen('$octaveArtifacts',false,'$octavePattern',$octaveExperimental);"
+    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); ob_setup(); addpath(fullfile('$octaveSource','tests')); test_ob_event_codegen('$octaveArtifacts',false,'$octavePattern',$octaveExperimental);"
     if ($LASTEXITCODE -ne 0) { throw 'Event C export preparation failed.' }
     $cases = @(Get-Content -LiteralPath (Join-Path $artifactRoot 'event-manifest.json') -Raw | ConvertFrom-Json)
     foreach ($case in $cases) {
@@ -60,7 +60,7 @@ try {
             $output | Set-Content -LiteralPath (Join-Path $artifactRoot ($case.name + '.csv')) -Encoding utf8NoBOM
         } else { $output | Write-Output }
     }
-    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); addpath(fullfile('$octaveSource','tests')); test_ob_event_codegen('$octaveArtifacts',true);"
+    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); ob_setup(); addpath(fullfile('$octaveSource','tests')); test_ob_event_codegen('$octaveArtifacts',true);"
     if ($LASTEXITCODE -ne 0) { throw 'Generated event C differs from Octave.' }
     Write-Output "Event code generation verification passed. Artifacts: $artifactRoot"
 } finally { $env:PATH = $eventCodegenPreviousPath }

@@ -40,7 +40,7 @@ $octaveArtifacts = $artifactRoot.Replace('\', '/').Replace("'", "''")
 $inputLookupPreviousPath = $env:PATH
 try {
     $env:PATH = $binRoot + [IO.Path]::PathSeparator + (Split-Path -Parent $Compiler) + [IO.Path]::PathSeparator + $env:PATH
-    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); addpath(fullfile('$octaveSource','tests')); test_ob_c_input_lookup('$octaveArtifacts'); test_ob_c_number_format('$octaveArtifacts');"
+    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); ob_setup(); addpath(fullfile('$octaveSource','tests')); test_ob_c_input_lookup('$octaveArtifacts'); test_ob_c_number_format('$octaveArtifacts');"
     if ($LASTEXITCODE -ne 0) { throw 'C input lookup harness preparation failed.' }
     foreach ($continuous in @(0, 1)) {
         $source = Join-Path $artifactRoot "c-input-lookup-$continuous.c"

@@ -1,10 +1,15 @@
 # Octave Blocks
 
+For an installed package, use `pkg load octave-blocks; octave_blocks();`.
+For a source checkout, use `ob_setup(); octave_blocks();` from the project root.
+The Windows launcher and test-runner instructions below apply to source
+checkouts. See [package layout and installation](PACKAGE_LAYOUT.md).
+
 An Octave-native block diagram editor and evaluator. Function blocks call ordinary
 `.m` functions on Octave's path with `feval`, so block logic uses Octave's language.
 
 The project is available under the [MIT license](../LICENSE). See
-[VALIDATION.md](../VALIDATION.md) for the latest verification results, reproduction
+[VALIDATION.md](VALIDATION.md) for the latest verification results, reproduction
 commands, and known limits. This is an experimental independent implementation;
 full Simulink compatibility remains unfinished.
 
@@ -22,7 +27,7 @@ The launcher finds installed Octave in the standard per-user or Program Files
 GNU Octave folders. Supply `-OctaveHome 'C:\path\to\Octave-11.3.0'` for another
 installation. On the first GUI launch, Octave may show its welcome wizard.
 
-Add this folder to Octave's path, then run `octave_blocks` for the editor. The
+Run `ob_setup()` from the project root, then run `octave_blocks` for the editor. The
 initial diagram is Time → Gain → Scope. Click a block face, label, port, or port
 number to select its box; drag it to move. Box edges have a small click tolerance.
 Add blocks with the buttons, then click **Connect** and click source and
@@ -50,8 +55,8 @@ settings. Modes include virtual, enabled, and rising/falling/either trigger;
 conditional modes add a last control input and support held initial outputs.
 Control timing defaults to sampled. Choose continuous in **Edit** and enable
 zero crossings in **Settings** to locate gate events between output requests;
-see [CONTINUOUS_CONTROLS.md](../CONTINUOUS_CONTROLS.md).
-See [CONDITIONAL.md](../CONDITIONAL.md) for state/output policies, sample clocks,
+see [CONTINUOUS_CONTROLS.md](CONTINUOUS_CONTROLS.md).
+See [CONDITIONAL.md](CONDITIONAL.md) for state/output policies, sample clocks,
 matrix shapes, and current restrictions.
 **Inport** and **Outport** add numbered interface blocks; use **Edit** to change
 their port numbers. Port numbers of each kind must be unique and consecutive
@@ -66,7 +71,7 @@ there is only one between the selected blocks, otherwise it asks for ports.
 Smooth numeric algebraic feedback is solved during simulation, including loops
 through virtual subsystem boundaries. Matrix loops use explicit initial signal
 guesses; nonsmooth or lifecycle-containing loops remain unsupported. See
-[ALGEBRAIC.md](../ALGEBRAIC.md) and try `octave_blocks(ob_algebraic_example())`.
+[ALGEBRAIC.md](ALGEBRAIC.md) and try `octave_blocks(ob_algebraic_example())`.
 
 Save, Load, New, Settings, and Run apply to the whole model. Run includes scopes
 inside subsystems. Edits inside a subsystem are saved in the root model and are
@@ -77,7 +82,7 @@ Root **Inport** blocks can receive external sampled signals. Use **Inputs** to
 configure each numbered root port's times, sample rows, matrix shape, and `zoh`
 or `linear` interpolation. **Input demo** loads an input-driven integrator.
 Data is saved with the model and participates in Undo/Redo. See
-[INPUTS.md](../INPUTS.md) for matrix packing, endpoint holds, and examples.
+[INPUTS.md](INPUTS.md) for matrix packing, endpoint holds, and examples.
 
 **Export C** generates standalone C99 for supported fixed-size real-double
 models, including matrices, state blocks, nested subsystems, and selected
@@ -85,7 +90,7 @@ builtin Function blocks. Conditional Subsystems export as typed child contexts
 with their supported state/output policies. With zero crossings enabled, RK4
 exports also locate registered primitives and declared continuous controls.
 Choose `rk4` in Settings before export. The generated
-source has a reusable C API and an optional CSV runner; see [CODEGEN.md](../CODEGEN.md)
+source has a reusable C API and an optional CSV runner; see [CODEGEN.md](CODEGEN.md)
 for supported operations, compiler commands, return codes, and limitations.
 Octave's workspace variable `ob_last_export` contains the export metadata.
 
@@ -93,14 +98,14 @@ Octave's workspace variable `ob_last_export` contains the export metadata.
 Integrator, or Rate Transition and use **Sample time** to set its period and
 offset. A period of 0 retains the output-schedule clock. **Edit** changes its
 initial value. **Rate demo** loads a sampled Time signal feeding a continuous
-Integrator and sets the run interval to 0–1 seconds. See [MULTIRATE.md](../MULTIRATE.md)
+Integrator and sets the run interval to 0–1 seconds. See [MULTIRATE.md](MULTIRATE.md)
 for independent clocks, simultaneous updates, rate crossings, and limitations.
 
 **Saturation** clamps a signal to `[lower upper]` limits. **Dead Zone** emits
 zero within those limits and the excess outside them. **Switch** routes
 input 1 or input 3 according to whether input 2 is greater than or equal to
 its scalar threshold. **Control demo** loads a connected example. These blocks
-preserve matrix shapes and support C export. See [CONTROLS.md](../CONTROLS.md)
+preserve matrix shapes and support C export. See [CONTROLS.md](CONTROLS.md)
 for port order, shape requirements, and solver limitations at crossings.
 
 **Settings → Locate zero crossings** enables event localization for Switch,
@@ -110,7 +115,7 @@ setting also bounds the RK4 event search. Events appear in
 `ob_last_result.events`. RK4 C export accepts this option and stores cumulative
 event count/latest time in each generated context; it does not keep an unbounded
 event log. Continuous controls require the option. Adaptive C solvers remain unsupported.
-See [ZERO_CROSSINGS.md](../ZERO_CROSSINGS.md) for initial-zero behavior, matrix
+See [ZERO_CROSSINGS.md](ZERO_CROSSINGS.md) for initial-zero behavior, matrix
 channels, event history, sampling rules, and remaining limitations.
 
 If an older editor window is already open, close that window and run
@@ -138,7 +143,7 @@ ob_save_model ('my-model.mat', custom, [0 10 0.1]);
 For stepping and checkpointing from Octave host code, use `ob_runtime_init`,
 `ob_runtime_step`, and `ob_runtime_outputs`. Each context owns its states and
 clocks; copies can continue independently and failed steps preserve the prior
-context. See [RUNTIME.md](../RUNTIME.md) for hierarchy-aware reads and MAT checkpoint
+context. See [RUNTIME.md](RUNTIME.md) for hierarchy-aware reads and MAT checkpoint
 examples. `ob_run` collects samples using this same scheduler.
 
 Variable-step simulation uses Octave's built-in ODE solvers. Supply output
@@ -207,7 +212,7 @@ order. Add/Edit also sets the output count; returned values feed their numbered
 output ports. Missing output metadata preserves one output in older models.
 `ob_multioutput_example` demonstrates maximum values and their indices, and
 `ob_demo_multi_function` is an ordinary three-output `.m` function. See
-[MULTIOUTPUT.md](../MULTIOUTPUT.md) for shapes, routing, and the C subset.
+[MULTIOUTPUT.md](MULTIOUTPUT.md) for shapes, routing, and the C subset.
 Functions should be deterministic
 and avoid side effects: continuous integration evaluates them at intermediate
 solver times as well as output times.
@@ -226,7 +231,7 @@ Known Step transitions and external input knots split continuous integration int
 smear into the preceding interval. Discrete blocks update on their configured
 or inherited clocks and hold their state during continuous integration.
 Supported smooth, fixed-shape numeric algebraic loops are solved in Octave;
-C export rejects them. See [ALGEBRAIC.md](../ALGEBRAIC.md).
+C export rejects them. See [ALGEBRAIC.md](ALGEBRAIC.md).
 Explicit destination port numbers determine
 input order; legacy two-column connections assign ports in wire-row order.
 Independent numerical clocks and single-thread sample/hold rate transitions
@@ -244,7 +249,7 @@ flattened before dependency sorting and simulation, so their states share the
 root solver while preserving each inner block's explicit clock. Conditional
 subsystems retain separate contexts and explicit sampled/continuous control timing.
 Enabled continuous bodies share the parent solver stages and freeze while
-disabled; their enable gates default to sampled. See [CONDITIONAL.md](../CONDITIONAL.md)
+disabled; their enable gates default to sampled. See [CONDITIONAL.md](CONDITIONAL.md)
 and `ob_enabled_continuous_example`. Generated C supports the same enabled
 continuous bodies using joint RK4 stages. Octave enabled bodies also support
 independent inner clocks; `ob_enabled_multirate_example` demonstrates their
@@ -258,21 +263,21 @@ Nesting is limited to 32 levels.
 an enable interval between sparse output requests. Continuous-control models
 run in Octave and export through the RK4 event runtime with
 `zero_crossings=true`. Runtime execution also caches immutable routing
-and conditional metadata; see [RUNTIME_PERFORMANCE.md](../RUNTIME_PERFORMANCE.md)
+and conditional metadata; see [RUNTIME_PERFORMANCE.md](RUNTIME_PERFORMANCE.md)
 for measured improvements and the cache/checkpoint contract.
 
 Continuous state-space and proper SISO transfer-function builders are available
 as `ob_state_space` and `ob_transfer_function`. Their virtual diagrams work in
 the editor and C exporter; try `ob_linear_system_example`. See
-[LINEAR_SYSTEMS.md](../LINEAR_SYSTEMS.md) for equations and initial-state conventions.
+[LINEAR_SYSTEMS.md](LINEAR_SYSTEMS.md) for equations and initial-state conventions.
 
 Add `tests/` to the Octave path, then run `test_ob_run; test_ob_editor_core; test_ob_solvers; test_ob_subsystems; test_ob_inputs; test_ob_multirate; test_ob_controls; test_ob_runtime; test_ob_runtime_metadata; test_ob_conditional; test_ob_enabled_continuous; test_ob_enabled_multirate; test_ob_linear_systems; test_ob_matlab_numeric; test_ob_multioutput; test_ob_algebraic; test_ob_zero_crossings; test_ob_continuous_controls` in
 Octave to check execution, editing rules, persistence, adaptive integration,
 hierarchy, signal ports, external sampled inputs, multirate scheduling,
 nonlinear control blocks, resumable execution, conditional subsystems, and
 multiple Function outputs, algebraic loops, zero crossings, and recorded MATLAB numeric references. See
-[SIMULINK_REFERENCE.md](../SIMULINK_REFERENCE.md) for the feature cross-reference
-and what the REA inspection established, and [ADVANCED_PLAN.md](../ADVANCED_PLAN.md)
+[SIMULINK_REFERENCE.md](SIMULINK_REFERENCE.md) for the feature cross-reference
+and what the REA inspection established, and [ADVANCED_PLAN.md](ADVANCED_PLAN.md)
 for the advanced functionality roadmap.
 
 `Launch-Blocks.ps1 -SelfTest` also runs `tests/Test-Codegen.ps1`, which compiles the C
@@ -282,21 +287,21 @@ by default. It then runs the Qt retained-graphics checks in `tests/Test-Editor.p
 The full gate also runs the focused event-export checks in `tests/Test-EventCodegen.ps1`,
 `tests/Test-EventCodegenEdges.ps1` and `tests/Test-EventCodegenHierarchy.ps1`; each compiles
 and compares event-enabled models through the public exporter. See
-[EVENT_CODEGEN_DEVELOPMENT.md](../EVENT_CODEGEN_DEVELOPMENT.md) for runtime
-architecture and [COMPATIBILITY_GAPS.md](../COMPATIBILITY_GAPS.md) for open milestones.
+[EVENT_CODEGEN_DEVELOPMENT.md](EVENT_CODEGEN_DEVELOPMENT.md) for runtime
+architecture and [COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md) for open milestones.
 The full gate now includes the three `test_ob_performance_*` compatibility
 suites and graph/edge/snapshot BIST checks. See
-[OPTIMIZATION_AUDIT.md](../OPTIMIZATION_AUDIT.md) for corrected audit findings and
+[OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for corrected audit findings and
 measured results, and [benchmarks/README.md](../tests/benchmarks/README.md) to reproduce
 the before/after comparisons.
 Codegen metadata and source/proxy-order regressions and `tests/Test-CInputLookup.ps1`
 are registered in the full gate as well. The latter strictly compiles generated
 sampling/boundary helpers and compares them against independent scan oracles.
-See [PR2_AUDIT.md](../PR2_AUDIT.md) for the subsequent report review, including
+See [PR2_AUDIT.md](PR2_AUDIT.md) for the subsequent report review, including
 disproven claims, confirmed changes and verification scope.
 The expanded built-in and solver/library recommendations are assessed in
-[BUILTIN_REVIEW.md](../BUILTIN_REVIEW.md), including unsafe shape substitutions
+[BUILTIN_REVIEW.md](BUILTIN_REVIEW.md), including unsafe shape substitutions
 and the actual installed backend availability.
 Verification artifacts are retained in the reported directories. See
-[UI_PERFORMANCE.md](../UI_PERFORMANCE.md) for measured editor improvements and
-[REVIEW_GUIDE.md](../REVIEW_GUIDE.md) for architecture and review instructions.
+[UI_PERFORMANCE.md](UI_PERFORMANCE.md) for measured editor improvements and
+[REVIEW_GUIDE.md](REVIEW_GUIDE.md) for architecture and review instructions.

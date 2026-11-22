@@ -27,7 +27,7 @@ $octaveExports = $exportDirectory.Replace('\', '/').Replace("'", "''")
 $extra = ''
 if ($Benchmark) { $extra = "addpath(fullfile('$source','tests','benchmarks')); benchmark_ob_editor_ui([10 40],6);" }
 $expression = @"
-addpath('$source'); addpath(fullfile('$source','tests')); diary('$octaveLog');
+addpath('$source'); ob_setup(); addpath(fullfile('$source','tests')); diary('$octaveLog');
 try
   test_ob_editor_graphics(); test_ob_editor_event_export('$octaveExports'); $extra
   diary off; exit(0);
@@ -64,7 +64,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Qt-exported C execution failed: $($export.name)" }
         $output | Set-Content -LiteralPath (Join-Path $exportDirectory ($export.name + '.csv')) -Encoding utf8NoBOM
     }
-    & $cli --quiet --eval "addpath('$source'); addpath(fullfile('$source','tests')); test_ob_editor_event_export('$octaveExports',true);"
+    & $cli --quiet --eval "addpath('$source'); ob_setup(); addpath(fullfile('$source','tests')); test_ob_editor_event_export('$octaveExports',true);"
     if ($LASTEXITCODE -ne 0) { throw 'Qt-exported C differs from Octave.' }
 } finally { $env:PATH = $editorPreviousPath }
 Write-Output "Qt editor verification passed. Artifacts: $artifactDirectory"

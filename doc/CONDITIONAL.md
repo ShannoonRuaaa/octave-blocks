@@ -211,10 +211,10 @@ and API details. The broader milestone remains open in
 ## MATLAB and REA evidence
 
 MATLAB R2026b Update 1 was launched during development for comparison. Its recorded
-[environment probe](tests/reference/matlab-environment.json) reports no installed Simulink and
+[environment probe](../tests/reference/matlab-environment.json) reports no installed Simulink and
 no `load_system` function, despite a successful feature-license test. Current
 availability has not been rechecked; a live Simulink trace comparison remains pending.
-[reference_ob_conditional.m](tests/reference/reference_ob_conditional.m) builds temporary
+[reference_ob_conditional.m](../tests/reference/reference_ob_conditional.m) builds temporary
 comparison models when a local Simulink engine is available; it does not alter
 existing models.
 

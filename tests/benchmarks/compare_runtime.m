@@ -18,8 +18,8 @@ for audit_label=audit_labels
   if(mod(audit_round,2)),audit_order=[1 2 2 1];else audit_order=[2 1 1 2];endif
   for audit_version=audit_order
    clear functions;
-   path(audit_initial_path);addpath(audit_artifacts);addpath(audit_sources{audit_version});
-   assert(strcmpi(strrep(which('ob_run'),'\\','/'),strrep(fullfile(audit_sources{audit_version},'ob_run.m'),'\\','/')));
+   path(audit_initial_path);addpath(audit_artifacts);addpath(audit_sources{audit_version});if(exist(fullfile(audit_sources{audit_version},'inst'),'dir')),addpath(fullfile(audit_sources{audit_version},'inst'));addpath(fullfile(audit_sources{audit_version},'inst','examples'));endif;
+   assert(strcmpi(strrep(which('ob_run'),'\\','/'),strrep(fullfile(fileparts(which('ob_example')),'ob_run.m'),'\\','/')));
    audit_value=audit_timed_case(audit_label{1});
    audit_results(end+1)=struct('case',audit_label{1},'version',audit_version,'round',audit_round,'wall',audit_value.wall,'cpu',audit_value.cpu,'checksum',audit_value.checksum,'steps',audit_value.steps,'events',audit_value.events);
   endfor

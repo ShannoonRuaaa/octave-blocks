@@ -22,7 +22,7 @@ implemented and ready for review. It has not yet been merged into `main`.
 | Signals and blocks | Real numeric matrix signals, common math/control primitives, multiple Function outputs, editable state-space and proper SISO transfer-function builders. | Bus signals and additional data types, broader routing/control/system libraries and primitive signatures; broader model diagnostics/debugging. |
 | Models and ecosystem | Octave Blocks model files and resumable MAT contexts, examples, editor configuration and undo/redo. | Model references, subsystem variants, Simulink `.slx`/`.mdl` import/export, library/toolbox compatibility, Stateflow, Simscape and other product integrations. |
 
-Existing limits are documented in [README.md](tests/README.md),
+Existing limits are documented in [README.md](../tests/README.md),
 [CONDITIONAL.md](CONDITIONAL.md), [CONTINUOUS_CONTROLS.md](CONTINUOUS_CONTROLS.md),
 [ZERO_CROSSINGS.md](ZERO_CROSSINGS.md), [ALGEBRAIC.md](ALGEBRAIC.md) and
 [CODEGEN.md](CODEGEN.md). These subsets are not a claim of file, block, solver

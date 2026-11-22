@@ -32,16 +32,16 @@ payload was read by these scans. The implementation is original Octave code.
 
 ## Recorded MATLAB numeric comparisons
 
-[matlab-numeric-reference.json](tests/reference/matlab-numeric-reference.json) records results
+[matlab-numeric-reference.json](../tests/reference/matlab-numeric-reference.json) records results
 from MATLAB R2026b Update 1: 26 single-output builtin mappings, 15 two-output
 cases, signed-zero checks, and rounding ties. The generator is
-[reference_ob_matlab_numeric.m](tests/reference/reference_ob_matlab_numeric.m). Routine Octave
+[reference_ob_matlab_numeric.m](../tests/reference/reference_ob_matlab_numeric.m). Routine Octave
 tests compare against this retained reference; they do not rerun MATLAB.
 
-[matlab-environment.json](tests/reference/matlab-environment.json) records that MATLAB ran but
+[matlab-environment.json](../tests/reference/matlab-environment.json) records that MATLAB ran but
 Simulink and `load_system` were absent. A positive feature-license test did not
 establish an installed engine. The live subsystem comparison harness,
-[reference_ob_conditional.m](tests/reference/reference_ob_conditional.m), remains unverified
+[reference_ob_conditional.m](../tests/reference/reference_ob_conditional.m), remains unverified
 against Simulink in this environment.
 
 ## Verification artifacts

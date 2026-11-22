@@ -1,0 +1,1 @@
+rmpath (fullfile (fileparts (mfilename ('fullpath')), 'examples'));

@@ -1,0 +1,10 @@
+Octave Blocks 0.2.1 (development)
+
+Uses GNU Octave package conventions: inst/ for installed functions,
+inst/private/ for shared implementation, doc/ for documentation, and
+DESCRIPTION, COPYING and INDEX for package installation and discovery.
+Examples are installed separately from the public API in inst/examples/.
+Tests and benchmarks remain in tests/ and are not added by pkg load.
+
+See CHANGELOG.md for earlier preview release notes and doc/README.md
+for the documentation index.

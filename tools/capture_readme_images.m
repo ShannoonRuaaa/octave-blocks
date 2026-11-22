@@ -1,5 +1,6 @@
-function capture_readme_images (directory = fullfile(pwd(),'docs','images'))
+function capture_readme_images (directory = fullfile(fileparts(fileparts(mfilename('fullpath'))),'doc','images'))
   if (!exist(directory,'dir')), mkdir(directory); endif
+  ob_setup ();
   graphics_toolkit('qt');
   fig = octave_blocks(ob_oscillator());
   unwind_protect

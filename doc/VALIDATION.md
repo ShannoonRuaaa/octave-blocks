@@ -1,5 +1,39 @@
 # Validation report
 
+## GNU Octave package layout — 2026-11-22
+
+The root now contains project entry points and package metadata. Public
+functions install from `inst/`; shared implementation lives in
+`inst/private/`, examples in `inst/examples/`, and documentation in `doc/`.
+The compiler's multiple-output Function helper is a subfunction of its
+only production caller. `DESCRIPTION`, `COPYING`, `INDEX` and `NEWS`
+enable native Octave package installation and categorized discovery.
+
+Fresh checks on GNU Octave 11.3.0 on Windows:
+
+- Isolated package installation, loading, categorized description, example
+  discovery, oscillator simulation, C export and unloading passed. The
+  user package list was not changed. Normal loading exposes neither the
+  test suites nor the shared private exporter functions.
+- Source-checkout codegen metadata/adjacency, MATLAB numeric reference and
+  subsystem regressions passed.
+- Multiple-output Function tests, nine graph-order cases and twelve guard
+  snapshot cases passed. A multi-output model exported, compiled with strict
+  C99 warnings as errors, and executed successfully after helper grouping.
+- Seven compiled event-edge cases passed; six numerical models matched
+  Octave with worst scaled error 0, including overflow and rollback checks.
+- Qt retained graphics and editor event-export checks passed; two exact
+  compiled editor exports (16 channels) matched with scaled error 0.
+- Local documentation links and PowerShell runner syntax checks passed.
+
+The first isolated install failed because Windows' system tar could not
+resolve Octave's Unix-style path. Using Octave's bundled `usr/bin` tools
+resolved that issue; this environment also required desktop permissions for
+the MSYS runtime. Package testing used a private prefix under
+`tests/.artifacts/package-review/`.
+
+The complete application gate was not rerun for this organization change.
+
 ## Test-folder consolidation — 2026-11-22
 
 Suites, PowerShell runners, codegen fixtures, embedded regression checks,
@@ -144,7 +178,7 @@ The local full-gate/BIST logs are in
 `<TEMP>/octave-blocks-codegen-a7307632e8f0436e9225ce7e064e689e`; Qt log:
 `<TEMP>/octave-blocks-editor-fc58d1bebb2f48548702f9e0439b0918/editor.log`.
 See [OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for measured results and
-[benchmarks/README.md](tests/benchmarks/README.md) for reproducible timing comparisons.
+[benchmarks/README.md](../tests/benchmarks/README.md) for reproducible timing comparisons.
 
 The isolated publication branch `codex/optimized-release`, based on `2ae43f3`
 without the experimental C event-runtime changes, passed a fresh complete
