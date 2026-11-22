@@ -8,6 +8,7 @@ function unit = ob_c_conditional_unit (model, input_shapes = {}, prefix = 'ob_',
   endif
   [unit.flat, unit.signal_map, unit.paths] = ob_compile_model (model);
   [unit.order, unit.edges, stateful] = ob_execution_order (unit.flat);
+  [unit.sources, unit.proxies] = ob_c_adjacency (numel(unit.flat.blocks), unit.edges);
   unit.prefix = prefix; unit.root = root;
   unit.options = ob_execution_options (model);
   unit.types = {unit.flat.blocks.type}; unit.n = numel (unit.types);
@@ -18,7 +19,7 @@ function unit = ob_c_conditional_unit (model, input_shapes = {}, prefix = 'ob_',
   unit.shapes = unit.expressions = cell (1, unit.n);
   for id = unit.order
     block = unit.flat.blocks(id);
-    sources = unit.edges(unit.edges(:,2) == id, 1);
+    sources = unit.sources{id};
     shapes = unit.shapes(sources);
     location = strtrim (sprintf('%d ', unit.paths{id}));
     if (strcmp (block.type, 'Conditional Subsystem'))
@@ -44,7 +45,7 @@ function unit = ob_c_conditional_unit (model, input_shapes = {}, prefix = 'ob_',
   endfor
   unit.numeric_state = stateful & ! strcmp(unit.types, 'Conditional Subsystem');
   for id = reshape (find (unit.numeric_state), 1, [])
-    source = unit.edges(unit.edges(:,2) == id, 1);
+    source = unit.sources{id};
     if (! isequal (unit.shapes{id}, unit.shapes{source}))
       error ('ob_codegen: state input shape must match its initial condition at block %s', strtrim(sprintf('%d ',unit.paths{id})));
     endif

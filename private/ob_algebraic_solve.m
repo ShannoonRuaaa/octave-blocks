@@ -19,20 +19,29 @@ function [current, states] = ob_algebraic_solve (model, edges, ids, current, sta
   for k = 1:numel(ids), initial(offsets(k)+(1:counts(k))) = states{ids(k)}(:); endfor
   settings = optimset ('TolX', 1e-12, 'TolFun', 1e-12, 'MaxIter', 100, ...
       'MaxFunEvals', max (200, 100 * (numel(initial) + 1)), ...
-      'Updating', 'off', 'AutoScaling', 'off', 'Jacobian', 'on');
-  try
-    [solution, unused, status] = fsolve (@residual, initial, settings);
-    [error_value, unused] = residual (solution);
-  catch err
-    error ('ob_run: algebraic loop [%s] at time %.17g: %s', ...
-           loop_description(model,ids), time, err.message);
-  end_try_catch
-  % A small step or trust region is not proof of a solved constraint.
-  maximum = max (abs (error_value));
-  if (status <= 0 || ! isfinite (maximum) || maximum > 1e-9)
-    error ('ob_run: algebraic loop [%s] at time %.17g failed to converge (status %d, maximum residual %.6g)', ...
-           loop_description(model,ids), time, status, maximum);
-  endif
+      'Updating', 'on', 'AutoScaling', 'off', 'Jacobian', 'off');
+  % Broyden updates can stall even at a tiny residual (e.g. x=x^2 near zero).
+  % Retry from the original guess with the checked Jacobian, never accepting
+  % a failed solver status or relaxing the residual/conditioning contract.
+  attempts = {settings,optimset(settings,'Updating','off','Jacobian','on')};
+  for attempt = 1:numel(attempts)
+    try
+      [solution, unused, status] = fsolve (@residual, initial, attempts{attempt});
+      % Fresh independent acceptance checks also run after library-managed
+      % finite differences and approximate Broyden updates.
+      [error_value, unused] = residual (solution);
+      maximum = max (abs (error_value));
+      if (status <= 0 || !isfinite(maximum) || maximum > 1e-9)
+        error ('failed to converge (status %d, maximum residual %.6g)',status,maximum);
+      endif
+      break;
+    catch err
+      if (attempt == numel(attempts))
+        error ('ob_run: algebraic loop [%s] at time %.17g: %s', ...
+               loop_description(model,ids), time, err.message);
+      endif
+    end_try_catch
+  endfor
   for k = 1:numel (ids)
     accepted = reshape (solution(offsets(k) + (1:counts(k))), shapes{k});
     current{ids(k)} = states{ids(k)} = accepted;

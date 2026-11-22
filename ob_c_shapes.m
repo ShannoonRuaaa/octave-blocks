@@ -1,10 +1,10 @@
-function [shapes, expressions] = ob_c_shapes (model, order, edges, paths)
+function [shapes, expressions] = ob_c_shapes (model, order, edges, paths, sources = [])
+  if (nargin < 5), sources = ob_c_adjacency (numel(model.blocks), edges); endif
   shapes = cell (1, numel (model.blocks));
   expressions = cell (1, numel (model.blocks));
   for id = order
     block = model.blocks(id);
-    sources = edges(edges(:, 2) == id, 1);
-    inputs = shapes(sources);
+    inputs = shapes(sources{id});
     location = sprintf ("%d/", paths{id}); location(end) = [];
     if (any (strcmp (block.type, {"Constant", "Gain", "Step", "Integrator", ...
                                  "Unit Delay", "Discrete Integrator", "Rate Transition", ...
@@ -55,7 +55,7 @@ function [shapes, expressions] = ob_c_shapes (model, order, edges, paths)
     endswitch
   endfor
   for id = find (ismember ({model.blocks.type}, {"Integrator", "Unit Delay", "Discrete Integrator", "Rate Transition"}))
-    source = edges(edges(:, 2) == id, 1);
+    source = sources{id};
     if (! isequal (shapes{id}, shapes{source}))
       error ("ob_codegen: state input shape must match its initial condition at block %s", ...
              strtrim(sprintf("%d ", paths{id})));

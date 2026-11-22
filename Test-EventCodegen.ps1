@@ -3,7 +3,8 @@ param(
     [string] $OctaveHome,
     [string] $Compiler,
     [string] $OutputDirectory,
-    [string] $CasePattern = '.*'
+    [string] $CasePattern = '.*',
+    [switch] $ExperimentalTyped
 )
 
 Set-StrictMode -Version Latest
@@ -38,10 +39,11 @@ $artifactRoot = (Resolve-Path -LiteralPath $OutputDirectory).Path
 $octaveSource = $PSScriptRoot.Replace('\', '/').Replace("'", "''")
 $octaveArtifacts = $artifactRoot.Replace('\', '/').Replace("'", "''")
 $octavePattern = $CasePattern.Replace("'", "''")
+$octaveExperimental = if ($ExperimentalTyped) { 'true' } else { 'false' }
 $eventCodegenPreviousPath = $env:PATH
 try {
     $env:PATH = $binRoot + [IO.Path]::PathSeparator + (Split-Path -Parent $Compiler) + [IO.Path]::PathSeparator + $env:PATH
-    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); test_ob_event_codegen('$octaveArtifacts',false,'$octavePattern');"
+    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); test_ob_event_codegen('$octaveArtifacts',false,'$octavePattern',$octaveExperimental);"
     if ($LASTEXITCODE -ne 0) { throw 'Event C export preparation failed.' }
     $cases = @(Get-Content -LiteralPath (Join-Path $artifactRoot 'event-manifest.json') -Raw | ConvertFrom-Json)
     foreach ($case in $cases) {

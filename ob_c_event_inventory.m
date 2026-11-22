@@ -20,7 +20,7 @@ function [unit, guards] = inventory (unit, first, public_prefix, compiled_prefix
   unit.own_events = unit.descendant_events = unit.all_events = [];
   for id = 1:unit.n
     block = unit.flat.blocks(id);
-    sources = unit.edges(unit.edges(:,2)==id,1)';
+    sources = unit.sources{id}';
     path = unit.paths{id};
     if (! isempty(path) && path(end)==0), path(end)=[]; endif
     public_path = [public_prefix path];

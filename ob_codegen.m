@@ -2,12 +2,6 @@ function info = ob_codegen (model, file, config = [0 10 0.1], options = struct (
   % Export a validated static real-double model as standalone, allocation-free C99.
   config = ob_validate_config (config);
   options = ob_solver_options (options);
-  if (ob_has_continuous_control (model))
-    error ('ob_codegen: continuous subsystem control event code is not yet generated');
-  endif
-  if (options.zero_crossings)
-    error ('ob_codegen: zero-crossing event code is not yet generated; disable zero_crossings to export');
-  endif
   if (! strcmp (options.solver, "rk4"))
     error ("ob_codegen: C export requires rk4; adaptive solver code is not yet generated");
   endif
@@ -18,6 +12,9 @@ function info = ob_codegen (model, file, config = [0 10 0.1], options = struct (
   if (! strcmpi (extension, ".c")), error ("ob_codegen: output must have a .c extension"); endif
   if (isempty (folder)), folder = pwd (); endif
   if (! exist (folder, "dir")), error ("ob_codegen: output directory does not exist"); endif
+  if (options.zero_crossings || ob_has_continuous_control(model))
+    info = ob_codegen_conditional (model, file, config, options); return;
+  endif
   [flat, signal_map, paths] = ob_compile_model (model);
   [order, edges, stateful] = ob_execution_order (flat);
   types = {flat.blocks.type};
@@ -27,7 +24,8 @@ function info = ob_codegen (model, file, config = [0 10 0.1], options = struct (
   stateful |= strcmp (types, 'Rate Transition');
   n = numel (flat.blocks);
   if (n == 0), error ("ob_codegen: add at least one block before export"); endif
-  [shapes, expressions] = ob_c_shapes (flat, order, edges, paths);
+  sources_by_block = ob_c_adjacency (n, edges);
+  [shapes, expressions] = ob_c_shapes (flat, order, edges, paths, sources_by_block);
   sizes = cellfun (@prod, shapes);
   offsets = cumsum ([0 sizes(1:end-1)]);
   state_offsets = zeros (1, n); state_size = 0;
@@ -106,7 +104,7 @@ function info = ob_codegen (model, file, config = [0 10 0.1], options = struct (
          '  if (input_status != OB_OK) return input_status;');
   endif
   for id = order
-    sources = edges(edges(:, 2) == id, 1);
+    sources = sources_by_block{id};
     o = offsets(id); count = sizes(id); block = flat.blocks(id);
     add (sprintf ('  /* Block %s: %s */', strrep(labels{id}, ' ', '/'), block.type));
     switch (block.type)
@@ -171,7 +169,7 @@ function info = ob_codegen (model, file, config = [0 10 0.1], options = struct (
   endfor
   add ('  for (size_t i = 0; i < OB_VALUE_COUNT; ++i) if (!isfinite(v[i])) return OB_NONFINITE;', ...
        '  return OB_OK;', '}');
-  lines = [lines ob_c_schedule_lines(flat, edges, offsets, state_offsets, sizes)];
+  lines = [lines ob_c_schedule_lines(flat, edges, offsets, state_offsets, sizes, sources_by_block)];
   add ('int ob_model_outputs(ob_model *model) {', ...
        '  double values[OB_VALUE_COUNT];', ...
        '  if (!model || !model->initialized || !isfinite(model->time)) return OB_BAD_ARGUMENT;', ...
@@ -208,7 +206,7 @@ function info = ob_codegen (model, file, config = [0 10 0.1], options = struct (
          '  double v[OB_VALUE_COUNT];', '  int status = ob_eval(model, time, state, v, left, NULL, NULL);', ...
          '  if (status != OB_OK) return status;', '  memset(dy, 0, OB_STATE_STORAGE * sizeof(double));');
     for id = continuous
-      source = edges(edges(:, 2) == id, 1);
+      source = sources_by_block{id};
       add (sprintf ('  memcpy(dy + %d, v + %d, %d * sizeof(double));', state_offsets(id), offsets(source), sizes(id)));
     endfor
     add ('  return OB_OK;', '}', ...
@@ -233,7 +231,7 @@ function info = ob_codegen (model, file, config = [0 10 0.1], options = struct (
        '  ob_model work = *model;', '  int status = ob_model_outputs(&work);', ...
        '  if (status != OB_OK) return status;');
   for id = inherited
-    source = edges(edges(:, 2) == id, 1);
+    source = sources_by_block{id};
     if (strcmp (types{id}, 'Unit Delay'))
       add (sprintf ('  memcpy(work.pending + %d, work.value + %d, %d*sizeof(double));', state_offsets(id), offsets(source), sizes(id)));
     else
@@ -296,12 +294,18 @@ function info = ob_codegen (model, file, config = [0 10 0.1], options = struct (
     if (fid >= 0), fclose (fid); endif
     if (exist (temporary, 'file')), unlink (temporary); endif
   end_unwind_protect
+  % Match the typed exporter: clocks describe blocks, including equal rates.
+  clock_unit = struct ('flat',flat,'n',n,'paths',{paths},'children',{cell(1,n)});
+  [unused_clock_unit, clocks] = ob_c_clock_inventory (clock_unit);
   info = struct ('source', file, 'paths', {paths}, 'shapes', {shapes}, ...
                  'offsets', offsets, 'value_count', sum(sizes), 'state_count', state_size, ...
                  'signal_map', {signal_map}, 'solver', 'rk4', ...
                  'input_shapes', {cellfun(@(signal) signal.shape, inputs, 'uniformoutput', false)}, ...
                  'input_offsets', input_offsets, 'input_value_count', sum(input_sizes), ...
-                 'sample_times', rates);
+                 'sample_times', rates, ...
+                 'continuous_state_count', sum(sizes(continuous)), ...
+                 'clock_count', numel(clocks), 'clocks', {clocks}, ...
+                 'typed_conditional', false, 'zero_crossings', false, 'event_guard_count', 0);
 
   function add (varargin)
     lines = [lines varargin];
@@ -309,15 +313,11 @@ function info = ob_codegen (model, file, config = [0 10 0.1], options = struct (
 endfunction
 
 function text = c_number (value)
-  text = sprintf ('%.17g', value);
-  if (isempty (strfind (text, '.')) && isempty (strfind (lower(text), 'e')))
-    text = [text '.0'];
-  endif
+  text = ob_c_number_list (value);
 endfunction
 
 function text = number_list (values)
-  items = arrayfun (@c_number, values, 'uniformoutput', false);
-  text = strjoin (items, ',');
+  text = ob_c_number_list (values);
 endfunction
 
 function text = integer_list (values)
