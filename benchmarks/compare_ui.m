@@ -11,14 +11,17 @@ audit_initial_path=path();
 audit_artifacts=fileparts(mfilename('fullpath'));
 audit_sources={baseline_source,optimized_source};
 for audit_version=1:2
- clear functions;path(audit_initial_path);addpath(audit_sources{audit_version});benchmark_ob_editor_ui([10 40],12);
+ clear functions;path(audit_initial_path);addpath(audit_sources{audit_version});
+ if(exist(fullfile(audit_sources{audit_version},'ob_setup.m'),'file')),ob_setup('tests');endif % reorganized tree
+ benchmark_ob_editor_ui([10 40],12);
 endfor
 audit_results=struct('version',{},'round',{},'blocks',{},'clicks',{},'seconds',{},'per_click',{});
 for audit_round=1:3
  if(mod(audit_round,2)),audit_order=[1 2 2 1];else audit_order=[2 1 1 2];endif
  for audit_version=audit_order
-  clear functions;path(audit_initial_path);addpath(audit_sources{audit_version});
-  assert(strcmpi(strrep(which('octave_blocks'),'\\','/'),strrep(fullfile(audit_sources{audit_version},'octave_blocks.m'),'\\','/')));
+  clear functions;path(audit_initial_path);addpath(audit_sources{audit_version});audit_library=audit_sources{audit_version};
+  if(exist(fullfile(audit_library,'ob_setup.m'),'file')),ob_setup('tests');audit_library=fullfile(audit_library,'src');endif % reorganized tree
+  assert(strcmpi(strrep(which('octave_blocks'),'\\','/'),strrep(fullfile(audit_library,'octave_blocks.m'),'\\','/')));
   audit_rows=benchmark_ob_editor_ui([10 40],12);
   for audit_row=audit_rows
    audit_results(end+1)=struct('version',audit_version,'round',audit_round,'blocks',audit_row.blocks,'clicks',audit_row.clicks,'seconds',audit_row.seconds,'per_click',audit_row.per_click);

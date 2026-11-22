@@ -24,24 +24,27 @@ if (-not $OctaveHome) {
 }
 $binRoot = Join-Path $OctaveHome 'mingw64\bin'
 $sourcePath = $PSScriptRoot.Replace('\', '/').Replace("'", "''")
+$testRoot = Join-Path $PSScriptRoot 'tests'
 if ($SelfTest) {
     $executable = Join-Path $binRoot 'octave-cli.exe'
     if (-not (Test-Path -LiteralPath $executable)) { throw "Octave not found: $executable" }
-    & $executable --quiet --eval "addpath('$sourcePath'); test_ob_run(); test_ob_editor_core(); test_ob_solvers(); test_ob_subsystems(); test_ob_inputs(); test_ob_multirate(); test_ob_controls(); test_ob_runtime(); test_ob_runtime_metadata(); test_ob_conditional(); test_ob_enabled_continuous(); test_ob_enabled_multirate(); test_ob_linear_systems(); test_ob_matlab_numeric(); test_ob_multioutput(); test_ob_algebraic(); test_ob_zero_crossings(); test_ob_continuous_controls();"
+    & $executable --quiet --eval "addpath('$sourcePath'); ob_setup('tests'); test_ob_run(); test_ob_editor_core(); test_ob_solvers(); test_ob_subsystems(); test_ob_inputs(); test_ob_multirate(); test_ob_controls(); test_ob_runtime(); test_ob_runtime_metadata(); test_ob_conditional(); test_ob_enabled_continuous(); test_ob_enabled_multirate(); test_ob_linear_systems(); test_ob_matlab_numeric(); test_ob_multioutput(); test_ob_algebraic(); test_ob_zero_crossings(); test_ob_continuous_controls();"
     if ($LASTEXITCODE -ne 0) { throw 'Octave Blocks verification failed.' }
-    & $executable --quiet --eval "addpath('$sourcePath'); test_ob_performance_graph(); test_ob_performance_metadata(); test_ob_performance_events(); [passed,total]=test(fullfile('$sourcePath','ob_execution_order.m'),'quiet'); assert(total>0 && passed==total); [passed,total]=test(fullfile('$sourcePath','ob_edges.m'),'quiet'); assert(total>0 && passed==total); addpath(fullfile('$sourcePath','private')); [passed,total]=test(fullfile('$sourcePath','private','ob_zc_snapshot.m'),'quiet'); assert(total>0 && passed==total);"
+    & $executable --quiet --eval "addpath('$sourcePath'); ob_setup('tests'); test_ob_performance_graph(); test_ob_performance_metadata(); test_ob_performance_events(); test_ob_runtime_fast_paths(); [passed,total]=test(fullfile('$sourcePath','ob_setup.m'),'quiet'); assert(total>0 && passed==total); [passed,total]=test(fullfile('$sourcePath','src','ob_execution_order.m'),'quiet'); assert(total>0 && passed==total); [passed,total]=test(fullfile('$sourcePath','src','ob_edges.m'),'quiet'); assert(total>0 && passed==total); addpath(fullfile('$sourcePath','src','private')); [passed,total]=test(fullfile('$sourcePath','src','private','ob_zc_snapshot.m'),'quiet'); assert(total>0 && passed==total); [passed,total]=test(fullfile('$sourcePath','src','private','ob_ode_settings.m'),'quiet'); assert(total>0 && passed==total); [passed,total]=test(fullfile('$sourcePath','src','private','ob_dormand_prince.m'),'quiet'); assert(total>0 && passed==total);"
     if ($LASTEXITCODE -ne 0) { throw 'Optimization compatibility verification failed.' }
-    & $executable --quiet --eval "addpath('$sourcePath'); test_ob_codegen_metadata(); test_ob_codegen_adjacency(); test_ob_builtin_controls(); test_ob_transfer_builtin(); test_ob_dmperm_order();"
+    & $executable --quiet --eval "addpath('$sourcePath'); ob_setup('tests'); test_ob_codegen_metadata(); test_ob_codegen_adjacency(); test_ob_builtin_controls(); test_ob_transfer_builtin(); test_ob_dmperm_order();"
     if ($LASTEXITCODE -ne 0) { throw 'Code generation audit verification failed.' }
-    & $executable --quiet --eval "addpath('$sourcePath'); test_ob_combined_controls(); test_ob_nested_reset(); test_ob_delay_integrator(); test_ob_delay_matlab(); test_ob_simulink_api(); [passed,total]=test(fullfile('$sourcePath','ob_block_parameters.m'),'quiet'); assert(total>0 && passed==total); addpath(fullfile('$sourcePath','private')); [passed,total]=test(fullfile('$sourcePath','private','ob_transport_delay.m'),'quiet'); assert(total>0 && passed==total);"
+    & $executable --quiet --eval "addpath('$sourcePath'); ob_setup('all'); test_ob_combined_controls(); test_ob_nested_reset(); test_ob_delay_integrator(); test_ob_delay_matlab(); test_ob_simulink_delay_integrator(); test_ob_simulink_api(); test_ob_simulink_api_reference(); test_ob_simulink_conditional(); test_ob_simulink_extended(); [passed,total]=test(fullfile('$sourcePath','src','ob_block_parameters.m'),'quiet'); assert(total>0 && passed==total); addpath(fullfile('$sourcePath','src','private')); [passed,total]=test(fullfile('$sourcePath','src','private','ob_transport_delay.m'),'quiet'); assert(total>0 && passed==total);"
     if ($LASTEXITCODE -ne 0) { throw 'Combined control verification failed.' }
-    & (Join-Path $PSScriptRoot 'Test-CombinedCodegen.ps1') -OctaveHome $OctaveHome
-    & (Join-Path $PSScriptRoot 'Test-Codegen.ps1') -OctaveHome $OctaveHome
-    & (Join-Path $PSScriptRoot 'Test-CInputLookup.ps1') -OctaveHome $OctaveHome
-    & (Join-Path $PSScriptRoot 'Test-EventCodegen.ps1') -OctaveHome $OctaveHome
-    & (Join-Path $PSScriptRoot 'Test-EventCodegenEdges.ps1') -OctaveHome $OctaveHome
-    & (Join-Path $PSScriptRoot 'Test-EventCodegenHierarchy.ps1') -OctaveHome $OctaveHome
-    & (Join-Path $PSScriptRoot 'Test-Editor.ps1') -OctaveHome $OctaveHome
+    & $executable --quiet --eval "addpath('$sourcePath'); ob_setup('tests'); test_ob_accelerate(); test_ob_simulink_benchmarks();"
+    if ($LASTEXITCODE -ne 0) { throw 'Accelerator verification failed.' }
+    & (Join-Path $testRoot 'Test-CombinedCodegen.ps1') -OctaveHome $OctaveHome
+    & (Join-Path $testRoot 'Test-Codegen.ps1') -OctaveHome $OctaveHome
+    & (Join-Path $testRoot 'Test-CInputLookup.ps1') -OctaveHome $OctaveHome
+    & (Join-Path $testRoot 'Test-EventCodegen.ps1') -OctaveHome $OctaveHome
+    & (Join-Path $testRoot 'Test-EventCodegenEdges.ps1') -OctaveHome $OctaveHome
+    & (Join-Path $testRoot 'Test-EventCodegenHierarchy.ps1') -OctaveHome $OctaveHome
+    & (Join-Path $testRoot 'Test-Editor.ps1') -OctaveHome $OctaveHome
     return
 }
 $executable = Join-Path $binRoot 'octave-gui.exe'
@@ -51,7 +54,7 @@ $startInfo.FileName = $executable
 $startInfo.UseShellExecute = $false
 $startInfo.CreateNoWindow = $true
 $startInfo.WorkingDirectory = $PSScriptRoot
-foreach ($argument in @('--gui', '--persist', '--eval', "addpath('$sourcePath'); octave_blocks();")) {
+foreach ($argument in @('--gui', '--persist', '--eval', "addpath('$sourcePath'); ob_setup('tests'); octave_blocks();")) {
     $startInfo.ArgumentList.Add($argument)
 }
 $child = [System.Diagnostics.Process]::Start($startInfo)
