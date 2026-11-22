@@ -1,5 +1,43 @@
 # Validation report
 
+## Advanced package integration — 2026-11-22
+
+All twenty required stages are covered by successful runs on the integrated
+Octave package. Portable [evidence](../tests/validation/pr4/README.md) includes
+machine-readable results, final source hashes, both runs' manifests and logs.
+
+The initial full run on `84c458e` passed seventeen stages. Three failed at
+MEX compilation because Windows' linker split a spaced scratch path. The
+only code changes in `7cc42c7` fix the compiler's relative scratch paths,
+restore its directory/environment and add a spaced-path regression. API,
+accelerator, package and shared benchmark stages were rerun and passed.
+Source hashes stayed unchanged within each run and all other code hashes
+match between revisions. This was two-run coverage, not one uninterrupted
+all-pass gate; original failures are retained in the evidence.
+
+- Accelerator: 74 cases, worst scaled error 1.97e-16, including callbacks,
+  unsupported-mode fallback, cache reuse, spaced paths, capacity retries
+  and failures. The final cleanup emits harmless missing-path warnings for
+  temporary loaded-cache directories removed during the test.
+- Installed package: isolated install/load, API wrappers, simulation,
+  acceleration, GPL notices in adaptive C, strict C99 compilation/execution
+  and unloading passed. No user package registry was changed.
+- C gates: codegen 222 compiled cases/209 compared models, worst scaled
+  error 3.33e-16; combined 175; event 94/89; edges 7/6; hierarchy 17/13.
+  Event/combined comparisons had worst scaled error 0. Input lookup and
+  numeric formatting oracles passed as well.
+- Qt editor, advanced block dialogs and exact event exports passed.
+- API: 69 cases and 158 recorded reference checks. Conditional references:
+  304 matches, worst absolute error 1.25011e-13. Extended references:
+  75 agree and 3 known differences. Delay/Integrator: 22 agree and 29 known
+  differences. Shared benchmarks: 4 agree, 5 known differences, with compiled
+  runs working for the eight supported models.
+- Engine, systems, performance regression, metadata audit and embedded
+  regression stages passed. Historical timing claims were not remeasured.
+
+The combined distribution is GPL-3.0-or-later with original MIT notices
+retained. See [solver provenance and generated-code terms](LICENSING.md).
+
 Sections are dated and kept as recorded, newest first. Limits stated in older
 sections may since have been lifted; current scope and gaps are in
 [COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md).
