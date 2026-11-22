@@ -14,4 +14,4 @@ Include a small example or public reference for expected behavior.
 
 ### Related work
 
-Check COMPATIBILITY_GAPS.md and open pull requests for related work.
+Check doc/COMPATIBILITY_GAPS.md and open pull requests for related work.

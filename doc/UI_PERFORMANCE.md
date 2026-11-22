@@ -65,7 +65,7 @@ The expanded Qt regression passed external model/settings/saved-state changes,
 dirty markers, deleted graphics, nonincident-wire stability, ordinary selection,
 drag/Undo and Run. These timings measure callbacks/rendering, not OS mouse-event
 delivery. See [OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) and
-[benchmarks/README.md](tests/benchmarks/README.md) for samples, protocol and limits.
+[benchmarks/README.md](../tests/benchmarks/README.md) for samples, protocol and limits.
 
 ## Earlier retained-graphics measurements
 

@@ -2,7 +2,7 @@
 
 `optimization-20261113.json` contains the recorded timing samples, analytical
 checksums, CPU times, integration steps and event counts used in
-[OPTIMIZATION_AUDIT.md](../../OPTIMIZATION_AUDIT.md). Version 1 is baseline `8aeec48`;
+[OPTIMIZATION_AUDIT.md](../../doc/OPTIMIZATION_AUDIT.md). Version 1 is baseline `8aeec48`;
 version 2 is the optimized source. The baseline's benchmarked runtime, graph,
 input and editor files also match the published `2ae43f3` release. Use that public
 commit as the reproduction baseline; `8aeec48` identifies the original local
@@ -55,4 +55,4 @@ in the recorded run; these measurements are not a universal gain claim.
 and the printed sample precision. It shows an indexing improvement but no
 material total generation gain. The overlay isolates indexing from the event,
 input and UI changes; it does not benchmark the whole PR as one transformation.
-See [PR2_AUDIT.md](../../PR2_AUDIT.md) for findings and measured scope.
+See [PR2_AUDIT.md](../../doc/PR2_AUDIT.md) for findings and measured scope.

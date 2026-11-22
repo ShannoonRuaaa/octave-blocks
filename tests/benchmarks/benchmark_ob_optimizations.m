@@ -9,6 +9,9 @@ function report = benchmark_ob_optimizations (source = pwd (), output = '', repe
     error ('benchmark_ob_optimizations: repetitions must be a positive integer');
   endif
   addpath (source);
+  if (exist(fullfile(source,'inst'),'dir'))
+    addpath(fullfile(source,'inst')); addpath(fullfile(source,'inst','examples'));
+  endif
   legacy = ob_enabled_continuous_example ();
   continuous = legacy;
   continuous.blocks(3).value.execution.control = 'continuous';

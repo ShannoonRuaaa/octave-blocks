@@ -9,10 +9,11 @@ changes out of releases.
 3. Build with `tools/Package-Release.ps1`. It rejects a dirty tree and
    packages tracked files from an exact Git revision.
 4. Extract the ZIP and verify startup, examples and the included license.
-5. Publish a GitHub prerelease with the ZIP and `SHA256SUMS.txt`.
+5. Publish a GitHub prerelease with the source ZIP, installable `.tar.gz`
+   and `SHA256SUMS.txt`. Use the version in `DESCRIPTION` for package releases.
 
 ```powershell
-./tools/Package-Release.ps1 -Version '0.2.0-preview.1' -Revision HEAD
+./tools/Package-Release.ps1 -Version '0.2.1' -Revision HEAD
 ```
 
 No Octave installation, compiler, cache or ignored validation artifact ships.
@@ -29,7 +30,7 @@ addpath(pwd()); addpath('tools'); capture_readme_images();
 
 This refreshes the simulation plot and writes an `editor-canvas.png` preview.
 Octave's `getframe` omits toolbar controls; capture the actual application
-window separately as `docs/images/editor.png` for the full editor image.
+window separately as `doc/images/editor.png` for the full editor image.
 The simulation plot uses
 `ob_run` and checks oscillator error against cosine is below 1e-6.
 Inspect images before committing; they illustrate the application and do

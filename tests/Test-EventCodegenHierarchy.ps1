@@ -41,7 +41,7 @@ $octaveExperimental = if ($ExperimentalTyped) { 'true' } else { 'false' }
 $eventHierarchyPreviousPath = $env:PATH
 try {
     $env:PATH = $binRoot + [IO.Path]::PathSeparator + (Split-Path -Parent $Compiler) + [IO.Path]::PathSeparator + $env:PATH
-    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); addpath(fullfile('$octaveSource','tests')); test_ob_event_codegen_hierarchy('$octaveArtifacts',false,$octaveExperimental);"
+    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); ob_setup(); addpath(fullfile('$octaveSource','tests')); test_ob_event_codegen_hierarchy('$octaveArtifacts',false,$octaveExperimental);"
     if ($LASTEXITCODE -ne 0) { throw 'Event hierarchy C preparation failed.' }
     $cases = @(Get-Content -LiteralPath (Join-Path $artifactRoot 'event-hierarchy-manifest.json') -Raw | ConvertFrom-Json)
     foreach ($case in $cases) {
@@ -58,7 +58,7 @@ try {
             $output | Set-Content -LiteralPath (Join-Path $artifactRoot ($case.name + '.csv')) -Encoding utf8NoBOM
         } else { $output | Write-Output }
     }
-    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); addpath(fullfile('$octaveSource','tests')); test_ob_event_codegen_hierarchy('$octaveArtifacts',true);"
+    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); ob_setup(); addpath(fullfile('$octaveSource','tests')); test_ob_event_codegen_hierarchy('$octaveArtifacts',true);"
     if ($LASTEXITCODE -ne 0) { throw 'Generated event hierarchy C differs from Octave.' }
     Write-Output "Event hierarchy code generation verification passed. Artifacts: $artifactRoot"
 } finally { $env:PATH = $eventHierarchyPreviousPath }

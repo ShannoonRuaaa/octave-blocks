@@ -111,8 +111,8 @@ resolution. Small cases are roughly unchanged with a small dispatch overhead;
 they are not presented as wins. Runtime outputs, integration steps and event
 counts matched. These few local workloads do not predict every model's speed.
 
-[Recorded samples](tests/benchmarks/optimization-20261113.json) and
-[reproduction instructions](tests/benchmarks/README.md) are checked in. Runtime
+[Recorded samples](../tests/benchmarks/optimization-20261113.json) and
+[reproduction instructions](../tests/benchmarks/README.md) are checked in. Runtime
 CPU-time medians corroborated the direction of the three runtime improvements.
 The baseline's benchmarked files also match published release `2ae43f3`.
 

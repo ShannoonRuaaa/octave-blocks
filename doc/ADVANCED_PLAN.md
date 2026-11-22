@@ -359,7 +359,7 @@ ownership and one selection callback; wires cannot intercept clicks. A five-pixe
 canvas fallback handles missed edges while skipping already-owned parts.
 Expanded Qt checks cover each part and preserved retained handles. Native mouse
 checks covered faces, labels, ports, numbers and edges, plus a traced drag and
-Undo. The diagnostic [ob_trace_editor_clicks.m](ob_trace_editor_clicks.m) records
+Undo. The diagnostic [ob_trace_editor_clicks.m](../tools/ob_trace_editor_clicks.m) records
 actual picked owners and model positions without replacing the original dispatch.
 Existing editor processes retain old callbacks and need a fresh process after
 saving work. See [UI_PERFORMANCE.md](UI_PERFORMANCE.md).
@@ -790,9 +790,9 @@ to reset made it 0, and Undo restored 2 on the next run. The six-field settings
 dialog, mode/control-pin label, and ordinary run flow were visually inspected.
 
 MATLAB R2026b Update 1 was launched to attempt a Simulink comparison. The
-recorded [probe](tests/reference/matlab-environment.json) confirms MATLAB runs but Simulink is
+recorded [probe](../tests/reference/matlab-environment.json) confirms MATLAB runs but Simulink is
 not installed and `load_system` is missing, despite a positive license test.
-The reproducible [comparison harness](tests/reference/reference_ob_conditional.m) is retained;
+The reproducible [comparison harness](../tests/reference/reference_ob_conditional.m) is retained;
 no live Simulink trace agreement is claimed. REA 6.8.0 inspected the local
 support directory, retaining [237 observed entries and its limitations](REFERENCE_EVIDENCE.md#rea-installation-inspection).
 That installation scan does not establish runtime behavior.

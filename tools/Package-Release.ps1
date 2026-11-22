@@ -23,10 +23,18 @@ if (-not $OutputDirectory) {
 $folder = (Resolve-Path -LiteralPath $OutputDirectory).Path
 $name = "octave-blocks-$Version"
 $zip = Join-Path $folder "$name.zip"
-if (Test-Path -LiteralPath $zip) { throw 'Release ZIP already exists; choose a fresh output folder.' }
+$package = Join-Path $folder "$name.tar.gz"
+if ((Test-Path -LiteralPath $zip) -or (Test-Path -LiteralPath $package)) {
+    throw 'Release archive already exists; choose a fresh output folder.'
+}
 & git @gitArguments archive --format=zip "--prefix=$name/" "--output=$zip" $commit
 if ($LASTEXITCODE -ne 0) { throw 'Git archive failed.' }
-$digest = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-"$digest  $name.zip" | Set-Content -LiteralPath (Join-Path $folder 'SHA256SUMS.txt') -Encoding ascii
+& git @gitArguments archive --format=tar.gz "--prefix=$name/" "--output=$package" $commit
+if ($LASTEXITCODE -ne 0) { throw 'Octave package archive failed.' }
+$checksums = foreach ($archive in @($zip,$package)) {
+    $digest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$digest  $([IO.Path]::GetFileName($archive))"
+}
+$checksums | Set-Content -LiteralPath (Join-Path $folder 'SHA256SUMS.txt') -Encoding ascii
 Write-Output "Packaged revision: $commit"
 Write-Output "Release artifacts: $folder"

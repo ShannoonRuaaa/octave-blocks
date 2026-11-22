@@ -7,8 +7,10 @@ function cleanup = ob_test_setup ()
   previous = cellfun(@getenv,variables,'uniformoutput',false);
   for key = variables, setenv(key{1},scratch); endfor
   addpath (root);
+  addpath (fullfile(root,'inst'));
+  addpath (fullfile(root,'inst','examples'));
   addpath (fullfile(root,'tests','benchmarks'));
-  addpath (fullfile(root,'private'));
+  addpath (fullfile(root,'inst','private'));
   cleanup = onCleanup (@() restore_environment(original,variables,previous));
 endfunction
 

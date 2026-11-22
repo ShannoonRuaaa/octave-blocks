@@ -52,20 +52,20 @@ functions; use a fresh Octave process for reproducible UI checks.
 
 | Area | Entry points | What to inspect |
 | --- | --- | --- |
-| Public Octave API | [ob_run.m](ob_run.m), [ob_runtime_init.m](ob_runtime_init.m), [ob_runtime_step.m](ob_runtime_step.m), [ob_runtime_outputs.m](ob_runtime_outputs.m) | Public inputs, value semantics, cached reads, result mapping. |
-| Linear library | [ob_state_space.m](ob_state_space.m), [ob_transfer_function.m](ob_transfer_function.m), [LINEAR_SYSTEMS.md](LINEAR_SYSTEMS.md) | Equations, vector dimensions, autonomous sources, direct feedthrough, and realization-state convention; builders return editable virtual diagrams. |
-| Model validation | [ob_validate_model.m](ob_validate_model.m), [ob_edges.m](ob_edges.m), [ob_block_ports.m](ob_block_ports.m), [ob_execution_options.m](ob_execution_options.m) | Draft versus complete diagrams, port cardinality/order, hierarchy and parameter contracts. |
-| Compilation | [ob_compile_model.m](ob_compile_model.m), [ob_execution_order.m](ob_execution_order.m) | Virtual flattening, atomic/multiple-output proxies, dependency order, public-to-internal paths. |
-| Scheduler | [private/ob_runtime_engine.m](private/ob_runtime_engine.m), [private/ob_nested_clocks.m](private/ob_nested_clocks.m), [private/ob_clock_rebase.m](private/ob_clock_rebase.m) | Pending commits, hidden events, global clock phase, lazy children and transaction boundaries. |
-| Compiled runtime metadata | [private/ob_prepare_runtime_model.m](private/ob_prepare_runtime_model.m), [private/ob_runtime_execution.m](private/ob_runtime_execution.m), [private/ob_event_execution.m](private/ob_event_execution.m), [RUNTIME_PERFORMANCE.md](RUNTIME_PERFORMANCE.md) | Immutable routing/options versus dynamic data checks, trusted context metadata, cache-free checkpoint fallback and measured cost. |
-| Flow and integration | [private/ob_runtime_eval.m](private/ob_runtime_eval.m), [private/ob_conditional_eval.m](private/ob_conditional_eval.m), [private/ob_conditional_flow.m](private/ob_conditional_flow.m), [private/ob_runtime_integrate.m](private/ob_runtime_integrate.m) | Major-hit mutation versus minor-stage flow, shared continuous state vector, left-limit endpoints. |
-| Algebraic constraints | [private/ob_algebraic_solve.m](private/ob_algebraic_solve.m), [private/ob_direct_output.m](private/ob_direct_output.m), [ALGEBRAIC.md](ALGEBRAIC.md) | Simultaneous residuals, fixed shapes, per-context guesses, singularity and independent residual checks; no lifecycle operations inside iteration. |
-| Zero-crossing events | [private/ob_zc_snapshot.m](private/ob_zc_snapshot.m), [private/ob_flow_segment.m](private/ob_flow_segment.m), [private/ob_integrate_events.m](private/ob_integrate_events.m), [ZERO_CROSSINGS.md](ZERO_CROSSINGS.md) | Frozen incoming regimes, accepted-step monitors, canonical event-state reconstruction, outgoing-mode settling and checkpointed boundary history; no extra discrete hits. |
-| Continuous controls | [private/ob_conditional_control.m](private/ob_conditional_control.m), [private/ob_conditional_gate_flow.m](private/ob_conditional_gate_flow.m), [CONTINUOUS_CONTROLS.md](CONTINUOUS_CONTROLS.md) | Accepted gate lifecycle versus inherited captures, trigger arming, source/primitive transitions, coincidence ordering and zero-time clock isolation. |
-| C export | [ob_codegen.m](ob_codegen.m), [ob_c_conditional_unit.m](ob_c_conditional_unit.m), [ob_codegen_conditional.m](ob_codegen_conditional.m), [ob_emit_c_conditional.m](ob_emit_c_conditional.m) | Static shape inference, actual builtin mappings, typed contexts, generated C and file replacement. |
-| Clocked C extension | [ob_c_clock_inventory.m](ob_c_clock_inventory.m), clocked child/root emitters in [ob_emit_c_conditional.m](ob_emit_c_conditional.m) | Global clock IDs versus block IDs, transient event frames, disabled clocks, root-owned tick phase. Consult current C support status in [CODEGEN.md](CODEGEN.md). |
-| Editor and persistence | [octave_blocks.m](octave_blocks.m), [ob_save_model.m](ob_save_model.m), [ob_load_model.m](ob_load_model.m) | Model/graphics separation, undo snapshots, nested editing, validation before persistence. |
-| Evidence | [test_ob_codegen.m](tests/test_ob_codegen.m), [verify_ob_codegen.m](tests/verify_ob_codegen.m), the `test_ob_*.m` suites | Analytical expectations, generated-code comparisons, failure/rollback harnesses, rejection paths. |
+| Public Octave API | [ob_run.m](../inst/ob_run.m), [ob_runtime_init.m](../inst/ob_runtime_init.m), [ob_runtime_step.m](../inst/ob_runtime_step.m), [ob_runtime_outputs.m](../inst/ob_runtime_outputs.m) | Public inputs, value semantics, cached reads, result mapping. |
+| Linear library | [ob_state_space.m](../inst/ob_state_space.m), [ob_transfer_function.m](../inst/ob_transfer_function.m), [LINEAR_SYSTEMS.md](LINEAR_SYSTEMS.md) | Equations, vector dimensions, autonomous sources, direct feedthrough, and realization-state convention; builders return editable virtual diagrams. |
+| Model validation | [ob_validate_model.m](../inst/private/ob_validate_model.m), [ob_edges.m](../inst/ob_edges.m), [ob_block_ports.m](../inst/private/ob_block_ports.m), [ob_execution_options.m](../inst/private/ob_execution_options.m) | Draft versus complete diagrams, port cardinality/order, hierarchy and parameter contracts. |
+| Compilation | [ob_compile_model.m](../inst/private/ob_compile_model.m), [ob_execution_order.m](../inst/private/ob_execution_order.m) | Virtual flattening, atomic/multiple-output proxies, dependency order, public-to-internal paths. |
+| Scheduler | [private/ob_runtime_engine.m](../inst/private/ob_runtime_engine.m), [private/ob_nested_clocks.m](../inst/private/ob_nested_clocks.m), [private/ob_clock_rebase.m](../inst/private/ob_clock_rebase.m) | Pending commits, hidden events, global clock phase, lazy children and transaction boundaries. |
+| Compiled runtime metadata | [private/ob_prepare_runtime_model.m](../inst/private/ob_prepare_runtime_model.m), [private/ob_runtime_execution.m](../inst/private/ob_runtime_execution.m), [private/ob_event_execution.m](../inst/private/ob_event_execution.m), [RUNTIME_PERFORMANCE.md](RUNTIME_PERFORMANCE.md) | Immutable routing/options versus dynamic data checks, trusted context metadata, cache-free checkpoint fallback and measured cost. |
+| Flow and integration | [private/ob_runtime_eval.m](../inst/private/ob_runtime_eval.m), [private/ob_conditional_eval.m](../inst/private/ob_conditional_eval.m), [private/ob_conditional_flow.m](../inst/private/ob_conditional_flow.m), [private/ob_runtime_integrate.m](../inst/private/ob_runtime_integrate.m) | Major-hit mutation versus minor-stage flow, shared continuous state vector, left-limit endpoints. |
+| Algebraic constraints | [private/ob_algebraic_solve.m](../inst/private/ob_algebraic_solve.m), [private/ob_direct_output.m](../inst/private/ob_direct_output.m), [ALGEBRAIC.md](ALGEBRAIC.md) | Simultaneous residuals, fixed shapes, per-context guesses, singularity and independent residual checks; no lifecycle operations inside iteration. |
+| Zero-crossing events | [private/ob_zc_snapshot.m](../inst/private/ob_zc_snapshot.m), [private/ob_flow_segment.m](../inst/private/ob_flow_segment.m), [private/ob_integrate_events.m](../inst/private/ob_integrate_events.m), [ZERO_CROSSINGS.md](ZERO_CROSSINGS.md) | Frozen incoming regimes, accepted-step monitors, canonical event-state reconstruction, outgoing-mode settling and checkpointed boundary history; no extra discrete hits. |
+| Continuous controls | [private/ob_conditional_control.m](../inst/private/ob_conditional_control.m), [private/ob_conditional_gate_flow.m](../inst/private/ob_conditional_gate_flow.m), [CONTINUOUS_CONTROLS.md](CONTINUOUS_CONTROLS.md) | Accepted gate lifecycle versus inherited captures, trigger arming, source/primitive transitions, coincidence ordering and zero-time clock isolation. |
+| C export | [ob_codegen.m](../inst/ob_codegen.m), [ob_c_conditional_unit.m](../inst/private/ob_c_conditional_unit.m), [ob_codegen_conditional.m](../inst/private/ob_codegen_conditional.m), [ob_emit_c_conditional.m](../inst/private/ob_emit_c_conditional.m) | Static shape inference, actual builtin mappings, typed contexts, generated C and file replacement. |
+| Clocked C extension | [ob_c_clock_inventory.m](../inst/private/ob_c_clock_inventory.m), clocked child/root emitters in [ob_emit_c_conditional.m](../inst/private/ob_emit_c_conditional.m) | Global clock IDs versus block IDs, transient event frames, disabled clocks, root-owned tick phase. Consult current C support status in [CODEGEN.md](CODEGEN.md). |
+| Editor and persistence | [octave_blocks.m](../inst/octave_blocks.m), [ob_save_model.m](../inst/ob_save_model.m), [ob_load_model.m](../inst/ob_load_model.m) | Model/graphics separation, undo snapshots, nested editing, validation before persistence. |
+| Evidence | [test_ob_codegen.m](../tests/test_ob_codegen.m), [verify_ob_codegen.m](../tests/verify_ob_codegen.m), the `test_ob_*.m` suites | Analytical expectations, generated-code comparisons, failure/rollback harnesses, rejection paths. |
 
 ## Model and index conventions
 
@@ -124,7 +124,7 @@ runtime checkpoints are separate implementation-dependent contexts.
    Reenable/reset must not replay missed hits or rephase a clock. Explicit
    Euler uses its configured period; inherited execution follows its documented
    active-interval contract.
-   [private/ob_suspend_enabled.m](private/ob_suspend_enabled.m) freezes active
+   [private/ob_suspend_enabled.m](../inst/private/ob_suspend_enabled.m) freezes active
    descendant interval metadata at an ancestor disable boundary without
    sampling state or resetting clock phase. Review its generated-C counterpart
    when changing pause/resume behavior.
@@ -171,7 +171,7 @@ child's elapsed time while configured periods retain a fixed step.
 `git diff --check` does not inspect untracked files. If a working copy is still
 untracked, inspect the exact files intended for review before relying on Git
 diff output. Check licensing/distribution metadata separately before publishing;
-the project is distributed under the [MIT license](LICENSE). Current verification is recorded in [VALIDATION.md](VALIDATION.md).
+the project is distributed under the [MIT license](../LICENSE). Current verification is recorded in [VALIDATION.md](VALIDATION.md).
 
 ## Readability expectations
 

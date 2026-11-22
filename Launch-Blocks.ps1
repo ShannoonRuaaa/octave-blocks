@@ -35,7 +35,7 @@ $startInfo.FileName = $executable
 $startInfo.UseShellExecute = $false
 $startInfo.CreateNoWindow = $true
 $startInfo.WorkingDirectory = $PSScriptRoot
-foreach ($argument in @('--gui', '--persist', '--eval', "addpath('$sourcePath'); octave_blocks();")) {
+foreach ($argument in @('--gui', '--persist', '--eval', "addpath('$sourcePath'); ob_setup(); octave_blocks();")) {
     $startInfo.ArgumentList.Add($argument)
 }
 $child = [System.Diagnostics.Process]::Start($startInfo)

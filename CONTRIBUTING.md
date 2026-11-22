@@ -8,7 +8,7 @@ For editor issues, describe the click target and steps. Remove private data.
 ## Develop a change
 
 1. Create a focused branch from the intended target.
-2. Read [REVIEW_GUIDE.md](REVIEW_GUIDE.md) for engine/exporter architecture.
+2. Read [REVIEW_GUIDE.md](doc/REVIEW_GUIDE.md) for engine/exporter architecture.
 3. Add `tests/` to the Octave path and run relevant `test_ob_*` suites. Exporter changes need compiled
    comparisons; editor changes need Qt interaction checks.
 4. Record actual commands, environment, results, skipped checks and limits.
