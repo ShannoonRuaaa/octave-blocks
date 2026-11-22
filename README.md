@@ -112,9 +112,12 @@ and 242 strict C99 cases. These are recorded results for that milestone,
 not a GitHub CI badge or a claim of complete compatibility. Run locally:
 
 ```powershell
-./Launch-Blocks.ps1 -SelfTest
+./tests/Run-Tests.ps1
 ```
 
+All suites, reference fixtures and runners live in [tests/](tests/README.md).
+Generated C, executables and logs default to ignored `tests/.artifacts/`.
+`./Launch-Blocks.ps1 -SelfTest` remains a shortcut to the same runner.
 The editor checks require a desktop session and Qt. See
 [VALIDATION.md](VALIDATION.md) for the full environment.
 

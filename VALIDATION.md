@@ -1,5 +1,32 @@
 # Validation report
 
+## Test-folder consolidation — 2026-11-22
+
+Suites, PowerShell runners, codegen fixtures, embedded regression checks,
+reference producers/data and performance benchmarks now live under `tests/`.
+`tests/Run-Tests.ps1` owns the full gate; `Launch-Blocks.ps1 -SelfTest`
+delegates to it. Compiled output and logs default to ignored
+`tests/.artifacts/`; Octave suites redirect scratch files to its `scratch/`
+folder temporarily and restore the original path and environment on exit.
+
+Focused verification for this path-only change, GNU Octave 11.3.0 on Windows:
+
+- Extracted embedded cases: 9 graph-order, 4 edge and 12 snapshot checks passed.
+- Editor core, MATLAB numeric reference, runtime metadata, dmperm ordering,
+  codegen metadata/adjacency, subsystems, multiple outputs and performance
+  graph/metadata suites passed.
+- Relocated C input gate: 222,775 lookup checks and 4,123 formatting cases passed.
+- Relocated event-edge gate: seven compiled cases, six compared models, worst
+  scaled error 0; overflow, rollback and retry checks passed.
+- Relocated Qt gate: retained graphics and event export checks passed; two
+  editor-generated C models (16 channels) matched Octave with scaled error 0.
+- Runner syntax and local documentation links passed. No test/benchmark
+  runners remain in the project root and no embedded tests remain in the
+  production root/private files.
+
+The full numerical/C application gate was not rerun for the relocation.
+Older dated sections below describe the original paths and runs.
+
 ## Expanded built-in/library review — 2026-11-16
 
 The final `Launch-Blocks.ps1 -SelfTest` completed uninterrupted with exit 0:
@@ -80,7 +107,7 @@ verification, not a new native mouse/dialog inspection.
 
 `Launch-Blocks.ps1 -SelfTest` ran through all numerical/C stages and Qt callbacks;
 its execution handle became unavailable before a unified exit status or the
-final Qt-exported C comparison was retained. The complete final `Test-Editor.ps1`
+final Qt-exported C comparison was retained. The complete final `tests/Test-Editor.ps1`
 stage and explicit BIST were then rerun successfully with exit 0. The completed
 checks establish the registered set; no uninterrupted full-command exit is
 claimed for that first run. Local logs:
@@ -117,7 +144,7 @@ The local full-gate/BIST logs are in
 `<TEMP>/octave-blocks-codegen-a7307632e8f0436e9225ce7e064e689e`; Qt log:
 `<TEMP>/octave-blocks-editor-fc58d1bebb2f48548702f9e0439b0918/editor.log`.
 See [OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for measured results and
-[benchmarks/README.md](benchmarks/README.md) for reproducible timing comparisons.
+[benchmarks/README.md](tests/benchmarks/README.md) for reproducible timing comparisons.
 
 The isolated publication branch `codex/optimized-release`, based on `2ae43f3`
 without the experimental C event-runtime changes, passed a fresh complete
@@ -178,8 +205,8 @@ Each suite below passed in this run.
 | Primitive guard localization, event history, solver cases and rollback | `test_ob_zero_crossings` |
 | Continuous enable/trigger timing, plateaus and clock isolation | `test_ob_continuous_controls` |
 
-`Test-Codegen.ps1` generated, compiled, executed and compared the supported C
-models. `Test-Editor.ps1` exercised actual Qt callbacks, retained graphics,
+`tests/Test-Codegen.ps1` generated, compiled, executed and compared the supported C
+models. `tests/Test-Editor.ps1` exercised actual Qt callbacks, retained graphics,
 selection ownership, drag/undo behavior and Run, including the continuous-control
 example. The fixtures named `test_ob_multi_function.m` and
 `test_ob_inner_clock_c_cases.m` are consumed by other suites; they are not
@@ -233,7 +260,7 @@ temporary directory. They are not included in the repository:
 
 - Event-enabled and continuous-control C model export remain unsupported and
   explicitly rejected before replacing an existing output file.
-  `Test-EventCodegen.ps1` is an experimental future integration runner; its
+  `tests/Test-EventCodegen.ps1` is an experimental future integration runner; its
   model exports and two event API harnesses have not passed compilation or
   execution. The 43 analytical fixtures run in Octave.
 - Generated models use the supported static, real-double RK4 subset. Adaptive

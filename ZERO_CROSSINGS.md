@@ -196,8 +196,8 @@ Saturation/Dead Zone integrals, matrix/simultaneous guards, bounded oscillatory
 searches, zero plateaus, exact output boundaries, clock coincidences, runtime
 forks/checkpoints, hierarchy, small/large time scales, failure rollback,
 chattering, guard-layout changes, persistence, event-export metadata and
-protected invalid C-export rejection. Run `Test-EventCodegen.ps1`,
-`Test-EventCodegenEdges.ps1` and `Test-EventCodegenHierarchy.ps1` for strict
+protected invalid C-export rejection. Run `tests/Test-EventCodegen.ps1`,
+`tests/Test-EventCodegenEdges.ps1` and `tests/Test-EventCodegenHierarchy.ps1` for strict
 compiled full-channel comparisons and API checks. Current completed results
 belong in [VALIDATION.md](VALIDATION.md).
 The tests and independent probes use analytic expectations and native Octave.

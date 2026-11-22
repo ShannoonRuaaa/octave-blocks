@@ -207,8 +207,8 @@ integration, repeated triggers with current data, triggered Delay capture,
 zero endpoints/plateaus, logical controls, global inner clocks, root clock
 isolation, source jumps, primitive-to-gate ordering, coincident activation,
 nested inactivity, forks/checkpoints, rollback, persistence, and rejection paths.
-Strict generated-C model/API comparisons are in `Test-EventCodegen.ps1`,
-`Test-EventCodegenEdges.ps1` and `Test-EventCodegenHierarchy.ps1`. These are
+Strict generated-C model/API comparisons are in `tests/Test-EventCodegen.ps1`,
+`tests/Test-EventCodegenEdges.ps1` and `tests/Test-EventCodegenHierarchy.ps1`. These are
 regression commands, not a claim that every compatibility case is covered.
 Current completed verification belongs in [VALIDATION.md](VALIDATION.md).
 

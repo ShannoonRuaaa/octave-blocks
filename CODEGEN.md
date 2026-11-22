@@ -109,15 +109,15 @@ cc -std=c99 -O2 -DOB_STANDALONE model.c -lm -o model
 
 On Windows, the verified toolchain is the GCC bundled with Octave 11.3.0. Its
 `mingw64\bin` directory must be on the child process PATH so GCC can load its
-support tools. `Test-Codegen.ps1` sets and restores that PATH automatically:
+support tools. `tests/Test-Codegen.ps1` sets and restores that PATH automatically:
 
 ```powershell
-./Test-Codegen.ps1
-./Test-Codegen.ps1 -OctaveHome 'C:\path\to\Octave-11.3.0'
-./Test-Codegen.ps1 -Compiler 'C:\path\to\gcc.exe' -OutputDirectory './c-verification'
-./Test-EventCodegen.ps1
-./Test-EventCodegenEdges.ps1
-./Test-EventCodegenHierarchy.ps1
+./tests/Test-Codegen.ps1
+./tests/Test-Codegen.ps1 -OctaveHome 'C:\path\to\Octave-11.3.0'
+./tests/Test-Codegen.ps1 -Compiler 'C:\path\to\gcc.exe' -OutputDirectory './c-verification'
+./tests/Test-EventCodegen.ps1
+./tests/Test-EventCodegenEdges.ps1
+./tests/Test-EventCodegenHierarchy.ps1
 ```
 
 The script generates fixtures and Octave references, compiles with

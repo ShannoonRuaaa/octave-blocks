@@ -70,7 +70,7 @@ process, cleared editor functions and asserted source paths at every switch,
 three ABBA/BAAB rounds and six samples per version/count. Each sample excludes
 new-scene construction and an initial warmup, then measures twelve native-axis
 point motions with callbacks and `drawnow`. All samples, including stalls, are
-retained in [the sanitized UI data](benchmarks/pr2-audit-20261116-ui.json).
+retained in [the sanitized UI data](tests/benchmarks/pr2-audit-20261116-ui.json).
 
 | Diagram | Baseline median per motion | Updated median | Change |
 | --- | ---: | ---: | ---: |
@@ -86,7 +86,7 @@ checks measure hidden Qt callbacks and rendering, not native OS input delivery.
 An isolated source-index overlay over `39fc357` reduced the tested 2,000-edge
 indexing median from .06693 s to .00420 s. Full 2,000-block C generation remained
 essentially unchanged: 3.25647 s versus 3.24911 s. The three paired samples are
-[recorded separately](benchmarks/pr2-audit-20261116-codegen.json); they do not
+[recorded separately](tests/benchmarks/pr2-audit-20261116-codegen.json); they do not
 establish an end-to-end compiler speedup. Native grouping uses Octave built-ins
 and sorting where needed. Other compilation/string-generation costs remain.
 

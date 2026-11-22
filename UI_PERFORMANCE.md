@@ -65,7 +65,7 @@ The expanded Qt regression passed external model/settings/saved-state changes,
 dirty markers, deleted graphics, nonincident-wire stability, ordinary selection,
 drag/Undo and Run. These timings measure callbacks/rendering, not OS mouse-event
 delivery. See [OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) and
-[benchmarks/README.md](benchmarks/README.md) for samples, protocol and limits.
+[benchmarks/README.md](tests/benchmarks/README.md) for samples, protocol and limits.
 
 ## Earlier retained-graphics measurements
 
@@ -96,8 +96,8 @@ and open the updated editor in a fresh Octave process to apply this version.
 From PowerShell in this folder:
 
 ```powershell
-.\Test-Editor.ps1
-.\Test-Editor.ps1 -Benchmark
+.\tests/Test-Editor.ps1
+.\tests/Test-Editor.ps1 -Benchmark
 ```
 
 The script launches the installed Qt GUI runtime with hidden test figures and

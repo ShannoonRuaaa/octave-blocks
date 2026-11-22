@@ -48,7 +48,7 @@ in this run, under .001 seconds per 500 queries. No universal gain is claimed.
 Separate-process timings drifted substantially, so they were retained but not
 used for these conclusions. See [OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md)
 for corrected report claims, complete verification and limits, and
-[benchmarks/README.md](benchmarks/README.md) for data and reproduction.
+[benchmarks/README.md](tests/benchmarks/README.md) for data and reproduction.
 
 ## Earlier cache integration measurements
 
