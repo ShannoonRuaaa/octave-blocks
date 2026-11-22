@@ -80,7 +80,7 @@ complete application gate is the published 2026-11-11 record in
 [VALIDATION.md](VALIDATION.md). The supported C gate above preceded the final
 negative-literal parenthesization; the two focused checks exercised that fix.
 
-Resume by rerunning `Test-EventCodegen.ps1 -ExperimentalTyped` from clean
+Resume by rerunning `tests/Test-EventCodegen.ps1 -ExperimentalTyped` from clean
 artifacts. Complete all 45 compiled cases and final channel comparisons, then
 compile the independent edge models/API and resolve any lifecycle/clock/memory
 failures without weakening their analytical expectations. Rerun the supported
@@ -160,7 +160,7 @@ harnesses. Both executables also passed an independent parent rerun. Artifacts:
 `<TEMP>/ob-event-math-b61cda833d3c48c19494a7eb56175bfc`.
 This helper is not connected to the exporter.
 
-`test_ob_event_codegen.m` and `Test-EventCodegen.ps1` now provide a separate
+`test_ob_event_codegen.m` and `tests/Test-EventCodegen.ps1` now provide a separate
 preparation/strict-compilation/full-channel-verification runner for the 43
 fixtures and two provider/chatter API harnesses. Octave and PowerShell parsing
 passed. All 43 analytical checks passed again before preparation reached the
@@ -790,9 +790,9 @@ to reset made it 0, and Undo restored 2 on the next run. The six-field settings
 dialog, mode/control-pin label, and ordinary run flow were visually inspected.
 
 MATLAB R2026b Update 1 was launched to attempt a Simulink comparison. The
-recorded [probe](matlab-environment.json) confirms MATLAB runs but Simulink is
+recorded [probe](tests/reference/matlab-environment.json) confirms MATLAB runs but Simulink is
 not installed and `load_system` is missing, despite a positive license test.
-The reproducible [comparison harness](reference_ob_conditional.m) is retained;
+The reproducible [comparison harness](tests/reference/reference_ob_conditional.m) is retained;
 no live Simulink trace agreement is claimed. REA 6.8.0 inspected the local
 support directory, retaining [237 observed entries and its limitations](REFERENCE_EVIDENCE.md#rea-installation-inspection).
 That installation scan does not establish runtime behavior.
@@ -854,7 +854,7 @@ actual builtin Function implementations map to C math/operators; arbitrary or
 shadowed Octave functions are rejected. Unsupported models fail before file
 replacement. C initialization/stepping commit only on successful finite output.
 
-The initial `Test-Codegen.ps1` verification prepared 16 compilation cases:
+The initial `tests/Test-Codegen.ps1` verification prepared 16 compilation cases:
 14 executable models plus two
 API harnesses. All compile using GCC with `-std=c99 -O2 -Wall -Wextra -Werror`.
 Every signal channel is compared with its Octave reference. The verified cases

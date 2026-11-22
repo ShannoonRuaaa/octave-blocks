@@ -266,7 +266,7 @@ as `ob_state_space` and `ob_transfer_function`. Their virtual diagrams work in
 the editor and C exporter; try `ob_linear_system_example`. See
 [LINEAR_SYSTEMS.md](../LINEAR_SYSTEMS.md) for equations and initial-state conventions.
 
-Run `test_ob_run; test_ob_editor_core; test_ob_solvers; test_ob_subsystems; test_ob_inputs; test_ob_multirate; test_ob_controls; test_ob_runtime; test_ob_runtime_metadata; test_ob_conditional; test_ob_enabled_continuous; test_ob_enabled_multirate; test_ob_linear_systems; test_ob_matlab_numeric; test_ob_multioutput; test_ob_algebraic; test_ob_zero_crossings; test_ob_continuous_controls` in
+Add `tests/` to the Octave path, then run `test_ob_run; test_ob_editor_core; test_ob_solvers; test_ob_subsystems; test_ob_inputs; test_ob_multirate; test_ob_controls; test_ob_runtime; test_ob_runtime_metadata; test_ob_conditional; test_ob_enabled_continuous; test_ob_enabled_multirate; test_ob_linear_systems; test_ob_matlab_numeric; test_ob_multioutput; test_ob_algebraic; test_ob_zero_crossings; test_ob_continuous_controls` in
 Octave to check execution, editing rules, persistence, adaptive integration,
 hierarchy, signal ports, external sampled inputs, multirate scheduling,
 nonlinear control blocks, resumable execution, conditional subsystems, and
@@ -275,21 +275,21 @@ multiple Function outputs, algebraic loops, zero crossings, and recorded MATLAB 
 and what the REA inspection established, and [ADVANCED_PLAN.md](../ADVANCED_PLAN.md)
 for the advanced functionality roadmap.
 
-`Launch-Blocks.ps1 -SelfTest` also runs `Test-Codegen.ps1`, which compiles the C
+`Launch-Blocks.ps1 -SelfTest` also runs `tests/Test-Codegen.ps1`, which compiles the C
 exports and compares all signal channels against Octave references. A C99
 compiler is required for those checks; the script uses Octave's bundled GCC
-by default. It then runs the Qt retained-graphics checks in `Test-Editor.ps1`.
-The full gate also runs the focused event-export checks in `Test-EventCodegen.ps1`,
-`Test-EventCodegenEdges.ps1` and `Test-EventCodegenHierarchy.ps1`; each compiles
+by default. It then runs the Qt retained-graphics checks in `tests/Test-Editor.ps1`.
+The full gate also runs the focused event-export checks in `tests/Test-EventCodegen.ps1`,
+`tests/Test-EventCodegenEdges.ps1` and `tests/Test-EventCodegenHierarchy.ps1`; each compiles
 and compares event-enabled models through the public exporter. See
 [EVENT_CODEGEN_DEVELOPMENT.md](../EVENT_CODEGEN_DEVELOPMENT.md) for runtime
 architecture and [COMPATIBILITY_GAPS.md](../COMPATIBILITY_GAPS.md) for open milestones.
 The full gate now includes the three `test_ob_performance_*` compatibility
 suites and graph/edge/snapshot BIST checks. See
 [OPTIMIZATION_AUDIT.md](../OPTIMIZATION_AUDIT.md) for corrected audit findings and
-measured results, and [benchmarks/README.md](../benchmarks/README.md) to reproduce
+measured results, and [benchmarks/README.md](../tests/benchmarks/README.md) to reproduce
 the before/after comparisons.
-Codegen metadata and source/proxy-order regressions and `Test-CInputLookup.ps1`
+Codegen metadata and source/proxy-order regressions and `tests/Test-CInputLookup.ps1`
 are registered in the full gate as well. The latter strictly compiles generated
 sampling/boundary helpers and compares them against independent scan oracles.
 See [PR2_AUDIT.md](../PR2_AUDIT.md) for the subsequent report review, including

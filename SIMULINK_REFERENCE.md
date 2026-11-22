@@ -44,9 +44,9 @@ linked MathWorks documentation. A deeper REA study should use a small,
 specific feature and compare its behavior against a running Simulink model.
 
 The conditional milestone attempted that live comparison. MATLAB R2026b
-Update 1 runs locally, but its [environment probe](matlab-environment.json)
+Update 1 runs locally, but its [environment probe](tests/reference/matlab-environment.json)
 reports no installed Simulink and no `load_system`, even though the feature
-license test succeeds. [reference_ob_conditional.m](reference_ob_conditional.m)
+license test succeeds. [reference_ob_conditional.m](tests/reference/reference_ob_conditional.m)
 is a reproducible comparison harness for an installation with Simulink.
 Its trace comparison has not run successfully here.
 
@@ -63,7 +63,7 @@ Function operations currently mapped by the C exporter (19 unary and seven
 binary), plus signed-zero `atan2` and rounding ties. It also produced 15
 two-output cases for `size`, `max`, and `min`, covering scalars, rows, columns,
 matrices, ties, and signed zero. The retained
-[numeric reference](matlab-numeric-reference.json) records the actual inputs,
+[numeric reference](tests/reference/matlab-numeric-reference.json) records the actual inputs,
 shapes, outputs, indices, and MATLAB version. Separate input/output zero-sign
 flags preserve information that JSON numeric serialization would erase.
 `test_ob_matlab_numeric` checks Octave

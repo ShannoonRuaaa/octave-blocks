@@ -17,11 +17,11 @@ recorded status. These checks do not establish full Simulink compatibility.
 ## Run the public regression gates
 
 ```powershell
-./Test-EventCodegen.ps1
-./Test-EventCodegenEdges.ps1
-./Test-EventCodegenHierarchy.ps1
-./Test-Codegen.ps1
-./Test-Editor.ps1
+./tests/Test-EventCodegen.ps1
+./tests/Test-EventCodegenEdges.ps1
+./tests/Test-EventCodegenHierarchy.ps1
+./tests/Test-Codegen.ps1
+./tests/Test-Editor.ps1
 ./Launch-Blocks.ps1 -SelfTest
 ```
 

@@ -61,7 +61,7 @@ measured cutoff, not a claim of a universally optimal threshold.
 - `test_ob_performance_events`: cached/legacy snapshot equality, descriptor order,
   nested clock/output routes, finite/shape rejection and legacy replay.
   Snapshot BIST passed 12/12.
-- Expanded `Test-Editor.ps1` passed. It checks existing selection/drag/Undo/Run
+- Expanded `tests/Test-Editor.ps1` passed. It checks existing selection/drag/Undo/Run
   behavior plus external model/settings/saved-state invalidation, dirty markers,
   deleted graphics and unchanged nonincident wires during branch-consumer drag.
 - Whitespace checks passed before checkpointing.
@@ -111,8 +111,8 @@ resolution. Small cases are roughly unchanged with a small dispatch overhead;
 they are not presented as wins. Runtime outputs, integration steps and event
 counts matched. These few local workloads do not predict every model's speed.
 
-[Recorded samples](benchmarks/optimization-20261113.json) and
-[reproduction instructions](benchmarks/README.md) are checked in. Runtime
+[Recorded samples](tests/benchmarks/optimization-20261113.json) and
+[reproduction instructions](tests/benchmarks/README.md) are checked in. Runtime
 CPU-time medians corroborated the direction of the three runtime improvements.
 The baseline's benchmarked files also match published release `2ae43f3`.
 

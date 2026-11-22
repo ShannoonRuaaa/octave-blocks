@@ -9,12 +9,12 @@ For editor issues, describe the click target and steps. Remove private data.
 
 1. Create a focused branch from the intended target.
 2. Read [REVIEW_GUIDE.md](REVIEW_GUIDE.md) for engine/exporter architecture.
-3. Run relevant `test_ob_*` suites. Exporter changes need compiled
+3. Add `tests/` to the Octave path and run relevant `test_ob_*` suites. Exporter changes need compiled
    comparisons; editor changes need Qt interaction checks.
 4. Record actual commands, environment, results, skipped checks and limits.
 5. Update documentation when behavior or limitations change.
 
-The full Windows gate is `./Launch-Blocks.ps1 -SelfTest` with PowerShell 7,
+The full Windows gate is `./tests/Run-Tests.ps1` with PowerShell 7,
 GNU Octave with Qt, and a C99 compiler. Tests currently run locally;
 there is no required GitHub CI status check yet.
 

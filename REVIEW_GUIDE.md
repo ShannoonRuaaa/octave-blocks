@@ -19,11 +19,11 @@ From this `octave-blocks` folder in PowerShell 7:
 ```powershell
 ./Launch-Blocks.ps1                  # Native editor
 ./Launch-Blocks.ps1 -SelfTest        # Octave, compiled C, then Qt graphics checks
-./Test-Codegen.ps1                  # C generation/compilation/comparison only
+./tests/Test-Codegen.ps1                  # C generation/compilation/comparison only
 ```
 
 Use `-OctaveHome 'C:\path\to\Octave-11.3.0'` when discovery cannot find the
-installation. `Test-Codegen.ps1` also accepts `-Compiler` and
+installation. `tests/Test-Codegen.ps1` also accepts `-Compiler` and
 `-OutputDirectory`. Its reported artifact folder contains generated sources,
 expected traces, executable output, and a manifest; retain it when reporting a
 failure. A script that reaches source generation has not yet proved C parity:
@@ -65,7 +65,7 @@ functions; use a fresh Octave process for reproducible UI checks.
 | C export | [ob_codegen.m](ob_codegen.m), [ob_c_conditional_unit.m](ob_c_conditional_unit.m), [ob_codegen_conditional.m](ob_codegen_conditional.m), [ob_emit_c_conditional.m](ob_emit_c_conditional.m) | Static shape inference, actual builtin mappings, typed contexts, generated C and file replacement. |
 | Clocked C extension | [ob_c_clock_inventory.m](ob_c_clock_inventory.m), clocked child/root emitters in [ob_emit_c_conditional.m](ob_emit_c_conditional.m) | Global clock IDs versus block IDs, transient event frames, disabled clocks, root-owned tick phase. Consult current C support status in [CODEGEN.md](CODEGEN.md). |
 | Editor and persistence | [octave_blocks.m](octave_blocks.m), [ob_save_model.m](ob_save_model.m), [ob_load_model.m](ob_load_model.m) | Model/graphics separation, undo snapshots, nested editing, validation before persistence. |
-| Evidence | [test_ob_codegen.m](test_ob_codegen.m), [verify_ob_codegen.m](verify_ob_codegen.m), the `test_ob_*.m` suites | Analytical expectations, generated-code comparisons, failure/rollback harnesses, rejection paths. |
+| Evidence | [test_ob_codegen.m](tests/test_ob_codegen.m), [verify_ob_codegen.m](tests/verify_ob_codegen.m), the `test_ob_*.m` suites | Analytical expectations, generated-code comparisons, failure/rollback harnesses, rejection paths. |
 
 ## Model and index conventions
 
