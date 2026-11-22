@@ -1,4 +1,5 @@
 function test_ob_combined_codegen (directory, verify = false, advanced_only = false)
+  test_path_cleanup = ob_test_setup ();
   % Compare every exported numerical channel, including matrix state outputs.
   manifest_file = fullfile(directory,'combined-manifest.json');
   if (verify)

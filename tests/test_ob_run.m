@@ -1,4 +1,5 @@
 function test_ob_run ()
+  test_path_cleanup = ob_test_setup ();
   grid = ob_time_grid (0, 1, 0.3);
   assert (numel (grid) == 5 && max (abs (grid - [0 0.3 0.6 0.9 1])) < 1e-12);
   assert (grid(end) == 1);

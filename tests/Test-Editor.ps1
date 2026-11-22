@@ -17,7 +17,7 @@ if (-not $OctaveHome) {
 }
 $executable = Join-Path $OctaveHome 'mingw64\bin\octave-gui.exe'
 if (-not (Test-Path -LiteralPath $executable)) { throw "Octave GUI runtime not found: $executable" }
-$artifactDirectory = Join-Path ([IO.Path]::GetTempPath()) ('octave-blocks-editor-' + [guid]::NewGuid().ToString('N'))
+$artifactDirectory = Join-Path (Join-Path $PSScriptRoot '.artifacts') ('octave-blocks-editor-' + [guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($artifactDirectory) | Out-Null
 $logFile = Join-Path $artifactDirectory 'editor.log'
 $octaveLog = $logFile.Replace('\', '/').Replace("'", "''")

@@ -1,4 +1,5 @@
 function source = test_ob_c_number_format (directory)
+  test_path_cleanup = ob_test_setup ();
   % Compare the old scalar formatter and independently check C binary values.
   if (! exist (directory, 'dir')), mkdir (directory); endif
   boundary = [0 -0.0 1 -1 2 -2 realmax realmin realmin*eps ...

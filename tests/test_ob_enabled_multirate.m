@@ -1,4 +1,5 @@
 function test_ob_enabled_multirate ()
+  test_path_cleanup = ob_test_setup ();
   model = ob_enabled_multirate_example ();
   for solver = {'rk4','ode45','ode15s'}
     options = struct ('solver',solver{1},'reltol',1e-9,'abstol',1e-11,'maxstep',.05);

@@ -1,4 +1,5 @@
 function test_ob_simulink_api_reference (file)
+  test_path_cleanup = ob_test_setup ();
   % Compare the Simulink-style command API with recorded Simulink R2026b
   % behaviour: every library path, its BlockType/MaskType, Ports, parameter
   % names and default values, built-in/<BlockType> paths, and scenario
@@ -8,10 +9,10 @@ function test_ob_simulink_api_reference (file)
   % listed below and checked to still be the documented Octave behaviour.
   here = fileparts (mfilename ('fullpath'));
   if (nargin < 1), file = ob_test_reference ('simulink-api-reference.json'); endif
-  addpath (fullfile (fileparts (here), 'simulink'));
+  addpath (fullfile (fileparts (here), 'inst', 'simulink'));
   ref = jsondecode (fileread (file));
   bdclose ('all');
-  cleanup = onCleanup (@() bdclose ('all'));
+  cleanup = onCleanup (@() ob_simulink ('bdclose', 'all'));
   checks = 0;
 
   % ---- library blocks: path, BlockType, MaskType, Ports, names, defaults

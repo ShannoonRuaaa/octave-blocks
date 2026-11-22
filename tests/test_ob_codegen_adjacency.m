@@ -1,4 +1,5 @@
 function test_ob_codegen_adjacency ()
+  test_path_cleanup = ob_test_setup ();
   % Compare indexes to the historical filters, including empty column shapes.
   edges = [4 3;2 5;1 3;4 5;2 3;4 2;2 3];
   [sources, proxies] = ob_c_adjacency(6,edges);

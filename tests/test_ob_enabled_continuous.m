@@ -1,4 +1,5 @@
 function test_ob_enabled_continuous ()
+  test_path_cleanup = ob_test_setup ();
   % Continuous child states use the same solver stages as their parent.
   times = [0 0.5 1 1.5 2 2.5 3];
   held = [0 0.5 1 1 1 1.5 2];

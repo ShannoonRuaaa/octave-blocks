@@ -1,4 +1,5 @@
 function test_ob_combined_controls ()
+  test_path_cleanup = ob_test_setup ();
   for solver = {'rk4','ode45','ode15s'}
     options = struct('solver',solver{1},'reltol',1e-8,'abstol',1e-10,'maxstep',.08);
     model = ob_combined_control_example ();

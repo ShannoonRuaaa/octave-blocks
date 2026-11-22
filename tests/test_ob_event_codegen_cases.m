@@ -1,4 +1,5 @@
 function [cases, api] = test_ob_event_codegen_cases ()
+  test_path_cleanup = ob_test_setup ();
   % Event-export fixtures: analytical checks precede compiled full-channel parity.
   % This factory does not export or compile; test_ob_codegen owns those steps.
   cases = struct ('name',{},'model',{},'config',{},'options',{});

@@ -1,4 +1,5 @@
 function test_ob_editor_advanced ()
+  test_path_cleanup = ob_test_setup ();
   % Drive the Transport Delay and Limited Integrator editor callbacks with
   % scripted dialog answers.  Requires the Qt graphics toolkit.
   if (! any (strcmp (available_graphics_toolkits (), 'qt')))

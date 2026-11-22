@@ -1,4 +1,5 @@
 function test_ob_multirate ()
+  test_path_cleanup = ob_test_setup ();
   % Explicit schedules are independent of logging/output timestamps.
   delay = chain_model ('Time', [], 'Unit Delay', -1);
   delay.sample_times = [0 0; 0.25 0; 0 0];

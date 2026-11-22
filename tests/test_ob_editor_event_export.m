@@ -1,4 +1,5 @@
 function test_ob_editor_event_export (directory = '', verify = false)
+  test_path_cleanup = ob_test_setup ();
   % Exercise the actual Qt Export C callback with scoped file/dialog responses.
   % The emitted sources are compiled by Test-Editor.ps1 and verified here.
   if (verify), verify_exports(directory); return; endif

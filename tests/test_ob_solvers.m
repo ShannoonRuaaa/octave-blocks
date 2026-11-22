@@ -1,4 +1,5 @@
 function test_ob_solvers ()
+  test_path_cleanup = ob_test_setup ();
   tight = struct ("solver", "ode45", "reltol", 1e-9, "abstol", 1e-11, "maxstep", 0.2);
   times = [0 0.5 4 10];
   result = ob_run (ob_oscillator (), times, tight);

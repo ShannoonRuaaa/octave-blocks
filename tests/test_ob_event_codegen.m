@@ -1,4 +1,5 @@
 function test_ob_event_codegen (directory, verify = false, pattern = '.*', experimental = false)
+  test_path_cleanup = ob_test_setup ();
   % Prepare event exports and compare every numeric channel after C execution.
   % Test-EventCodegen.ps1 performs strict compilation between these two phases.
   if (verify)

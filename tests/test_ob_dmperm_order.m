@@ -1,4 +1,5 @@
 function timings = test_ob_dmperm_order (benchmark = false)
+  test_path_cleanup = ob_test_setup ();
   % Compare native SCC partitioning against the previous iterative Kosaraju
   % implementation, including exact FIFO order, loop groups, and diagnostics.
   previous = rng ();

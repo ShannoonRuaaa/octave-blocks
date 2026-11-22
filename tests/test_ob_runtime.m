@@ -1,4 +1,5 @@
 function test_ob_runtime ()
+  test_path_cleanup = ob_test_setup ();
   % Streaming uses the same requested schedule, including hidden rate hits.
   grids = {[0 0.1 0.37 0.5 1], [-0.3 -0.1 0 0.3], [0 0.3 0.6 1]};
   delay = ob_example ();

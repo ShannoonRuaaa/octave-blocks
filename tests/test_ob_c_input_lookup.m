@@ -1,4 +1,5 @@
 function test_ob_c_input_lookup (directory)
+  test_path_cleanup = ob_test_setup ();
   % Emit an independently compiled C99 oracle test for generated input helpers.
   % Test-CInputLookup.ps1 compiles and runs both continuous/discrete variants.
   if (! exist(directory,'dir')), mkdir(directory); endif

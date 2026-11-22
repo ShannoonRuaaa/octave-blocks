@@ -1,4 +1,5 @@
 function test_ob_simulink_conditional ()
+  test_path_cleanup = ob_test_setup ();
   % Rebuild every recorded Simulink conditional trace (see
   % ob_simulink_conditional_cases) as an Octave Blocks model and compare it
   % sample by sample.  A listed difference must still differ, so a stale

@@ -1,4 +1,5 @@
 function test_ob_codegen (directory, conditional_references_only = false)
+  test_path_cleanup = ob_test_setup ();
   % Prepare real exports and Octave references; Test-Codegen.ps1 compiles/runs them.
   if (! exist (directory, 'dir')), mkdir (directory); endif
   cases = struct ('name', {}, 'source', {}, 'standalone', {}, 'expected', {});

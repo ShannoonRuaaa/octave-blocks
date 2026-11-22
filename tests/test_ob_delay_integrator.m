@@ -1,4 +1,5 @@
 function test_ob_delay_integrator ()
+  test_path_cleanup = ob_test_setup ();
   % Transport Delay and Limited Integrator checked against analytical traces.
   cases = 0;
   B = @(type, value, name) struct ('type', type, 'value', value, 'name', name, 'x', 0, 'y', 0);

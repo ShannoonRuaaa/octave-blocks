@@ -1,4 +1,5 @@
 function test_ob_performance_events ()
+  test_path_cleanup = ob_test_setup ();
   % Category caches cannot alter guards, port routes, or lazy clock discovery.
   private_path = ob_test_private_path ();  % calls src/private functions directly
   model = ob_example ();

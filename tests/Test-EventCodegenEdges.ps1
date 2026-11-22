@@ -31,7 +31,7 @@ if (-not (Test-Path -LiteralPath $octaveExecutable)) { throw "Octave not found: 
 if (-not $Compiler) { $Compiler = Join-Path $binRoot 'gcc.exe' }
 if (-not (Test-Path -LiteralPath $Compiler)) { throw "C compiler not found: $Compiler" }
 if (-not $OutputDirectory) {
-    $OutputDirectory = Join-Path ([IO.Path]::GetTempPath()) ('octave-blocks-event-edges-' + [guid]::NewGuid().ToString('N'))
+    $OutputDirectory = Join-Path (Join-Path $PSScriptRoot '.artifacts') ('octave-blocks-event-edges-' + [guid]::NewGuid().ToString('N'))
 }
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
 $artifactRoot = (Resolve-Path -LiteralPath $OutputDirectory).Path

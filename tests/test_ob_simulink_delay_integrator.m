@@ -1,4 +1,5 @@
 function test_ob_simulink_delay_integrator ()
+  test_path_cleanup = ob_test_setup ();
   % Compare Transport Delay and Limited Integrator models with recorded
   % Simulink 26.2 traces.  MATLAB is not needed at test time; regenerate the
   % reference with reference_ob_simulink_delay_integrator.m.

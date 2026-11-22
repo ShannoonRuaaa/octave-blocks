@@ -1,4 +1,5 @@
 function [cases, api] = test_ob_event_codegen_edges (directory = '', verify = false, experimental = false)
+  test_path_cleanup = ob_test_setup ();
   % Independent edge specifications, with optional C preparation/verification.
   % Compile the emitted edge manifest with the same strict flags as the main
   % event suite, then call this function with verify=true to compare channels.

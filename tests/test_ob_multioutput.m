@@ -1,4 +1,5 @@
 function test_ob_multioutput ()
+  test_path_cleanup = ob_test_setup ();
   input = [1 2 3;4 5 6];
   answers = {input+1, input.', sum(input(:))};
   model = multi_model (input, 3);

@@ -1,4 +1,5 @@
 function test_ob_simulink_extended (directory = '', pattern = '', verbose = false)
+  test_path_cleanup = ob_test_setup ();
   % Compare Octave Blocks with recorded Simulink 26.2 traces for continuous
   % (zero-crossing) conditional controls and primitive crossings under
   % ode45/ode15s, subsystems and functions with several outputs, and

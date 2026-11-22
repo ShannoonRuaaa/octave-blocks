@@ -1,4 +1,5 @@
 function test_ob_simulink_benchmarks (directory = '', time_octave = true, accelerated = true)
+  test_path_cleanup = ob_test_setup ();
   % Compare the nine shared benchmark cases of benchmarks/ob_benchmark_models
   % with the Simulink 26.2 outputs and warm wall times written by
   % reference_ob_simulink_benchmarks (simulink-benchmark-reference.json).
@@ -24,7 +25,7 @@ function test_ob_simulink_benchmarks (directory = '', time_octave = true, accele
   ref = jsondecode (fileread (fullfile (directory, 'simulink-benchmark-reference.json')));
   % The benchmark folder (models and the Mackey-Glass Function) stays on the
   % path while the cases run.
-  folder = fullfile (fileparts (here), 'benchmarks');
+  folder = fullfile (here, 'benchmarks');
   added = isempty (strfind (path (), folder));
   if (added), addpath (folder); endif
   cache = tempname ();

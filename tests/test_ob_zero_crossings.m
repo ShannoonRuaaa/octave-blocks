@@ -1,4 +1,5 @@
 function test_ob_zero_crossings ()
+  test_path_cleanup = ob_test_setup ();
   % Coarse output requests must not determine a computed switching time.
   rising = switched_integrator (1, .35, 3, -2);
   falling = switched_integrator (-1, -.35, 3, -2);

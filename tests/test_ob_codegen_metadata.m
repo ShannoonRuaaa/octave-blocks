@@ -1,4 +1,5 @@
 function test_ob_codegen_metadata ()
+  test_path_cleanup = ob_test_setup ();
   directory = tempname (); mkdir (directory);
   unwind_protect
     options = struct ('zero_crossings',true);

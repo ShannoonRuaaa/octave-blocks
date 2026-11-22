@@ -1,4 +1,5 @@
 function test_ob_inputs ()
+  test_path_cleanup = ob_test_setup ();
   % Root inputs have explicit sample times, component shapes, and interpolation.
   held = ob_input_signal ([0 0.4 1], [1; 3; 5]);
   assert (isequal (held.t, [0; 0.4; 1]));

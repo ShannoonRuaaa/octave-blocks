@@ -1,4 +1,5 @@
 function test_ob_algebraic ()
+  test_path_cleanup = ob_test_setup ();
   % A gain above unity rules out a fixed-point-only implementation: y=3+2y.
   affine = feedback_model (3, 2);
   original = affine;

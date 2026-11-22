@@ -1,12 +1,13 @@
 function test_ob_simulink_api ()
+  test_path_cleanup = ob_test_setup ();
   % Simulink-style command API: construction, parameters, hierarchy,
   % simulation outputs, persistence, and explicit unsupported cases.
   % test_ob_simulink_api_reference compares the same API with recorded
   % Simulink R2026b results.
   here = fileparts (mfilename ('fullpath'));
-  addpath (fullfile (fileparts (here), 'simulink'));
+  addpath (fullfile (fileparts (here), 'inst', 'simulink'));
   bdclose ('all');
-  cleanup = onCleanup (@() bdclose ('all'));
+  cleanup = onCleanup (@() ob_simulink ('bdclose', 'all'));
   cases = 0;
 
   % Sources, an integrator and a root Outport.

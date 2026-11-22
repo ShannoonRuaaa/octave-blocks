@@ -1,4 +1,5 @@
 function test_ob_conditional ()
+  test_path_cleanup = ob_test_setup ();
   expected = [-1 0 1 1 1 2 5];
   tagged = ob_conditional_example (); tagged.blocks(3).notes = 'editor metadata';
   assert (isequal (ob_scope_data(ob_run(tagged,0:6),4)', expected));

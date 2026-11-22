@@ -1,4 +1,5 @@
 function test_ob_c_event_inventory ()
+  test_path_cleanup = ob_test_setup ();
   empty = struct ('blocks',struct('type',{},'value',{},'name',{},'x',{},'y',{}), ...
                   'edges',zeros(0,4));
   [unit, guards] = ob_c_event_inventory (ob_c_conditional_unit(empty));

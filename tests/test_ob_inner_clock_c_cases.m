@@ -1,4 +1,5 @@
 function [cases, api] = test_ob_inner_clock_c_cases ()
+  test_path_cleanup = ob_test_setup ();
   % C-export fixtures with independent enabled clocks and analytical checks.
   % Parent test_ob_codegen performs strict compilation and full-channel parity.
   % Each case keeps its analytical final values (expected, tolerance), so

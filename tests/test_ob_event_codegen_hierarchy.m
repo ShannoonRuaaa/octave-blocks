@@ -1,4 +1,5 @@
 function cases = test_ob_event_codegen_hierarchy (directory = '', verify = false, experimental = false)
+  test_path_cleanup = ob_test_setup ();
   % Independent nested lifecycle/source/clock acceptance tests. Analytical
   % expectations are checked before emitting C and comparing every channel.
   if (verify), verify_exports(directory); cases=[]; return; endif

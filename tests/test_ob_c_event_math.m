@@ -1,4 +1,5 @@
 function sources = test_ob_c_event_math (directory)
+  test_path_cleanup = ob_test_setup ();
   % Generate isolated frozen-mode/layout checks for strict C compilation.
   if (! ischar(directory) || rows(directory)!=1 || isempty(directory))
     error ('test_ob_c_event_math: supply an artifact directory');

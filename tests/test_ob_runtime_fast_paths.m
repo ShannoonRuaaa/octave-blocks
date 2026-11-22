@@ -1,4 +1,5 @@
 function test_ob_runtime_fast_paths (mode = 'check')
+  test_path_cleanup = ob_test_setup ();
   % Regression tests for the interpreted engine's fast paths
   % (RUNTIME_PERFORMANCE.md, 2026-11-21).
   %

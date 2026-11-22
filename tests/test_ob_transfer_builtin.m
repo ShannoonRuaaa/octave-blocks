@@ -1,4 +1,5 @@
 function test_ob_transfer_builtin ()
+  test_path_cleanup = ob_test_setup ();
   % Independent matrices pin the public derivative-state ordering, including
   % a nonsymmetric coefficient row and a nonzero initial state.
   child = ob_transfer_function ([0 4 10 14 22]', [0 2 6 10 14]', [2;-3;5]);

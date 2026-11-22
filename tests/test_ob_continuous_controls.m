@@ -1,4 +1,5 @@
 function test_ob_continuous_controls ()
+  test_path_cleanup = ob_test_setup ();
   % Continuous gates must observe crossings between caller output requests.
   grid = [0 .4 .8 1.4 1.8];
   for solver = {'rk4','ode45','ode15s'}

@@ -1,4 +1,5 @@
 function test_ob_subsystems ()
+  test_path_cleanup = ob_test_setup ();
   model = ob_subsystem_example ();
   for solver = {"rk4", "ode45", "ode15s"}
     result = ob_run (model, 0:0.1:1, struct ("solver", solver{1}));

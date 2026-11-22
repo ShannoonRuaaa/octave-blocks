@@ -1,4 +1,5 @@
 function test_ob_editor_graphics ()
+  test_path_cleanup = ob_test_setup ();
   % Exercise real Qt callbacks while retaining the diagram's graphics handles.
   if (!any(strcmp(available_graphics_toolkits(),'qt')))
     error ('test_ob_editor_graphics: run under the Octave GUI runtime with Qt available');

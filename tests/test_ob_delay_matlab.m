@@ -1,4 +1,5 @@
 function test_ob_delay_matlab ()
+  test_path_cleanup = ob_test_setup ();
   % Compare Transport Delay feedback against recorded MATLAB dde23 solutions.
   % MATLAB is not needed at test time; regenerate with reference_ob_dde.m.
   reference = jsondecode (fileread (ob_test_reference ('matlab-dde-reference.json')));

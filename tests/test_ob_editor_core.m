@@ -1,4 +1,5 @@
 function test_ob_editor_core ()
+  test_path_cleanup = ob_test_setup ();
   model = ob_example ();
   model.edges = zeros (0, 2);
   model = ob_connect (model, 1, 2);

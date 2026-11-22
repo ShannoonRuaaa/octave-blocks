@@ -1,11 +1,12 @@
 function test_ob_accelerate ()
+  test_path_cleanup = ob_test_setup ();
   % Accelerated (compiled C, MEX) runs against interpreted ob_run: flat rk4
   % and ode45 models, typed (conditional, multiple-output, zero-crossing)
   % rk4 models and user .m Functions.  Uses a temporary cache directory and
   % a temporary folder of test Functions, and removes both afterwards.
   root = fileparts (fileparts (mfilename ('fullpath')));
   private_path = ob_test_private_path ();  % ob_accelerate_events is in src/private
-  addpath (fullfile (root, 'benchmarks'));
+  addpath (fullfile (root, 'tests', 'benchmarks'));
   cache = tempname ();
   functions = tempname (); mkdir (functions);
   write_functions (functions);
@@ -20,6 +21,23 @@ function test_ob_accelerate ()
     assert (strcmp (ob_solver_options (struct ('accelerate', 'auto')).accelerate, 'auto'));
     assert_error (@() ob_solver_options (struct ('accelerate', 'yes')), 'accelerate must be');
     assert_error (@() ob_solver_options (struct ('accelerate', 2)), 'accelerate must be');
+    cases += 1;
+
+    % A default cache blocked by a file falls back; an explicit bad path fails.
+    blocker = fullfile(functions,'cache-blocker');
+    fid = fopen(blocker,'w'); assert(fid>=0); fclose(fid);
+    variable = 'XDG_CACHE_HOME';
+    if (ispc()), variable = 'LOCALAPPDATA'; endif
+    old_base = getenv(variable);
+    unwind_protect
+      setenv('OB_ACCELERATOR_CACHE',blocker);
+      assert_error(@() ob_accelerate(ob_example(),[0 1]),'OB_ACCELERATOR_CACHE is not writable');
+      setenv('OB_ACCELERATOR_CACHE',''); setenv(variable,blocker);
+      [unused,default_info] = ob_accelerate(ob_example(),[0 1]);
+      assert(!isempty(strfind(default_info.cache,fullfile(tempdir(),'octave-blocks'))));
+    unwind_protect_cleanup
+      setenv(variable,old_base); setenv('OB_ACCELERATOR_CACHE',cache);
+    end_unwind_protect
     cases += 1;
 
     % Shared benchmark cases: all but control_zc_ode45 (zero crossings with

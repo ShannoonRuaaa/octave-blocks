@@ -1,4 +1,5 @@
 function test_ob_nested_reset ()
+  test_path_cleanup = ob_test_setup ();
   cases = ob_nested_reset_cases ();
   for k = 1:numel (cases)
     c = cases(k);

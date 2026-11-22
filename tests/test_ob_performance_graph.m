@@ -1,4 +1,5 @@
 function test_ob_performance_graph ()
+  test_path_cleanup = ob_test_setup ();
   % The reference below pins historical FIFO/SCC ordering independently of the
   % optimized traversal. Random graph cases include duplicate sources, delayed
   % dependency breaks, canonical port order and unsupported algebraic cycles.

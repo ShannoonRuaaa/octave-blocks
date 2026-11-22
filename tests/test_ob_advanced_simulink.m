@@ -1,4 +1,5 @@
 function cases = test_ob_advanced_simulink ()
+  test_path_cleanup = ob_test_setup ();
 % TEST_OB_ADVANCED_SIMULINK  Verify Simulink-referenced advanced builders.
 %   Tests ob_pid_controller, ob_zero_pole, ob_discrete_state_space,
 %   ob_discrete_transfer_function, ob_c2d_state_space, ob_lookup_table_1d,

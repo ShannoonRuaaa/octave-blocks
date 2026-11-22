@@ -1,4 +1,5 @@
 function test_ob_controls ()
+  test_path_cleanup = ob_test_setup ();
   % Exact elementwise boundaries, including equality at each ordered limit.
   input = [-3 -1 0; 1 2 4];
   saturation = unary_model ('Saturation', [-1 2], input);

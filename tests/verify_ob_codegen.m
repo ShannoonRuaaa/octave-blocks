@@ -1,4 +1,5 @@
 function verify_ob_codegen (directory)
+  test_path_cleanup = ob_test_setup ();
   % Compare every standalone CSV with its Octave reference at the case's
   % scaled tolerance (manifest field 'tolerance': 1e-11 for RK4 exports,
   % 1e-9 for ode45 exports; manifests without it use 1e-11).

@@ -1,4 +1,5 @@
 function test_ob_builtin_controls ()
+  test_path_cleanup = ob_test_setup ();
   % Selection must copy values, including signed zeros, rather than combine
   % the two branches arithmetically (0*realmax can conceal such regressions).
   high = [-0.0 realmax(); 7 8]; low = [9 -0.0; -realmax() 10];
