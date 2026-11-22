@@ -41,7 +41,7 @@ $octaveExperimental = if ($ExperimentalTyped) { 'true' } else { 'false' }
 $eventEdgesPreviousPath = $env:PATH
 try {
     $env:PATH = $binRoot + [IO.Path]::PathSeparator + (Split-Path -Parent $Compiler) + [IO.Path]::PathSeparator + $env:PATH
-    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); ob_setup(); addpath(fullfile('$octaveSource','tests')); test_ob_event_codegen_edges('$octaveArtifacts',false,$octaveExperimental);"
+    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); ob_setup('tests'); test_ob_event_codegen_edges('$octaveArtifacts',false,$octaveExperimental);"
     if ($LASTEXITCODE -ne 0) { throw 'Event edge C preparation failed.' }
     $cases = @(Get-Content -LiteralPath (Join-Path $artifactRoot 'event-edge-manifest.json') -Raw | ConvertFrom-Json)
     foreach ($case in $cases) {
@@ -58,7 +58,7 @@ try {
             $output | Set-Content -LiteralPath (Join-Path $artifactRoot ($case.name + '.csv')) -Encoding utf8NoBOM
         } else { $output | Write-Output }
     }
-    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); ob_setup(); addpath(fullfile('$octaveSource','tests')); test_ob_event_codegen_edges('$octaveArtifacts',true);"
+    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); ob_setup('tests'); test_ob_event_codegen_edges('$octaveArtifacts',true);"
     if ($LASTEXITCODE -ne 0) { throw 'Generated event edge C differs from Octave.' }
     Write-Output "Event edge code generation verification passed. Artifacts: $artifactRoot"
 } finally { $env:PATH = $eventEdgesPreviousPath }

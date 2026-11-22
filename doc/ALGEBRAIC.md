@@ -120,9 +120,11 @@ remain future work.
 
 ## Verification and reference scope
 
-Run the focused numerical regression from the project directory:
+Run the focused numerical regression from the repository root:
 
 ```octave
+addpath (pwd ());
+ob_setup ('tests');
 test_ob_algebraic ();
 ```
 

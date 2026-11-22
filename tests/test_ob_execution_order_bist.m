@@ -2,7 +2,7 @@ function test_ob_execution_order_bist ()
   cleanup = ob_test_setup ();
   [passed,total] = test (mfilename("fullpath"), "quiet");
   assert (total > 0 && passed == total);
-  fprintf ("test_ob_execution_order_bist: %d/%d passed\n", passed, total);
+  fprintf ("test_ob_execution_order_bist: %d/%d passed\n",passed,total);
 endfunction
 
 %!test

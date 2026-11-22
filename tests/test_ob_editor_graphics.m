@@ -298,6 +298,21 @@ function test_ob_editor_graphics ()
     selected_events = result.events(strcmp({result.events.type},'Conditional Subsystem'));
     assert(!isempty(selected_events) && all(arrayfun(@(item) isequal(item.path,5),selected_events)));
     state = guidata(fifth); assert(isequal(state.model,continuous_model));
+
+    % Run expands a scalar InitialOutput to its port's width first, so a
+    % subsystem first evaluated after the start plots one sample shape.
+    offset_model = ob_scalar_initial_example ('offset');
+    sixth = octave_blocks(offset_model); figures(end+1) = sixth;
+    state = guidata(sixth); state.config = [0 2 .25]; guidata(sixth,state);
+    existing_figures = findall(0,'type','figure');
+    assignin('base','ob_last_result',[]);
+    press_button(sixth,'Run');
+    created = setdiff(findall(0,'type','figure'),existing_figures);
+    figures = [figures reshape(created,1,[])];
+    result = evalin('base','ob_last_result');
+    assert(isstruct(result) && numel(created)==1);
+    assert(isequal(ob_scope_data(result,5),[repmat([-4 -4],3,1); repmat([2.25 4.5],6,1)]));
+    state = guidata(sixth); assert(isequal(state.model,offset_model));
   unwind_protect_cleanup
     for fig = figures, if(isgraphics(fig)), delete(fig); endif; endfor
     set(0,'defaultfigurevisible',previous);

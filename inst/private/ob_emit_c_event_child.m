@@ -4,9 +4,11 @@ function lines = ob_emit_c_event_child (u)
   lines = {};
   p = u.prefix; t = [p 'model'];
   enabled = strcmp(u.options.mode,'enabled');
+  combined=ob_is_combined_mode(u.options.mode);
+  extra='';if(combined),extra=',double enable';endif
   continuous_control = strcmp(u.options.control,'continuous');
   delayed = reshape(find(strcmp(u.types,'Unit Delay') | strcmp(u.types,'Discrete Integrator')),1,[]);
-  if (enabled), emit_suspend (); endif
+  emit_suspend ();
   add(sprintf('static int %sevent_process(%s *m,double time,const double *input,int major,double interval,const ob_clock_frame *frame){',p,t), ...
       '  (void)major;(void)interval;(void)input;', ...
       '  if(!frame)return OB_BAD_ARGUMENT;');
@@ -65,12 +67,14 @@ function lines = ob_emit_c_event_child (u)
   endfor
   for id = 1:u.n
     child=u.children{id};
-    if (!isempty(child)), add(sprintf('  %sgate_reset(&m->child_%d,time);',child.prefix,id)); endif
+    if (!isempty(child)), add(sprintf('  %sancestor_reset(&m->child_%d,time);',child.prefix,id)); endif
   endfor
+  % Blocks sharing an Outport's buffer start from its held value.
+  add (ob_conditional_c_gate (u, 'init', '!frame->reconcile&&'){:});
   add('  m->time=time;m->start_time=frame->origin;m->initialized=1;', ...
       sprintf('  int status=%sevent_process(m,time,input,major,0.0,frame);',p), ...
       '  if(status==OB_OK){memcpy(m->major_value,m->value,sizeof(m->value));}return status;}', ...
-      sprintf('static int %sevent(%s *m,double time,const double *input,double control,double inherited_interval,ob_interval_kind interval_kind,int major,const ob_clock_frame *frame){',p,t), ...
+      sprintf('static int %sevent(%s *m,double time,const double *input,double control%s,double inherited_interval,ob_interval_kind interval_kind,int major,const ob_clock_frame *frame){',p,t,extra), ...
       '  (void)input;(void)inherited_interval;(void)interval_kind;(void)major;', ...
       '  if(!frame||!frame->accepted)return OB_OK;', ...
       '  if(!isfinite(time)||!isfinite(control))return OB_NONFINITE;', ...
@@ -102,10 +106,11 @@ function lines = ob_emit_c_event_child (u)
       add('    reset=active&&!previous;', ...
           '    if(reset){m->continuous_elapsed=0.0;m->advance_interval=0.0;}');
     endif
+    disable = ob_conditional_c_gate (u, 'disable');
+    if (!isempty(disable)), add('    if(previous&&!active&&m->initialized){', disable{:}, '    }'); endif
+    enable = ob_conditional_c_gate (u, 'enable');
+    if (!isempty(enable)), add('    if(active){', enable{:}, '    }'); endif
     add('    m->was_enabled=active;');
-    if (strcmp(u.options.outputs,'reset'))
-      add(sprintf('    if(!active)memcpy(m->held,%sinitial,%d*sizeof(double));',p,u.out_count));
-    endif
     add('  }else active=m->was_enabled;', ...
         '  if(major&&!frame->reconcile){m->last_sample=time;m->last_executed=0;}');
     if (continuous_control)
@@ -114,15 +119,32 @@ function lines = ob_emit_c_event_child (u)
           '    if(m->active_since_valid)m->advance_interval+=fmax(0.0,time-m->active_since);', ...
           '    m->continuous_elapsed=0.0;m->active_since=time;m->active_since_valid=1;}');
     endif
-    add('  if(!active)return OB_OK;');
+    % OutputWhenDisabled 'reset': a port fed by inner clocks resets at one of
+    % their hits while disabled, any other port at once (idempotent here).
+    add('  if(!active){', ob_conditional_c_gate (u, 'reset', '!frame->reconcile&&'){:}, '    return OB_OK;}');
   else
     if (continuous_control), lifecycle='1'; else lifecycle='major&&!frame->reconcile'; endif
-    add(sprintf('  if(!(%s))return OB_OK;',lifecycle), ...
-        '  const int sign=(control>0.0)-(control<0.0);', ...
+    add(sprintf('  if(!(%s))return OB_OK;',lifecycle));
+    if(combined)
+      add('  if(!isfinite(enable))return OB_NONFINITE;', ...
+          '  const int enabled=enable>0.0;');
+      if(strcmp(u.options.states,'reset')),add('  if(enabled&&!m->was_enabled)m->reset_pending=1;');endif
+      add(sprintf('  if(!enabled&&m->was_enabled&&m->initialized)%ssuspend(m,time);',p), ...
+          '  m->was_enabled=enabled;m->enable_sign=(enable>0.0)-(enable<0.0);');
+      reset_lines = ob_conditional_c_gate (u, 'reset');
+      if (!isempty(reset_lines)), add('  if(!enabled){', reset_lines{:}, '  }'); endif
+    endif
+    add('  const int sign=(control>0.0)-(control<0.0);');
+    % A combined context's first evaluation records the sample without an
+    % edge, as does a trigger-only one with initial_control 'compatibility'.
+    if (combined || ischar(u.options.initial_control))
+      add('  if(!m->trigger_seen){m->previous_sign=sign;m->last_rising=0;m->last_falling=0;m->trigger_seen=1;}');
+    endif
+    add( ...
         '  const int rising=(m->previous_sign<0&&sign>=0)||(m->previous_sign==0&&sign>0);', ...
         '  const int falling=(m->previous_sign>0&&sign<=0)||(m->previous_sign==0&&sign<0);');
-    if (strcmp(u.options.mode,'rising')), active='rising&&!m->last_rising';
-    elseif (strcmp(u.options.mode,'falling')), active='falling&&!m->last_falling';
+    if (any(strcmp(u.options.mode,{'rising','enabled_rising','reset_rising'}))), active='rising&&!m->last_rising';
+    elseif (any(strcmp(u.options.mode,{'falling','enabled_falling','reset_falling'}))), active='falling&&!m->last_falling';
     else active='(rising&&!m->last_rising)||(falling&&!m->last_falling)'; endif
     add(['  active=' active ';']);
     if (continuous_control)
@@ -130,7 +152,13 @@ function lines = ob_emit_c_event_child (u)
     else
       add('  m->last_rising=rising;m->last_falling=falling;');
     endif
-    add('  m->previous_sign=sign;m->control_sign=sign;', ...
+    add('  m->previous_sign=sign;m->control_sign=sign;');
+    if(ob_is_resettable_mode(u.options.mode))
+      add('  reset=active;active=1;', ...
+          '  m->advance_interval=interval_kind==OB_INTERVAL_ELAPSED?time-m->last_sample:inherited_interval;');
+    endif
+    if(combined),add('  active=active&&enabled;reset=m->reset_pending;');endif
+    add( ...
         '  if(!active)return OB_OK;', ...
         '  ob_clock_frame triggered=*frame;triggered.reconcile=0;frame=&triggered;', ...
         '  major=1;m->last_sample=time;m->last_executed=0;');
@@ -138,16 +166,21 @@ function lines = ob_emit_c_event_child (u)
   if (u.input_count>0)
     add(sprintf('  for(size_t i=0;i<%d;++i)if(!isfinite(input[i]))return OB_NONFINITE;',u.input_count));
   endif
-  if (enabled), interval='m->advance_interval'; else interval='time-m->time'; endif
+  if (enabled||ob_is_resettable_mode(u.options.mode)), interval='m->advance_interval'; else interval='time-m->time'; endif
   add('  int status;',sprintf('  if(!m->initialized||reset)status=%sevent_init(m,time,input,major&&!frame->reconcile,frame);',p));
   if (enabled && !u.needs_flow)
-    add(sprintf('  else if(major||(%s)||frame->reconcile)status=%sevent_process(m,time,input,major,%s,frame);',clock_test(u.all_clocks),p,interval), ...
+    % A body without flow executes only at its hits, as in ob_runtime_eval:
+    % a reconcile between them (an input or Step boundary, a located
+    % crossing, an accepted control change) keeps its held outputs, so it
+    % does not follow an input that changed since its last hit.
+    add(sprintf('  else if(major||(%s))status=%sevent_process(m,time,input,major,%s,frame);',clock_test(u.all_clocks),p,interval), ...
         '  else return OB_OK;');
   else
     add(sprintf('  else status=%sevent_process(m,time,input,major&&!frame->reconcile,%s,frame);',p,interval));
   endif
   add('  if(status!=OB_OK)return status;');
-  emit_held ();
+  if(combined),add('  m->reset_pending=0;');endif
+  add (ob_conditional_c_gate (u, 'held', '!frame->reconcile&&'){:});
   add('  if(major&&!frame->reconcile)m->last_executed=1;');
   if (enabled)
     add(sprintf('  if(entering||(!frame->reconcile&&(major||(%s)))){++m->executions;}',clock_test(u.all_clocks)));
@@ -163,24 +196,22 @@ function lines = ob_emit_c_event_child (u)
         '  if(frame){frozen=*frame;frozen.accepted=0;flow_frame=&frozen;}', ...
         sprintf('  int status=%seval(m,time,m->state,m->value,left,input,NULL,m,0.0,OB_INTERVAL_ELAPSED,flow_frame);',p), ...
         '  if(status!=OB_OK)return status;');
-    emit_held ();
+    add (ob_conditional_c_gate (u, 'flow'){:});
     add('  m->time=time;');
   endif
   add('  return OB_OK;}');
 
   function add (varargin), lines=[lines varargin]; endfunction
 
-  function emit_held ()
-    for port=1:numel(u.out_ids)
-      add(sprintf('  memcpy(m->held+%d,m->value+%d,%d*sizeof(double));',u.out_offsets(port),u.offsets(u.out_ids(port)),u.out_sizes(port)));
-    endfor
-  endfunction
-
   function emit_suspend ()
-    add(sprintf('static void %ssuspend(%s *m,double time){',p,t), '  (void)m;(void)time;');
+    add(sprintf('static inline void %ssuspend(%s *m,double time){',p,t), '  (void)m;(void)time;');
     for id=1:u.n
       child=u.children{id};
-      if (isempty(child)||!strcmp(child.options.mode,'enabled')), continue; endif
+      if (isempty(child)), continue; endif
+      if (!(strcmp(child.options.mode,'enabled')||ob_is_combined_mode(child.options.mode)))
+        add(sprintf('  if(m->child_%d.initialized)%ssuspend(&m->child_%d,time);',id,child.prefix,id));
+        continue;
+      endif
       access=sprintf('m->child_%d.',id);
       add(sprintf('  if(%sinitialized&&%swas_enabled){',access,access), ...
           sprintf('    if(%slast_executed){',access));
@@ -192,7 +223,7 @@ function lines = ob_emit_c_event_child (u)
       endif
       add(sprintf('      %slast_executed=0;}',access), ...
           sprintf('    if(%sactive_since_valid){%scontinuous_elapsed+=fmax(0.0,time-%sactive_since);%sactive_since_valid=0;}',access,access,access,access), ...
-          sprintf('    %ssuspend(&m->child_%d,time);}',child.prefix,id));
+          sprintf('    %ssuspend(&m->child_%d,time);%swas_enabled=0;}',child.prefix,id,access));
     endfor
     add('}');
   endfunction

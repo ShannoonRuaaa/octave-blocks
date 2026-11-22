@@ -56,6 +56,73 @@ function test_ob_conditional ()
   model.blocks(3).value.execution.initial_control = -1;
   assert (isequal (ob_scope_data(ob_run(model,0:9),4)', [-1 -1 -1 0 0 0 3 3 3 3]));
 
+  % initial_control 'compatibility' (Simulink's default trigger state): the
+  % first evaluation only records its sample.  At the root this equals the
+  % sign of that sample for positive, negative and zero starts (Simulink
+  % 26.2 traces), while the zero default executes at t=0 on an edge from 0.
+  starts = {[1 1 -1 0 0 1], [-1 -1 1 1 0 -1], [0 1 0 -1 0 1], [1 0 -1 -1 0 1]};
+  for k = 1:numel (starts)
+    for mode = {'rising','falling','either'}
+      model = ob_conditional_example ();
+      model.inputs = {ob_input_signal(0:5, starts{k}')};
+      model.blocks(3).value.execution.mode = mode{1};
+      model.blocks(3).value.execution.initial_control = 'compatibility';
+      compat = ob_scope_data (ob_run (model, 0:5), 4)';
+      model.blocks(3).value.execution.initial_control = sign (starts{k}(1));
+      assert (isequal (compat, ob_scope_data (ob_run (model, 0:5), 4)'));
+    endfor
+  endfor
+  model = ob_conditional_example ();
+  model.inputs = {ob_input_signal(0:5, starts{1}')};
+  model.blocks(3).value.execution.mode = 'rising';
+  assert (isequal (ob_scope_data(ob_run(model,0:5),4)', [0 0 0 0 0 3]));
+  model.blocks(3).value.execution.initial_control = 'compatibility';
+  compat = [-1 -1 -1 0 0 3];
+  assert (isequal (ob_scope_data(ob_run(model,0:5),4)', compat));
+  % The setting round-trips through validation, model files and contexts.
+  assert (strcmp (ob_execution_options (model.blocks(3).value).initial_control, 'compatibility'));
+  file = [tempname() '.mat'];
+  unwind_protect
+    ob_save_model (file, model, [0 5 1]);
+    loaded = ob_load_model (file);
+    assert (strcmp (loaded.blocks(3).value.execution.initial_control, 'compatibility'));
+    assert (isequal (ob_scope_data(ob_run(loaded,0:5),4)', compat));
+  unwind_protect_cleanup
+    if (exist (file, 'file')), unlink (file); endif
+  end_unwind_protect
+  runtime = ob_runtime_init (model, 0);
+  for time = 1:5, runtime = ob_runtime_step (runtime, time); endfor
+  assert (isequal (ob_runtime_outputs (runtime, 4), 3));
+  % A first evaluation delayed by a disabled Enabled ancestor (enable on at
+  % t=2, trigger high there) does not execute either; the next rise does.
+  inner = model.blocks(3).value;
+  outer = ob_subsystem_template ();
+  outer.blocks = [outer.blocks(1), struct('type','Inport','value',2,'name','Trigger','x',.1,'y',.3), ...
+                  struct('type','Subsystem','value',inner,'name','Triggered','x',.5,'y',.5), outer.blocks(3)];
+  outer.edges = [1 1 3 1;2 1 3 2;3 1 4 1];
+  outer.execution = struct ('mode','enabled','initial_outputs',{{-9}});
+  nested.blocks = struct ('type',{'Time','Inport','Inport','Subsystem','Scope'}, ...
+      'value',{[],1,2,outer,[]},'name',{'Time','Trigger','Enable','Outer','Output'}, ...
+      'x',{.1,.1,.1,.5,.9},'y',{.7,.5,.3,.5,.5});
+  nested.edges = [1 1 4 1;2 1 4 2;3 1 4 3;4 1 5 1];
+  nested.inputs = {ob_input_signal(0:7,[-1;-1;1;1;-1;1;1;1]), ob_input_signal(0:7,[0;0;1;1;1;1;1;1])};
+  assert (isequal (ob_scope_data(ob_run(nested,0:7),5)', [-9 -9 -1 -1 -1 0 0 0]));
+  nested.blocks(4).value.blocks(3).value.execution.initial_control = 0;
+  assert (isequal (ob_scope_data(ob_run(nested,0:7),5)', [-9 -9 0 0 0 2 2 2]));
+  child = ob_subsystem_template ();
+  for mode = {'rising','falling','either','enabled','enabled_falling'}
+    child.execution = struct ('mode',mode{1},'initial_control','compatibility');
+    assert (strcmp (ob_execution_options(child,false).initial_control, 'compatibility'));
+  endfor
+  child.execution = struct ('mode','virtual','initial_control','compatibility');
+  assert (ob_execution_options(child).initial_control == 0);
+  child.execution = struct ('mode','reset_rising','initial_control','compatibility');
+  assert_error (@() ob_execution_options(child,false), 'not resettable');
+  for invalid_control = {'Compatibility','zero','1',[1 2]}
+    child.execution = struct ('mode','rising','initial_control',invalid_control);
+    assert_error (@() ob_execution_options(child,false), 'finite real scalar or ''compatibility''');
+  endfor
+
   % Matrix state/output contracts and independent multiple output proxies.
   model = ob_conditional_example ();
   data = [1 2;3 4];
@@ -213,6 +280,77 @@ function test_ob_conditional ()
   ob_validate_model (child, false);
   assert (numel (ob_execution_options(child).initial_outputs) == 2);
 
+  % OutputWhenDisabled per Outport: execution.outputs may list one policy per
+  % numbered Outport (Simulink's per-Outport parameter); one string still
+  % applies to every port.
+  model = two_port_example ({'held', 'reset'});
+  result = ob_run (model, 0:6);
+  assert (isequal (ob_scope_data(result,4)', [-1 0 1 1 1 2 5]));
+  assert (isequal (ob_scope_data(result,5)', [-3 2 4 -3 -3 10 12]));
+  for policy = {'held', 'reset'}
+    uniform = ob_run (two_port_example (policy{1}), 0:6);
+    listed = ob_run (two_port_example ({policy{1}, policy{1}}), 0:6);
+    assert (isequal ([ob_scope_data(uniform,4) ob_scope_data(uniform,5)], ...
+                     [ob_scope_data(listed,4) ob_scope_data(listed,5)]));
+  endfor
+  model.blocks(3).value.execution.states = 'reset';
+  assert (isequal (ob_scope_data(ob_run(model,0:6),4)', [-1 0 1 1 1 0 5]));
+  for outputs = {{'held'}, {'held','reset','held'}, {'held','bad'}, {1, 'held'}, 3}
+    invalid = two_port_example (outputs{1});
+    assert_error (@() ob_validate_model(invalid), 'outputs must be held or reset');
+  endfor
+  invalid = two_port_example ({'held','reset'}); invalid.blocks(3).value.execution.mode = 'rising';
+  assert_error (@() ob_validate_model(invalid), 'triggered subsystems require held states and outputs');
+  assert (isequal (ob_execution_options(two_port_example({'held';'reset'}).blocks(3).value).outputs, ...
+                   {'held','reset'}));
+
+  % A scalar initial output is expanded to its port's shape (Simulink), also
+  % before the first execution and when a reset port returns to it; once
+  % the shape is known it is enforced.
+  model = two_port_example ('reset');
+  model.blocks(1).type = 'Constant'; model.blocks(1).value = [1 2];
+  model.blocks(3).value.blocks(2).value = [0 0];
+  result = ob_run (model, 0:6);
+  assert (isequal (cell2mat (ob_signal_values (result, 4)), [-1 -1;0 0;1 2;-1 -1;-1 -1;1 2;1 2]));
+  assert (isequal (cell2mat (ob_signal_values (result, 5)), [-3 -3;2 4;2 4;-3 -3;-3 -3;2 4;2 4]));
+  wrong = model; wrong.blocks(3).value.execution.initial_outputs = {[0 0 0], -3};
+  assert_error (@() ob_run(wrong,0:6), 'initial output shape');
+  % ones(t) passed through: scalar at the first execution (t = 1), 2-by-2 at t = 2.
+  growing = ob_conditional_example ();
+  growing.blocks(3).value.blocks(2).type = 'Gain'; growing.blocks(3).value.blocks(2).value = 1;
+  growing.blocks(1).type = 'Function'; growing.blocks(1).name = 'ones';
+  growing.blocks(1).value = [];
+  growing.blocks(end+1) = struct ('type','Time','value',[],'name','Time','x',.1,'y',.9);
+  growing.edges(end+1,:) = [5 1 1 1];
+  assert_error (@() ob_run(growing,0:6), 'initial output shape');
+  % The shape is known statically: an inner body's [-5 -5] reaches the
+  % outer port before the inner body first runs (the runtime expands nested
+  % bodies), and a subsystem first evaluated after the start holds [-4 -4]
+  % from t = 0: the root runtime initialization applies
+  % ob_expand_initial_outputs, so the raw model, the expanded one and a
+  % stepwise context all log one sample shape.
+  result = ob_run (ob_scalar_initial_example ('nested'), 0:.25:2);
+  assert (isequal (ob_scope_data (result, 6), [-4 -4;-4 -4;-5 -5;-5 -5;-5 -5;3.75 7.5;3.75 7.5;5.25 10.5;5.25 10.5]));
+  offset = ob_scalar_initial_example ('offset');
+  [expanded, shapes] = ob_expand_initial_outputs (offset);
+  assert (isequal (expanded.blocks(4).value.execution.initial_outputs, {[-4 -4]}) && isempty (shapes));
+  expected = [repmat([-4 -4],3,1); repmat([2.25 4.5],6,1)];
+  result = ob_run (offset, 0:.25:2);
+  assert (isequal (ob_scope_data (result, 5), expected));
+  result = ob_run (expanded, 0:.25:2);
+  assert (isequal (ob_scope_data (result, 5), expected));
+  context = ob_runtime_init (offset, 0, struct ());
+  assert (isequal (ob_runtime_outputs (context, 4, 1), [-4 -4]));
+  context = ob_runtime_step (context, 0.25);
+  assert (isequal (ob_runtime_outputs (context, 4, 1), [-4 -4]));
+  % The root expansion leaves malformed models to the validator's messages.
+  assert_error (@() ob_runtime_init (struct ()), 'expected a model with blocks and edges');
+  assert_error (@() ob_run (struct ('blocks', struct ('x', 1), 'edges', []), 0:1), 'blocks need type');
+  [unused, shapes] = ob_expand_initial_outputs (offset.blocks(4).value, {[1 2]});
+  assert (isequal (shapes, {[1 2]}));
+  [unused, shapes] = ob_expand_initial_outputs (offset.blocks(4).value, {[]});
+  assert (isequal (shapes, {[]}));
+
   file = [tempname() '.c'];
   unwind_protect
     fid = fopen(file,'w'); fputs(fid,'existing source'); fclose(fid);
@@ -233,6 +371,19 @@ function model = wrap_child (child)
       'value',{1,2,child,1},'name',{'Data','Control','Child','Output'}, ...
       'x',{0.1,0.1,0.5,0.9},'y',{0.7,0.3,0.5,0.5});
   model.edges = [1 1 3 1;2 1 3 2;3 1 4 1];
+endfunction
+
+function model = two_port_example (outputs)
+  % ob_conditional_example plus a second Outport, 2u, with initial output -3.
+  model = ob_conditional_example ();
+  child = model.blocks(3).value;
+  child.blocks(4) = struct ('type','Gain','value',2,'name','Double','x',.5,'y',.2);
+  child.blocks(5) = struct ('type','Outport','value',2,'name','Twice','x',.9,'y',.2);
+  child.edges = [ob_edges(child); 1 1 4 1; 4 1 5 1];
+  child.execution = struct ('mode','enabled','outputs',{outputs},'initial_outputs',{{-1,-3}});
+  model.blocks(3).value = child;
+  model.blocks(5) = model.blocks(4); model.blocks(5).name = 'Twice';
+  model.edges(end+1,:) = [3 2 5 1];
 endfunction
 
 function assert_fails (callback)

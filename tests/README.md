@@ -32,3 +32,10 @@ The `test_ob_*_bist.m` files contain the regression checks formerly embedded
 in production files; their wrapper functions check that every case passed.
 `test_ob_multi_function`, `test_ob_inner_clock_c_cases` and several codegen
 case files are fixtures, not standalone test commands.
+
+The stage runner accepts `-Workers 1` through `-Workers 4` (default 2) and
+optional `-Stages engine,api` for focused retries. Each run keeps a fresh
+manifest, per-stage stdout/stderr, source hashes and exit codes under
+`.artifacts/gate-*/`. Only a complete default run covers the full stage set;
+focused retries have their own manifests. Concurrent checks do not produce
+performance claims. The editor stage runs after other checks have finished.

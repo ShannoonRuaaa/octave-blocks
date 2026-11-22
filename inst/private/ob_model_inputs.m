@@ -1,6 +1,9 @@
 function signals = ob_model_inputs (model, required = false)
   % Partial diagrams may omit datasets; runnable models require every root port.
-  count = sum (ismember ({model.blocks.type}, {'Inport','External Input'}));
+  % strcmp is the builtin equivalent of ismember here (child executions call
+  % this for every hit, and ismember's argument validation dominated it).
+  types = {model.blocks.type};
+  count = sum (strcmp (types, 'Inport') | strcmp (types, 'External Input'));
   signals = {};
   if (isfield (model, 'inputs')), signals = model.inputs; endif
   if (! iscell (signals) || (! isempty (signals) && ! isvector (signals)))
@@ -18,7 +21,15 @@ function signals = ob_model_inputs (model, required = false)
       signals{port} = [];
     else
       try
-        signals{port} = ob_input_signal (signals{port});
+        signal = signals{port};
+        if (isstruct (signal) && isscalar (signal) && numfields (signal) == 4 ...
+            && all (isfield (signal, {'t', 'values', 'shape', 'method'})))
+          % A complete signal record: ob_input_signal's struct form would
+          % unpack exactly these fields and apply the same checks.
+          signals{port} = ob_input_signal (signal.t, signal.values, signal.shape, signal.method);
+        else
+          signals{port} = ob_input_signal (signal);
+        endif
       catch err
         error ('ob_model_inputs: root Inport %d: %s', port, err.message);
       end_try_catch

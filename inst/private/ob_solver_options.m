@@ -3,8 +3,11 @@ function options = ob_solver_options (input = struct ())
   if (! isstruct (input) || ! isscalar (input))
     error ("ob_solver_options: solver options must be a scalar struct");
   endif
+  % accelerate: false (interpreted), true (compiled C through ob_accelerate;
+  % an error if the model is outside the C subset) or 'auto' (compiled when
+  % supported, otherwise interpreted).  See CODEGEN.md.
   options = struct ("solver", "rk4", "reltol", 1e-6, "abstol", 1e-9, "maxstep", Inf, ...
-                    'zero_crossings', false);
+                    'zero_crossings', false, 'accelerate', false);
   fields = fieldnames (input);
   for k = 1:numel (fields)
     name = fields{k};
@@ -31,4 +34,13 @@ function options = ob_solver_options (input = struct ())
     error ('ob_solver_options: zero_crossings must be a scalar 0 or 1');
   endif
   options.zero_crossings = logical (options.zero_crossings);
+  value = options.accelerate;
+  if (ischar (value) && strcmp (value, 'auto'))
+    options.accelerate = 'auto';
+  elseif ((islogical (value) || isnumeric (value)) && isreal (value) && isscalar (value) ...
+          && any (value == [0 1]))
+    options.accelerate = logical (value);
+  else
+    error ("ob_solver_options: accelerate must be false, true, or 'auto'");
+  endif
 endfunction

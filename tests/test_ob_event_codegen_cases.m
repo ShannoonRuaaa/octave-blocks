@@ -99,6 +99,17 @@ function [cases, api] = test_ob_event_codegen_cases ()
     elseif (strcmp(mode{1},'falling')), expected = .7; else expected = 1.2; endif
     add (['event_trigger_delay_' mode{1}],delayed,[0 1.8 1.8],expected,2e-8,bounded);
   endfor
+  % The trigger starts negative: a zero prior value falls at t=0 (Delay IC
+  % -7), while 'compatibility' only records that first sample, so nothing
+  % executes before the falling crossing at .7 (initial output -9).
+  for initial = {0,'compatibility'}
+    child = squared_body ('falling'); child.execution.initial_control = initial{1};
+    child.blocks(2).type = 'Unit Delay'; child.blocks(2).value = -7;
+    child.edges = [1 1 2 1;2 1 3 1];
+    delayed = sine_gate(child,[]); delayed.blocks(1).type = 'Time';
+    if (ischar(initial{1})), label = 'compat'; expected = -9; else label = 'zero'; expected = -7; endif
+    add (['event_trigger_initial_' label],delayed,[0 .5 .5],expected,2e-8,bounded);
+  endfor
 
   clock_child = mixed_body ();
   clock_child.sample_times = zeros(9,2); clock_child.sample_times(5,:) = [.25 0];
@@ -108,6 +119,36 @@ function [cases, api] = test_ob_event_codegen_cases ()
   coincident = expose_child_outputs (coincident,3);
   add ('event_coincident_inner_clocks',coincident,[0 1 1],[.5 .5 0],2e-8,bounded);
   add ('event_coincident_root_and_inner_clocks',root_clocks(coincident),[0 1 1],[.5 .5 0 .75 0 1],2e-8,bounded);
+
+  % Every enabled inner-clock fixture of the sampled exporter also runs in
+  % event mode, with the same analytical final values
+  % (test_ob_inner_clock_c_cases: inner clocks and offsets, Outport timing
+  % and per-port policies of ob_conditional_gating, the recorded Simulink
+  % cases, inherited controls, scalar initial outputs nested and at the
+  % root).  A body without flow executes only at its hits, so it keeps its
+  % outputs across an input boundary between them, where the event runtime
+  % reconciles (e.g. conditional_shape_offset: enable off at 1.1, hits at
+  % 0.75 and 1.25; ob_emit_c_event_child).
+  for item = test_ob_inner_clock_c_cases ()
+    add (['event_' item.name],item.model,item.config,item.expected,item.tolerance);
+  endfor
+  % An inherited enable control is sampled at its body's inner clock hits:
+  % activation at 1.125 s falls between the 0.05 s output times
+  % (ob_emit_c_event_root); with reset states the shared buffer shows -9
+  % (event_inner_clock_gate_inherited is the held case).
+  model = ob_gated_outputs_example ('reset'); model.sample_times(3,:) = [0 0];
+  add ('event_gate_inherited_reset',model,[0 1.2 .05],[-1 -9 -9 -10]);
+  % The same rule at other rates and boundaries: the body last executes at
+  % 1.0 with an explicit 0.5 s or an inherited rate (enable off at 1.1),
+  % and at 0.75 when a Step, not a root input, disables it at 1.1.
+  base = ob_scalar_initial_example ('offset');
+  model = base; model.sample_times(4,:) = [.5 0];
+  add ('event_hold_explicit_rate',model,[0 2 .25],{[3 6]});
+  model.sample_times(4,:) = [0 0];
+  add ('event_hold_inherited_rate',model,[0 2 .25],{[3 6]});
+  model = rmfield (base, 'inputs');
+  model.blocks(3) = struct ('type','Step','value',[1.1 1 0],'name','Enable','x',.5,'y',.5);
+  add ('event_hold_step_boundary',model,[0 2 .25],{[2.25 4.5]});
 
   host = host_model ();
   add ('event_host_inputs',host,[0 1 1],1.25);

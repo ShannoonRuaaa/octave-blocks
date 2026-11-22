@@ -5,15 +5,31 @@ function output = ob_control_output (block, inputs, id, mode = [])
   if (numel (inputs) != count)
     error ("ob_run: %s block %d needs %d inputs", block.type, id, count);
   endif
-  for port = 1:count
-    input = inputs{port};
-    if (! isnumeric (input) || ! isreal (input) || isempty (input) ...
-        || ndims (input) > 2 || any (! isfinite (input(:))))
-      error ("ob_run: %s block %d input %d must be a nonempty finite real numeric matrix", ...
-             block.type, id, port);
+  % Finite real full double scalars, the usual signals, need neither the
+  % per-port checks nor conversion; anything else takes the general loop,
+  % which converts and reports the first invalid port.
+  if (count == 1)
+    input = inputs{1};
+    scalar = isa (input, 'double') && isscalar (input) && isreal (input) ...
+             && ! issparse (input) && isfinite (input);
+  else
+    scalar = all (cellfun ('isclass', inputs, 'double')) && all (cellfun ('prodofsize', inputs) == 1);
+    if (scalar)
+      packed = [inputs{:}];
+      scalar = isreal (packed) && ! issparse (packed) && all (isfinite (packed));
     endif
-    inputs{port} = full (double (input));
-  endfor
+  endif
+  if (! scalar)
+    for port = 1:count
+      input = inputs{port};
+      if (! isnumeric (input) || ! isreal (input) || isempty (input) ...
+          || ndims (input) > 2 || any (! isfinite (input(:))))
+        error ("ob_run: %s block %d input %d must be a nonempty finite real numeric matrix", ...
+               block.type, id, port);
+      endif
+      inputs{port} = full (double (input));
+    endfor
+  endif
   value = double (block.value);
   switch (block.type)
     case "Saturation"
@@ -31,10 +47,11 @@ function output = ob_control_output (block, inputs, id, mode = [])
       output(below) = input(below) - value(1);
       output(above) = input(above) - value(2);
     case "Switch"
-      if (! isequal (size (inputs{1}), size (inputs{3})))
+      % Inputs are validated 2-D above, so size_equal matches comparing sizes.
+      if (! size_equal (inputs{1}, inputs{3}))
         error ("ob_run: Switch block %d data inputs 1 and 3 must have identical shapes", id);
       endif
-      if (! isscalar (inputs{2}) && ! isequal (size (inputs{1}), size (inputs{2})))
+      if (! isscalar (inputs{2}) && ! size_equal (inputs{1}, inputs{2}))
         error ("ob_run: Switch block %d control input 2 must be scalar or match the data shape", id);
       endif
       selected = inputs{2} >= value;

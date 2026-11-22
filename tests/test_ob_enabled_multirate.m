@@ -81,8 +81,12 @@ function test_ob_enabled_multirate ()
     assert (isequal(state.child.sample_hits{2},[.5 .75 1.25 1.5 1.75]));
     paused.blocks(3).value.execution.states = 'reset';
     result = ob_run (paused,queries,options);
-    assert (isequal(ob_scope_data(result,4)',[0 0 .5 .5 0 0 1.25 1.5]));
-    assert (isequal(ob_scope_data(result,5)',[0 0 .25 .25 0 0 .25 .5]));
+    % The reset reactivation at 1.125 is not a 0.25 s hit: like Simulink
+    % (simulink-inner-clocks-reference.json, euler_two_rates_reset), both
+    % Outports keep their held values until the reset blocks first execute
+    % at 1.25.  Earlier versions published the reset values 0 at 1.125.
+    assert (isequal(ob_scope_data(result,4)',[0 0 .5 .5 .5 0 1.25 1.5]));
+    assert (isequal(ob_scope_data(result,5)',[0 0 .25 .25 .25 0 .25 .5]));
     paused.blocks(3).value.execution.states = 'held';
     paused.blocks(3).value.blocks(2).type = 'Rate Transition';
     result = ob_run (paused,queries,options);
@@ -139,6 +143,44 @@ function test_ob_enabled_multirate ()
     result = ob_run (nested,[0 1],options);
     assert (ob_scope_data(result,4)(end) == .375 && ob_scope_data(result,5)(end) == .25);
   endfor
+
+  % Outports follow the rate of their source and clocked blocks driving an
+  % Outport share its buffer, as recorded in Simulink
+  % (simulink-conditional-outputs-reference.json, gating_*; ob_conditional_gating):
+  % a port takes a new value only when one of its clocked sources executes;
+  % the slow delay drives the Slow port directly, so until it executes after
+  % (re)activation, and after that port's reset at its own clock's next hit
+  % (1.0), the Rate Transition and the mixed Sum read the port's -9
+  % (-1 + -9 = -10 at 0.375; 0.75 + -9 = -8.25 at the held reactivation and
+  % -1 + -9 = -10 at the reset one, 1.125), then its real output at 1.25.
+  % The run starts at 0: sample clocks keep the phase of the simulation start.
+  queries = [0 .375 .5 .875 .9375 1 1.125 1.25];
+  result = ob_run (ob_gated_outputs_example ('held'), queries);
+  assert (isequal (ob_scope_data(result,4)', [-9 -1 .375 .625 .625 .625 .75 1.125]));
+  assert (isequal (ob_scope_data(result,5)', [-9 -9 -2 .5 .5 -9 -9 .75]));
+  assert (isequal (ob_scope_data(result,6)', [-9 -9 -2 .5 .5 .5 -9 .75]));
+  assert (isequal (ob_scope_data(result,7)', [-9 -10 -1.625 1.125 1.125 1.125 -8.25 1.875]));
+  result = ob_run (ob_gated_outputs_example ('reset'), queries);
+  assert (isequal (ob_scope_data(result,4)', [-9 -1 .375 .625 .625 .625 -1 1.125]));
+  assert (isequal (ob_scope_data(result,5)', [-9 -9 -2 .5 .5 -9 -9 -2]));
+  assert (isequal (ob_scope_data(result,6)', [-9 -9 -2 .5 .5 .5 -9 -2]));
+  assert (isequal (ob_scope_data(result,7)', [-9 -10 -1.625 1.125 1.125 1.125 -10 -.875]));
+  % An inherited enable control activates at the 1.125 inner clock hit,
+  % between output times (also checked against both C exporters).
+  inherited = ob_gated_outputs_example ('held'); inherited.sample_times(3,:) = [0 0];
+  for settings = {struct(), struct('zero_crossings',true)}
+    result = ob_run (inherited, ob_time_grid (0, 1.2, .05), settings{1});
+    assert (isequal (cellfun (@(id) result.values{end,id}, {4,5,6,7}), [.75 -9 -9 -8.25]));
+  endfor
+  % Checkpoints keep the shared buffers, pending captures and pending resets.
+  runtime = ob_runtime_step (ob_runtime_init (ob_gated_outputs_example ('held')), .9375);
+  file = [tempname() '.mat'];
+  unwind_protect
+    save ('-mat7-binary', file, 'runtime'); restored = load (file);
+    assert (isequaln (ob_runtime_step (runtime, 1.25), ob_runtime_step (restored.runtime, 1.25)));
+  unwind_protect_cleanup
+    if (exist (file, 'file')), unlink (file); endif
+  end_unwind_protect
 
   % Global schedule metadata survives forks, active/paused MAT checkpoints,
   % and a failed hidden inner hit without partially advancing any counter.

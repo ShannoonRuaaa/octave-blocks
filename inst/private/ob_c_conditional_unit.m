@@ -23,11 +23,13 @@ function unit = ob_c_conditional_unit (model, input_shapes = {}, prefix = 'ob_',
     shapes = unit.shapes(sources);
     location = strtrim (sprintf('%d ', unit.paths{id}));
     if (strcmp (block.type, 'Conditional Subsystem'))
-      if (prod(shapes{end}) != 1)
+      options = ob_execution_options(block.value,false);
+      controls = 1 + ob_is_combined_mode(options.mode);
+      if (any(cellfun(@prod,shapes(end-controls+1:end)) != 1))
         error ('ob_codegen: conditional control at block %s must be scalar', location);
       endif
       child_prefix = [prefix 'u' num2str(id) '_'];
-      child = ob_c_conditional_unit (block.value, shapes(1:end-1), child_prefix, false);
+      child = ob_c_conditional_unit (block.value, shapes(1:end-controls), child_prefix, false);
       unit.children{id} = child;
       unit.has_continuous_children |= child.has_continuous;
       unit.shapes{id} = [0 0];
@@ -60,7 +62,13 @@ function unit = ob_c_conditional_unit (model, input_shapes = {}, prefix = 'ob_',
   endfor
   if (! root)
     for port = 1:numel (unit.out_ids)
-      if (! isequal (unit.shapes{unit.out_ids(port)}, size(unit.options.initial_outputs{port})))
+      shape = unit.shapes{unit.out_ids(port)};
+      initial = unit.options.initial_outputs{port};
+      if (isscalar (initial) && ! isequal (shape, [1 1]))
+        % A scalar initial output is expanded to the port's shape, as
+        % Simulink does and as ob_refresh_conditional_outputs does.
+        unit.options.initial_outputs{port} = repmat (initial, shape);
+      elseif (! isequal (shape, size (initial)))
         error ('ob_codegen: conditional output %d must match its initial output shape', port);
       endif
     endfor

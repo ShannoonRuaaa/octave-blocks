@@ -12,6 +12,15 @@ measured scope and limits.
 
 ## Event C integration resumed (2026-11-14)
 
+The 2026-11-17 combined-control milestone is in development on
+`development/combined-controls`. Runtime and generated C support two trailing controls,
+three trigger directions, held/reset policies, and separate continuous guards.
+See [COMBINED_CONTROLS.md](COMBINED_CONTROLS.md) for the contract, reference
+limitations, and checks. The registered checks passed in separate numerical/C
+and desktop-enabled Qt runs: 27 Octave suites, 25 BIST checks and 269 strict
+C99 cases. See [VALIDATION.md](VALIDATION.md) for the restricted Qt launch
+limitation. The broad goal remains active.
+
 The subsequent 2026-11-16 report review and fixes passed a fresh uninterrupted
 full gate: 23 Octave suites, 25 BIST checks and 241 strict C99 cases, including
 220 numerical models with worst scaled error 0. The audit disproves the claimed
@@ -19,7 +28,7 @@ inverted initializer check, fixes confirmed issues and records performance
 tradeoffs. See [PR2_AUDIT.md](PR2_AUDIT.md) and [VALIDATION.md](VALIDATION.md).
 The broad compatibility scope below remains incomplete.
 
-Development continues on `codex/event-c-integration`, combining the saved
+Development continues on `development/event-c-integration`, combining the saved
 experimental C event runtime with the merged optimization release. The public
 event-export route is implemented and its registered check set passed: 21
 Octave suites, 25 BIST checks and 235 strict C99 compilation/execution cases.
@@ -80,7 +89,7 @@ complete application gate is the published 2026-11-11 record in
 [VALIDATION.md](VALIDATION.md). The supported C gate above preceded the final
 negative-literal parenthesization; the two focused checks exercised that fix.
 
-Resume by rerunning `tests/Test-EventCodegen.ps1 -ExperimentalTyped` from clean
+Resume by rerunning `Test-EventCodegen.ps1 -ExperimentalTyped` from clean
 artifacts. Complete all 45 compiled cases and final channel comparisons, then
 compile the independent edge models/API and resolve any lifecycle/clock/memory
 failures without weakening their analytical expectations. Rerun the supported
@@ -91,7 +100,7 @@ pending. No new goal work should run while paused.
 ## Optimization completion (2026-11-13)
 
 The optimization audit is complete. The publication branch
-`codex/optimized-release` is based on release `2ae43f3` and contains only the
+`development/optimized-release` is based on release `2ae43f3` and contains only the
 audited improvements, tests, benchmarks and documentation. Separate experimental
 C event-runtime changes remain on the local development branch.
 
@@ -160,7 +169,7 @@ harnesses. Both executables also passed an independent parent rerun. Artifacts:
 `<TEMP>/ob-event-math-b61cda833d3c48c19494a7eb56175bfc`.
 This helper is not connected to the exporter.
 
-`test_ob_event_codegen.m` and `tests/Test-EventCodegen.ps1` now provide a separate
+`test_ob_event_codegen.m` and `Test-EventCodegen.ps1` now provide a separate
 preparation/strict-compilation/full-channel-verification runner for the 43
 fixtures and two provider/chatter API harnesses. Octave and PowerShell parsing
 passed. All 43 analytical checks passed again before preparation reached the
@@ -854,7 +863,7 @@ actual builtin Function implementations map to C math/operators; arbitrary or
 shadowed Octave functions are rejected. Unsupported models fail before file
 replacement. C initialization/stepping commit only on successful finite output.
 
-The initial `tests/Test-Codegen.ps1` verification prepared 16 compilation cases:
+The initial `Test-Codegen.ps1` verification prepared 16 compilation cases:
 14 executable models plus two
 API harnesses. All compile using GCC with `-std=c99 -O2 -Wall -Wextra -Werror`.
 Every signal channel is compared with its Octave reference. The verified cases
@@ -909,3 +918,113 @@ bounded to 32 levels.
 Each milestone must record its tested scope and remaining gaps. The original
 REA installation scan does not establish implementation details; behavior must
 be grounded in documented interfaces and reproducible numerical checks.
+
+## Advanced block and solver roadmap (2026-11-20)
+
+The `octave_blocks_all_outputs.zip` review adds reusable control and signal
+builders, a structural feedthrough diagnostic, and sampled resettable
+subsystems. Keep the broader Simulink compatibility objective open.
+See [Advanced extensions](ADVANCED_EXTENSIONS.md) for scope and tests.
+
+1. **Resettable subsystems:** the sampled discrete body is implemented.
+   Add continuous reset localization and continuous state resets; define
+   precedence through conditional descendants and verify coincident reset
+   and inner clock events before extending C coverage.
+2. **Integrator reset and limits:** add external reset and state limiting
+   with bound events, inward release, and a state output suitable for
+   feedback. Check analytical trajectories and both execution backends.
+3. **Transport Delay:** specify accepted history, interpolation, initial
+   output, and rollback. Validate short delays against solver stage times and
+   define memory limits before emitting a C history implementation.
+4. **Solver continuity and adaptive C:** test fixed versus dense output
+   requests around clocks and events; use supported Octave solver interfaces
+   and evaluate a separately linked SUNDIALS backend. Confirm availability
+   and API support before choosing a dependency.
+5. **Atomic scheduling:** the per-port diagnostic is available. Use it to
+   design phased state/output evaluation before permitting additional
+   conditional feedback in the scheduler or generated C.
+6. **Library integration:** evaluate the optional Octave `control` package
+   for MIMO and descriptor models and CBLAS for generated matrix products.
+   Require numerical equivalence and representative measurements before
+   adopting either as a backend.
+
+## Transport Delay, integrator limits and command API (2026-11-21)
+
+Roadmap items 2 and 3 are implemented for the Octave runtime. The Limited
+Integrator has output limits and a sampled external reset. Transport Delay
+uses recorded history with cubic Hermite interpolation; delayed
+discontinuities become solver boundaries. Both are rejected in C export,
+zero-crossing runs and conditional bodies, so those remain open. So do
+event-located integrator resets and a bounded C history buffer.
+`test_ob_delay_integrator` (36 analytical cases) and `test_ob_delay_matlab`
+(MATLAB R2026b `dde23` references) cover them; see
+[ADVANCED_EXTENSIONS.md](ADVANCED_EXTENSIONS.md).
+
+[SIMULINK_API.md](SIMULINK_API.md) adds Simulink's programmatic commands over
+Octave Blocks models. `test_ob_simulink_api` covers 26 cases, including a
+strict-C99 export of an API-built model. (Superseded below: Simulink was in
+fact installed; the earlier probe relied on a license test alone.)
+
+## Live Simulink parity (2026-11-21)
+
+Simulink 26.2 (MATLAB R2026b Update 1) is installed and licensed. A model
+builds and simulates; the earlier "no Simulink" record relied on a license
+test alone. A live comparison covered Transport Delay, the Limited Integrator,
+the command API and the conditional harnesses, and an independent reviewer
+checked each discrepancy. It found and fixed:
+
+- **Transport Delay:** the left limit at start + T (fixed-step error 0.12); first-sample broadcast of a scalar initial output to vector inputs; scalar-input expansion.
+- **Integrator resets:** Simulink `level` and `level hold` semantics.
+- **Command API:** library paths, BlockTypes, parameter names and defaults (Lookup Table, Switch, discrete sample times, Step, `built-in/<BlockType>`); Switch `>` and `~= 0`; element-wise Gain; `Ports`, dirty `close_system`, port renumbering, discrete automatic step, SaveFormat and metadata.
+- **Conditional harnesses:** they could not run on R2026b (From Workspace OutputAfterFinalValue).
+- **Combined enable-and-trigger subsystems:** they no longer trigger at their first evaluation (verified with delayed first evaluations as well).
+- **Outer resets:** they keep a trigger-only descendant's held output. The C emitters mirror both conditional changes.
+
+Seven `reference_ob_*.m` producers write the checked-in references, all
+regenerated in one MATLAB session. `test_ob_simulink_conditional`,
+`test_ob_simulink_delay_integrator` and `test_ob_simulink_api_reference`
+compare against them without MATLAB. Remaining live-evidence gaps are listed
+in [COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md).
+
+## Speed, accelerator, adaptive C and extended Simulink evidence (2026-11-22)
+
+This round added, each with its own track document:
+
+- **Interpreter speed** ([RUNTIME_PERFORMANCE.md](RUNTIME_PERFORMANCE.md)):
+  two passes over the engine's hot paths, including a bit-identical copy of
+  Octave 11.3's `ode45` without per-call option handling
+  (`private/ob_dormand_prince.m`). 2.74x geometric mean on the shared
+  nine-case benchmark, with bit-identical results.
+- **Accelerator** ([CODEGEN.md](CODEGEN.md#accelerated-simulation)):
+  `ob_accelerate` and the `ob_run` option `accelerate` compile the C export
+  into a cached MEX file. Flat rk4/ode45 models, typed rk4 models and user
+  `.m` Functions in flat models run compiled with results equal to the
+  interpreter; 8 of the 9 benchmark cases, 66–261 times faster.
+- **C export** of Transport Delay and Limited Integrator on the flat path
+  (roadmap items 2 and 3), and adaptive `ode45` export for flat models, a port of
+  Octave's own algorithm (part of roadmap item 4).
+- **Conditional subsystems** ([CONDITIONAL.md](CONDITIONAL.md)): all four
+  InitialTriggerSignalState values including `compatibility`, per-port
+  OutputWhenDisabled, scalar InitialOutput expansion, and Simulink's Outport
+  timing for enabled bodies with inner clocks, in Octave and both C exporters.
+- **Simulink evidence** ([REFERENCE_EVIDENCE.md](REFERENCE_EVIDENCE.md#live-simulink-references)):
+  five new producers (continuous controls and crossings, multiple outputs,
+  inner clocks, Outport timing, shared benchmarks). The 13 producers other
+  than the benchmark one were rerun in one MATLAB session on 2026-11-21 with
+  identical results apart from timing fields.
+
+Final gate ([VALIDATION.md](VALIDATION.md)): `test_ob_simulink_conditional`
+304 matched with no documented differences; `test_ob_simulink_extended` 75 of
+78 agree (3 documented Rate Transition differences);
+`test_ob_simulink_benchmarks` 4 agree and 5 documented; `test_ob_accelerate`
+72 cases; C gates codegen 222/209 (worst 3.3e-16), combined 175, advanced 26,
+event 94/89, edges 7/6, hierarchy 17/13 (worst 0). The new suites and BIST
+files are registered in `Launch-Blocks.ps1 -SelfTest`.
+
+Still open: `ode15s` emission and adaptive emission for conditional/event
+exports; user Functions, Transport Delays and Limited Integrators in typed
+exports; Simulink's
+deterministic and integrity-off Rate Transition modes; event-located
+integrator resets; live traces for function-call triggers, resettable
+subsystems and continuous combined controls. See
+[COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md).

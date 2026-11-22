@@ -60,6 +60,14 @@ function lines = ob_emit_c_conditional (root, times)
       if (! isempty(child{1})), emit_unit(child{1}); endif
     endfor
     p=u.prefix; t=[p 'model']; count=max(1,u.n);
+    % An enabled body with inner clocks publishes each Outport only when its
+    % rate executes, and blocks driving an Outport share its buffer
+    % (ob_conditional_gating).
+    u.gating=[];
+    if(!u.root&&strcmp(u.options.mode,'enabled'))
+      u.gating=ob_conditional_gating(u.types,u.flat.sample_times,u.edges,u.out_ids);
+      if(!any(u.gating.clocked)),u.gating=[];endif
+    endif
     add(sprintf('enum { %s=%d,%s=%d,%s=%d,%s=%d,%s=%d,%s=%d };', ...
       cn(u,'BLOCK_COUNT'),u.n,cn(u,'VALUE_COUNT'),u.value_count,cn(u,'STATE_COUNT'),u.state_count, ...
       cn(u,'VALUE_STORAGE'),max(1,u.value_count),cn(u,'STATE_STORAGE'),max(1,u.state_count), ...
@@ -73,7 +81,11 @@ function lines = ob_emit_c_conditional (root, times)
       sprintf('  double tick[%d];',count), ...
       '  double time,start_time; int initialized;', ...
       sprintf('  double held[%d];',max(1,u.out_count)), ...
-      '  double last_sample,advance_interval; int was_enabled,previous_sign,last_rising,last_falling,last_executed;');
+      '  double last_sample,advance_interval; int was_enabled,previous_sign,last_rising,last_falling,last_executed,reset_pending,enable_sign;', ...
+      '  int trigger_seen,held_valid;');
+    if(!isempty(u.gating))
+      add(sprintf('  unsigned char reset_due[%d];',max(1,numel(u.out_ids))));
+    endif
     if (!u.root && (event_mode || u.has_continuous || (clock_mode && u.clocked)))
       add(sprintf('  double major_value[%s];',cn(u,'VALUE_STORAGE')));
     endif
@@ -104,12 +116,49 @@ function lines = ob_emit_c_conditional (root, times)
       for output=u.options.initial_outputs, initial=[initial output{1}(:)']; endfor
       if (isempty(initial)), initial=0; endif
       add(sprintf('static const double %sinitial[%d]={%s};',p,max(1,u.out_count),nums(initial)));
+      first_child=find(!cellfun(@isempty,u.children),1);
+      reset_size='sizeof(*m)';
+      if(!isempty(first_child)),reset_size=sprintf('offsetof(%s,child_%d)',t,first_child);endif
+      % 'compatibility' starts from zero with trigger_seen clear; its first
+      % evaluation records the sample (see emit_child and the event child).
+      compat=ischar(u.options.initial_control);
+      initial_sign=0;if(!compat),initial_sign=sign(u.options.initial_control);endif
       add(sprintf('static void %sgate_reset(%s *m,double time){',p,t), ...
-        '  memset(m,0,sizeof(*m));',sprintf('  m->last_sample=time; m->previous_sign=%d;',sign(u.options.initial_control)));
-      if(event_mode),add(sprintf('  m->control_sign=%d;',sign(u.options.initial_control)));endif
-      add(sprintf('  memcpy(m->held,%sinitial,%d*sizeof(double));',p,u.out_count),'}');
+        sprintf('  memset(m,0,%s);',reset_size),sprintf('  m->last_sample=time; m->previous_sign=%d;',initial_sign));
+      if(event_mode),add(sprintf('  m->control_sign=%d;',initial_sign));endif
+      add(sprintf('  memcpy(m->held,%sinitial,%d*sizeof(double));',p,u.out_count),'  m->held_valid=1;','}');
+      % Ancestor reinitialization honors every descendant Enable state policy.
+      % Full held contexts retain clock/control history under our freeze contract.
+      % A combined context also keeps a consumed first evaluation, executed or
+      % not.  Other triggered contexts restart but keep held outputs (Simulink),
+      % mirroring ob_restore_reset_children; with 'compatibility' they also
+      % keep their trigger history, including a pending first evaluation and
+      % the edge flags (Simulink probes D, E, F and V4).
+      add(sprintf('static inline void %sancestor_reset(%s *m,double time){',p,t));
+      if(strcmp(u.options.mode,'enabled'))
+        add('  if(m->initialized)return;',sprintf('  %sgate_reset(m,time);',p));
+      elseif(ob_is_combined_mode(u.options.mode))
+        add('  if(m->initialized||m->trigger_seen)return;',sprintf('  %sgate_reset(m,time);',p));
+      else
+        add(sprintf('  double held[%d];const int keep=m->held_valid;',max(1,u.out_count)), ...
+            '  if(keep)memcpy(held,m->held,sizeof(held));');
+        history={'previous_sign','last_rising','last_falling','trigger_seen'};
+        if(event_mode),history{end+1}='control_sign';endif
+        if(compat)
+          add(['  const int ' strjoin(cellfun(@(f)sprintf('%s=m->%s',f,f),history,'uniformoutput',false),',') ';']);
+        endif
+        add(sprintf('  %sgate_reset(m,time);',p),'  if(keep)memcpy(m->held,held,sizeof(held));');
+        if(compat)
+          add(['  ' strjoin(cellfun(@(f)sprintf('m->%s=%s;',f,f),history,'uniformoutput',false),'')]);
+        endif
+      endif
+      for id=1:u.n
+        child=u.children{id};
+        if(!isempty(child)),add(sprintf('  %sancestor_reset(&m->child_%d,time);',child.prefix,id));endif
+      endfor
+      add('}');
     endif
-    if(!event_mode && !u.root&&strcmp(u.options.mode,'enabled')),emit_suspend(u);endif
+    if(!event_mode && !u.root),emit_suspend(u);endif
     emit_eval(u);
     if(event_mode)
       if(u.root), lines=[lines ob_emit_c_event_root(u)];
@@ -152,12 +201,13 @@ function lines = ob_emit_c_conditional (root, times)
           % The core computes both proxy buffers together, before either is read.
         case 'Conditional Subsystem'
           child=u.children{id};
+          extra='';if(ob_is_combined_mode(child.options.mode)),extra=sprintf(',v[%d]',u.offsets(sources(end-1)));endif
           if(event_mode)
             emit_event_conditional_eval(u,id,sources,child);
             continue;
           endif
           gate_interval='inherited_interval';gate_kind='interval_kind';
-          if(strcmp(child.options.mode,'enabled')&&u.flat.sample_times(id,1)>0)
+          if((strcmp(child.options.mode,'enabled')||ob_is_resettable_mode(child.options.mode))&&u.flat.sample_times(id,1)>0)
             gate_interval=num(u.flat.sample_times(id,1));gate_kind='OB_INTERVAL_PERIOD';
           endif
           if(clock_mode&&child.clocked)
@@ -165,11 +215,11 @@ function lines = ob_emit_c_conditional (root, times)
                 sprintf('    %smodel local=m->child_%d;',child.prefix,id), ...
                 sprintf('    %smodel *context=event_model?&event_model->child_%d:&local;',child.prefix,id));
             if(child.input_count==0),add('    child_input[0]=0.0;');endif
-            for port=1:numel(sources)-1
+            for port=1:numel(child.input_sizes)
               add(sprintf('    memcpy(child_input+%d,v+%d,%d*sizeof(double));',child.input_offsets(port),u.offsets(sources(port)),child.input_sizes(port)));
             endfor
             add(sprintf('    const int major=hit&&hit[%d];',id-1), ...
-                sprintf('    if(major||(%s)){int status=%sclock_event(context,time,child_input,v[%d],%s,%s,major,frame);',clock_test(child.all_clocks),child.prefix,u.offsets(sources(end)),gate_interval,gate_kind), ...
+                sprintf('    if(major||(%s)){int status=%sclock_event(context,time,child_input,v[%d]%s,%s,%s,major,frame);',clock_test(child.all_clocks),child.prefix,u.offsets(sources(end)),extra,gate_interval,gate_kind), ...
                 '      if(status!=OB_OK)return status;}', ...
                 sprintf('    int status=%sflow(context,time,child_input,left);if(status!=OB_OK)return status;',child.prefix));
             emit_proxy_copies(u,id,child,'context->held');
@@ -180,10 +230,10 @@ function lines = ob_emit_c_conditional (root, times)
                 sprintf('    %smodel local=m->child_%d;',child.prefix,id), ...
                 sprintf('    %smodel *context=event_model?&event_model->child_%d:&local;',child.prefix,id));
             if (child.input_count==0),add('    child_input[0]=0.0;');endif
-            for port=1:numel(sources)-1
+            for port=1:numel(child.input_sizes)
               add(sprintf('    memcpy(child_input+%d,v+%d,%d*sizeof(double));',child.input_offsets(port),u.offsets(sources(port)),child.input_sizes(port)));
             endfor
-            add(sprintf('    if(hit&&hit[%d]){int status=%sgate_event(context,time,child_input,v[%d],%s,%s);',id-1,child.prefix,u.offsets(sources(end)),gate_interval,gate_kind), ...
+            add(sprintf('    if(hit&&hit[%d]){int status=%sgate_event(context,time,child_input,v[%d]%s,%s,%s);',id-1,child.prefix,u.offsets(sources(end)),extra,gate_interval,gate_kind), ...
                 '      if(status!=OB_OK)return status;}', ...
                 sprintf('    int status=%sflow(context,time,child_input,left);if(status!=OB_OK)return status;',child.prefix));
             proxies=u.proxies{id};
@@ -196,10 +246,10 @@ function lines = ob_emit_c_conditional (root, times)
           endif
           add(sprintf('  if(hit&&hit[%d]){',id-1),sprintf('    double child_input[%d];',max(1,child.input_count)));
           if (child.input_count==0),add('    child_input[0]=0.0;');endif
-          for port=1:numel(sources)-1
+          for port=1:numel(child.input_sizes)
             add(sprintf('    memcpy(child_input+%d,v+%d,%d*sizeof(double));',child.input_offsets(port),u.offsets(sources(port)),child.input_sizes(port)));
           endfor
-          add(sprintf('    int status=%sgate_event(&event_model->child_%d,time,child_input,v[%d],%s,%s);',child.prefix,id,u.offsets(sources(end)),gate_interval,gate_kind), ...
+          add(sprintf('    int status=%sgate_event(&event_model->child_%d,time,child_input,v[%d]%s,%s,%s);',child.prefix,id,u.offsets(sources(end)),extra,gate_interval,gate_kind), ...
             '    if(status!=OB_OK)return status;','  }');
         case 'Conditional Output'
           core=sources(1); child=u.children{core}; port=block.value;
@@ -258,16 +308,17 @@ function lines = ob_emit_c_conditional (root, times)
         sprintf('    %smodel local=m->child_%d;',child.prefix,id), ...
         sprintf('    %smodel *context=event_model?&event_model->child_%d:&local;',child.prefix,id));
     if(child.input_count==0),add('    child_input[0]=0.0;');endif
-    for port=1:numel(sources)-1
+    for port=1:numel(child.input_sizes)
       add(sprintf('    memcpy(child_input+%d,v+%d,%d*sizeof(double));', ...
                   child.input_offsets(port),u.offsets(sources(port)),child.input_sizes(port)));
     endfor
+    extra='';if(ob_is_combined_mode(child.options.mode)),extra=sprintf(',v[%d]',u.offsets(sources(end-1)));endif
     interval='inherited_interval';kind='interval_kind';
-    if(strcmp(child.options.mode,'enabled')&&u.flat.sample_times(id,1)>0)
+    if((strcmp(child.options.mode,'enabled')||ob_is_resettable_mode(child.options.mode))&&u.flat.sample_times(id,1)>0)
       interval=num(u.flat.sample_times(id,1));kind='OB_INTERVAL_PERIOD';
     endif
-    add(sprintf('    int status=%sevent(context,time,child_input,v[%d],%s,%s,hit&&hit[%d],frame);', ...
-                child.prefix,u.offsets(sources(end)),interval,kind,id-1), ...
+    add(sprintf('    int status=%sevent(context,time,child_input,v[%d]%s,%s,%s,hit&&hit[%d],frame);', ...
+                child.prefix,u.offsets(sources(end)),extra,interval,kind,id-1), ...
         '    if(status!=OB_OK)return status;', ...
         sprintf('    status=%sflow(context,time,child_input,left,frame);if(status!=OB_OK)return status;',child.prefix));
     emit_proxy_copies(u,id,child,'context->held');
@@ -355,6 +406,8 @@ function lines = ob_emit_c_conditional (root, times)
         '  m->time=time;return OB_OK;}', ...
         sprintf('static int %sclock_init(%s *m,double time,const double *input,int major,const ob_clock_frame *frame){',p,t));
     emit_numeric_init(u);
+    % Blocks sharing an Outport's buffer start from its held value.
+    lines=[lines ob_conditional_c_gate(u,'init')];
     add('  m->start_time=frame->origin;', ...
         sprintf('  int status=%sclock_process(m,time,input,major,0.0,frame);',p), ...
         '  if(status==OB_OK){memcpy(m->major_value,m->value,sizeof(m->value));} return status;}', ...
@@ -379,24 +432,24 @@ function lines = ob_emit_c_conditional (root, times)
         '      default:return OB_BAD_ARGUMENT;}}', ...
         '    m->last_sample=time;m->last_executed=0;active=control>0.0;');
     if(strcmp(u.options.states,'reset')),add('    reset=active&&!m->was_enabled;');endif
-    add(sprintf('    if(!active&&m->was_enabled&&m->initialized)%ssuspend(m,time);',p), ...
-        '    m->was_enabled=active;');
-    if(strcmp(u.options.outputs,'reset')),add(sprintf('    if(!active)memcpy(m->held,%sinitial,%d*sizeof(double));',p,u.out_count));endif
-    add('  }','  if(!active)return OB_OK;','  int status;', ...
+    add(sprintf('    if(!active&&m->was_enabled&&m->initialized){%ssuspend(m,time);',p));
+    lines=[lines ob_conditional_c_gate(u,'disable')];
+    add('    }','    if(active){');
+    lines=[lines ob_conditional_c_gate(u,'enable')];
+    add('    }','    m->was_enabled=active;','  }','  if(!active){');
+    % Reset ports also wait for an inner clock hit while disabled (major==0).
+    lines=[lines ob_conditional_c_gate(u,'reset')];
+    add('    return OB_OK;}','  int status;', ...
         sprintf('  if(!m->initialized||reset)status=%sclock_init(m,time,input,major,frame);',p), ...
         sprintf('  else status=%sclock_execute(m,time,input,major,m->advance_interval,frame);',p), ...
         '  if(status!=OB_OK)return status;');
-    for port=1:numel(u.out_ids)
-      add(sprintf('  memcpy(m->held+%d,m->value+%d,%d*sizeof(double));',u.out_offsets(port),u.offsets(u.out_ids(port)),u.out_sizes(port)));
-    endfor
+    lines=[lines ob_conditional_c_gate(u,'held')];
     add('  if(major){m->last_executed=1;} return OB_OK;}', ...
         sprintf('static int %sflow(%s *m,double time,const double *input,int left){',p,t), ...
         '  if(!m->initialized||!m->was_enabled)return OB_OK;', ...
         sprintf('  int status=%seval(m,time,m->state,m->value,left,input,NULL,m,0.0,0,NULL);',p), ...
         '  if(status!=OB_OK)return status;');
-    for port=1:numel(u.out_ids)
-      add(sprintf('  memcpy(m->held+%d,m->value+%d,%d*sizeof(double));',u.out_offsets(port),u.offsets(u.out_ids(port)),u.out_sizes(port)));
-    endfor
+    lines=[lines ob_conditional_c_gate(u,'flow')];
     add('  m->time=time;return OB_OK;}');
   endfunction
 
@@ -408,17 +461,31 @@ function lines = ob_emit_c_conditional (root, times)
       add(sprintf('  memcpy(m->state+%d,%sp%d,%d*sizeof(double));',u.state_offsets(id),p,id,u.sizes(id)));
     endfor
     for id=1:u.n
-      if(!isempty(u.children{id})),add(sprintf('  %sgate_reset(&m->child_%d,time);',u.children{id}.prefix,id));endif
+      if(!isempty(u.children{id}))
+        reset_function='ancestor_reset';
+        add(sprintf('  %s%s(&m->child_%d,time);',u.children{id}.prefix,reset_function,id));
+      endif
     endfor
     add('  m->time=time;m->start_time=time;m->initialized=1;');
   endfunction
 
+  function emit_reset_block(u,flag)
+    % OutputWhenDisabled 'reset' ports of a body without inner clocks: they
+    % follow the body's rate, so they reset as soon as it is disabled.
+    reset_lines=ob_conditional_c_gate(u,'reset');
+    if(!isempty(reset_lines)),add(sprintf('  if(!%s){',flag),reset_lines{:},'  }');endif
+  endfunction
+
   function emit_suspend(u)
-    add(sprintf('static void %ssuspend(%smodel *m,double time){',u.prefix,u.prefix), ...
+    add(sprintf('static inline void %ssuspend(%smodel *m,double time){',u.prefix,u.prefix), ...
         '  (void)m;(void)time;');
     for id=1:u.n
       child=u.children{id};
-      if(isempty(child)||!strcmp(child.options.mode,'enabled')),continue;endif
+      if(isempty(child)),continue;endif
+      if(!(strcmp(child.options.mode,'enabled')||ob_is_combined_mode(child.options.mode)))
+        add(sprintf('  if(m->child_%d.initialized)%ssuspend(&m->child_%d,time);',id,child.prefix,id));
+        continue;
+      endif
       access=sprintf('m->child_%d.',id);
       add(sprintf('  if(%sinitialized&&%swas_enabled){',access,access), ...
           sprintf('    if(%slast_executed){',access));
@@ -429,7 +496,7 @@ function lines = ob_emit_c_conditional (root, times)
             sprintf('      if(isfinite(interval)&&interval>0.0)%sadvance_interval=interval;',access));
       endif
       add(sprintf('      %slast_executed=0;}',access), ...
-          sprintf('    %ssuspend(&m->child_%d,time);}',child.prefix,id));
+          sprintf('    %ssuspend(&m->child_%d,time);%swas_enabled=0;}',child.prefix,id,access));
     endfor
     add('}');
   endfunction
@@ -443,6 +510,8 @@ function lines = ob_emit_c_conditional (root, times)
 
   function emit_child(u)
     p=u.prefix;t=[p 'model'];
+    combined=ob_is_combined_mode(u.options.mode);
+    extra='';if(combined),extra=',double enable';endif
     add(sprintf('static int %sbody_init(%s *m,double time,const double *input){',p,t));
     emit_numeric_init(u);emit_all_hits(u);
     add(sprintf('  int status=%seval(m,time,m->state,m->value,0,input,hit,m,0.0,0,NULL);',p));
@@ -465,35 +534,49 @@ function lines = ob_emit_c_conditional (root, times)
       '  if(status==OB_OK){m->time=time;');
     if(u.has_continuous),add('    memcpy(m->major_value,m->value,sizeof(m->value));');endif
     add('  } return status;','}', ...
-      sprintf('static int %sgate_event(%s *m,double time,const double *input,double control,double inherited_interval,ob_interval_kind interval_kind){',p,t), ...
+      sprintf('static int %sgate_event(%s *m,double time,const double *input,double control%s,double inherited_interval,ob_interval_kind interval_kind){',p,t,extra), ...
       '  (void)inherited_interval;(void)interval_kind;if(!isfinite(control))return OB_NONFINITE;', ...
       '  if(m->last_executed){');
-    if(strcmp(u.options.mode,'enabled')),add('    m->advance_interval=interval_kind==OB_INTERVAL_ELAPSED?time-m->last_sample:inherited_interval;');
+    if(strcmp(u.options.mode,'enabled')||ob_is_resettable_mode(u.options.mode)),add('    m->advance_interval=interval_kind==OB_INTERVAL_ELAPSED?time-m->last_sample:inherited_interval;');
     else add('    m->advance_interval=time-m->last_sample;');endif
     add('  }','  m->last_sample=time;m->last_executed=0;int active=0,reset=0;');
+    if(combined)
+      add('  if(!isfinite(enable))return OB_NONFINITE;', ...
+          '  const int enabled=enable>0.0;');
+      if(strcmp(u.options.states,'reset')),add('  if(enabled&&!m->was_enabled)m->reset_pending=1;');endif
+      add(sprintf('  if(!enabled&&m->was_enabled&&m->initialized)%ssuspend(m,time);',p), ...
+          '  m->was_enabled=enabled;m->enable_sign=(enable>0.0)-(enable<0.0);');
+      emit_reset_block(u,'enabled');
+    endif
     if(strcmp(u.options.mode,'enabled'))
       add('  active=control>0.0;');
       if(strcmp(u.options.states,'reset')),add('  reset=active&&!m->was_enabled;');endif
       add(sprintf('  if(!active&&m->was_enabled&&m->initialized)%ssuspend(m,time);',p), ...
           '  m->was_enabled=active;');
-      if(strcmp(u.options.outputs,'reset')),add(sprintf('  if(!active)memcpy(m->held,%sinitial,%d*sizeof(double));',p,u.out_count));endif
+      emit_reset_block(u,'active');
     else
-      add('  const int sign=(control>0.0)-(control<0.0);', ...
-        '  const int rising=(m->previous_sign<0&&sign>=0)||(m->previous_sign==0&&sign>0);', ...
+      add('  const int sign=(control>0.0)-(control<0.0);');
+      % A combined context's first evaluation records the sample without an
+      % edge, as does a trigger-only one with 'compatibility'.
+      if(combined||ischar(u.options.initial_control)),add('  if(!m->trigger_seen){m->previous_sign=sign;m->last_rising=0;m->last_falling=0;m->trigger_seen=1;}');endif
+      add('  const int rising=(m->previous_sign<0&&sign>=0)||(m->previous_sign==0&&sign>0);', ...
         '  const int falling=(m->previous_sign>0&&sign<=0)||(m->previous_sign==0&&sign<0);');
-      if(strcmp(u.options.mode,'rising')),active='rising&&!m->last_rising';
-      elseif(strcmp(u.options.mode,'falling')),active='falling&&!m->last_falling';
+      if(any(strcmp(u.options.mode,{'rising','enabled_rising','reset_rising'}))),active='rising&&!m->last_rising';
+      elseif(any(strcmp(u.options.mode,{'falling','enabled_falling','reset_falling'}))),active='falling&&!m->last_falling';
       else active='(rising&&!m->last_rising)||(falling&&!m->last_falling)';endif
       add(['  active=' active ';'],'  m->previous_sign=sign;m->last_rising=rising;m->last_falling=falling;');
     endif
+    if(ob_is_resettable_mode(u.options.mode)),add('  reset=active;active=1;');endif
+    if(combined),add('  active=active&&enabled;reset=m->reset_pending;');endif
     add('  if(!active)return OB_OK;');
     if(u.input_count>0),add(sprintf('  for(size_t i=0;i<%s;++i)if(!isfinite(input[i]))return OB_NONFINITE;',cn(u,'INPUT_VALUE_COUNT')));endif
     add('  int status;',sprintf('  if(!m->initialized||reset)status=%sbody_init(m,time,input);',p));
-    if(strcmp(u.options.mode,'enabled')),interval='m->advance_interval';else interval='time-m->time';endif
+    if(strcmp(u.options.mode,'enabled')||ob_is_resettable_mode(u.options.mode)),interval='m->advance_interval';else interval='time-m->time';endif
     add(sprintf('  else status=%sbody_execute(m,time,input,%s);',p,interval),'  if(status!=OB_OK)return status;');
     for port=1:numel(u.out_ids)
       add(sprintf('  memcpy(m->held+%d,m->value+%d,%d*sizeof(double));',u.out_offsets(port),u.offsets(u.out_ids(port)),u.out_sizes(port)));
     endfor
+    if(combined),add('  m->reset_pending=0;');endif
     add('  m->last_executed=1;return OB_OK;','}');
     if (u.has_continuous)
       add(sprintf('static int %sflow(%s *m,double time,const double *input,int left){',p,t), ...

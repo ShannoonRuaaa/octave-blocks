@@ -6,6 +6,8 @@
 % Models: ob_connect, ob_disconnect, ob_load_model, ob_save_model
 % Builders: ob_state_space, ob_transfer_function, ob_subsystem_template
 % Export: ob_codegen
+% Acceleration: ob_accelerate
+% Programmatic models: ob_simulink, ob_simulink_setup
 %
 % Source checkout: call ob_setup() from the project root.
 % Installed package: pkg load octave-blocks

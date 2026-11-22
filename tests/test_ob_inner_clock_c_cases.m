@@ -2,7 +2,9 @@ function [cases, api] = test_ob_inner_clock_c_cases ()
   test_path_cleanup = ob_test_setup ();
   % C-export fixtures with independent enabled clocks and analytical checks.
   % Parent test_ob_codegen performs strict compilation and full-channel parity.
-  cases = struct ('name',{},'model',{},'config',{});
+  % Each case keeps its analytical final values (expected, tolerance), so
+  % test_ob_event_codegen_cases reuses every fixture in event mode.
+  cases = struct ('name',{},'model',{},'config',{},'expected',{},'tolerance',{});
   base = ob_enabled_multirate_example ();
   add ('inner_clock_sparse',base,[0 1 1],[.375 .25]);
   add ('inner_clock_dense',base,[0 1 .0625],[.375 .25]);
@@ -98,6 +100,37 @@ function [cases, api] = test_ob_inner_clock_c_cases ()
   model.blocks(2).value.sample_times(2,:) = [.25 0];
   add ('inner_clock_mixed_delay_clocks',model,[0 1 .1],[.75 .25 1]);
 
+  % Outports follow their source's rate, clocked blocks driving an
+  % Outport share its buffer, and reset ports return to their initial
+  % output at their clock's next hit (ob_conditional_gating).  Final values
+  % at 1.25 s from test_ob_enabled_multirate; the recorded Simulink cases'
+  % last rows.
+  add ('inner_clock_gate_held',ob_gated_outputs_example ('held'),[0 1.25 .0625],[1.125 .75 .75 1.875]);
+  add ('inner_clock_gate_reset',ob_gated_outputs_example ('reset'),[0 1.25 .0625],[1.125 -2 -2 -.875]);
+  reference = jsondecode (fileread (ob_test_reference ('simulink-conditional-outputs-reference.json')));
+  finals = struct ('gating_held', {{2.625 2.5 4.5 2.75 7 -9 -2.25 1.5 -9}}, ...
+                   'gating_reset', {{2.625 2.5 4.5 2.75 7 -9 -2.53125 1.5 -9}}, ...
+                   'gating_continuous_held', {{-3 -3.375 -6.375}}, ...
+                   'gating_continuous_reset', {{-3.5 -3.875 -7.375}}, ...
+                   'vector_inner_clock', {{[-4 -4] [1.5 3]}}, ...
+                   'combined_mixed_ports', {{1.375 5}});
+  for id = fieldnames (finals)'
+    [model, unused, scopes] = ob_simulink_output_cases (reference.cases.(id{1}));
+    assert (isequal (scopes, find (strcmp ({model.blocks.type}, 'Scope'))));
+    add (['inner_clock_sl_' id{1}],model,[0 2 .0625],finals.(id{1}));
+  endfor
+  % An inherited enable control activates at the 1.125 s inner clock hit,
+  % between the 0.05 s output times; the shared buffer then shows -9.
+  model = ob_gated_outputs_example ('held'); model.sample_times(3,:) = [0 0];
+  add ('inner_clock_gate_inherited',model,[0 1.2 .05],[.75 -9 -9 -8.25]);
+  % Scalar initial outputs hold their port's shape before the first
+  % execution: inside a conditional body and at the root, where the first
+  % execution comes after the start (ob_scalar_initial_example).  The
+  % runtime expands both (the root initialization applies
+  % ob_expand_initial_outputs), as the C units do statically.
+  add ('conditional_shape_nested',ob_scalar_initial_example ('nested'),[0 2 .25],{[5.25 10.5]});
+  add ('conditional_shape_offset',ob_scalar_initial_example ('offset'),[0 2 .25],{[2.25 4.5]});
+
   lines = {'#include <assert.h>','#include <stdio.h>','#include "inner_clock_host.c"', ...
     'typedef struct {int mode;} provider_data;', ...
     'static int provider(double time,int left,double *out,size_t count,void *user){', ...
@@ -157,7 +190,7 @@ function [cases, api] = test_ob_inner_clock_c_cases ()
               sprintf('fixture analytical mismatch: %s scope %d actual %s expected %s', ...
                       name,scopes(k),mat2str(value),mat2str(expected{k})));
     endfor
-    cases(end+1) = struct ('name',name,'model',model,'config',config);
+    cases(end+1) = struct ('name',name,'model',model,'config',config,'expected',{expected},'tolerance',tolerance);
   endfunction
 endfunction
 

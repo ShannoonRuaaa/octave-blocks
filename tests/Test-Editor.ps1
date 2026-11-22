@@ -21,15 +21,16 @@ $artifactDirectory = Join-Path (Join-Path $PSScriptRoot '.artifacts') ('octave-b
 [IO.Directory]::CreateDirectory($artifactDirectory) | Out-Null
 $logFile = Join-Path $artifactDirectory 'editor.log'
 $octaveLog = $logFile.Replace('\', '/').Replace("'", "''")
-$source = (Split-Path -Parent $PSScriptRoot).Replace('\', '/').Replace("'", "''")
+$repositoryRoot = Split-Path -Parent $PSScriptRoot
+$source = $repositoryRoot.Replace('\', '/').Replace("'", "''")
 $exportDirectory = Join-Path $artifactDirectory 'event-exports'
 $octaveExports = $exportDirectory.Replace('\', '/').Replace("'", "''")
 $extra = ''
-if ($Benchmark) { $extra = "addpath(fullfile('$source','tests','benchmarks')); benchmark_ob_editor_ui([10 40],6);" }
+if ($Benchmark) { $extra = 'benchmark_ob_editor_ui([10 40],6);' }
 $expression = @"
-addpath('$source'); ob_setup(); addpath(fullfile('$source','tests')); diary('$octaveLog');
+addpath('$source'); ob_setup('tests'); diary('$octaveLog');
 try
-  test_ob_editor_graphics(); test_ob_editor_event_export('$octaveExports'); $extra
+  test_ob_editor_graphics(); test_ob_editor_advanced(); test_ob_editor_event_export('$octaveExports'); $extra
   diary off; exit(0);
 catch err
   disp(err.message);
@@ -42,7 +43,7 @@ $start.FileName = $executable
 $start.UseShellExecute = $false
 $start.CreateNoWindow = $true
 $start.WindowStyle = 'Hidden'
-$start.WorkingDirectory = Split-Path -Parent $PSScriptRoot
+$start.WorkingDirectory = $repositoryRoot
 foreach ($argument in @('--gui', '--quiet', '--eval', $expression)) { $start.ArgumentList.Add($argument) }
 $child = [Diagnostics.Process]::Start($start)
 $child.WaitForExit()
@@ -64,7 +65,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Qt-exported C execution failed: $($export.name)" }
         $output | Set-Content -LiteralPath (Join-Path $exportDirectory ($export.name + '.csv')) -Encoding utf8NoBOM
     }
-    & $cli --quiet --eval "addpath('$source'); ob_setup(); addpath(fullfile('$source','tests')); test_ob_editor_event_export('$octaveExports',true);"
+    & $cli --quiet --eval "addpath('$source'); ob_setup('tests'); test_ob_editor_event_export('$octaveExports',true);"
     if ($LASTEXITCODE -ne 0) { throw 'Qt-exported C differs from Octave.' }
 } finally { $env:PATH = $editorPreviousPath }
 Write-Output "Qt editor verification passed. Artifacts: $artifactDirectory"

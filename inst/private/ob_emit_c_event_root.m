@@ -19,9 +19,10 @@ function lines = ob_emit_c_event_root (root)
     slot=g.mode_id-1; source=g.source_offset;
     add(sprintf('  if(%s){const double value=m->%svalue[%d]-(%s);',active,access,source,num(g.boundary)), ...
         sprintf('    if(!isfinite(value)){return OB_NONFINITE;}snapshot->active[%d]=1;snapshot->value[%d]=value;',index-1,index-1));
-    if(strcmp(g.side,'control'))
+    if(any(strcmp(g.side,{'control','enable'})))
       child=sprintf('%schild_%d.',access,g.block_id);
-      add(sprintf('    snapshot->mode[%d]=value==0.0?m->%scontrol_sign:ob_event_sign(value);}',slot,child));
+      field='control_sign';if(strcmp(g.side,'enable')),field='enable_sign';endif
+      add(sprintf('    snapshot->mode[%d]=value==0.0?m->%s%s:ob_event_sign(value);}',slot,child,field));
     elseif(strcmp(g.side,'threshold'))
       add(sprintf('    snapshot->mode[%d]=value>=0.0;}',slot));
     elseif(strcmp(g.side,'lower'))
@@ -129,6 +130,16 @@ function lines = ob_emit_c_event_root (root)
     endfor
     for id=reshape(find(strcmp(root.types,'Rate Transition')|strcmp(root.types,'Conditional Subsystem')),1,[])
       if(root.clock_ids(id)>0),condition=sprintf('due[%d]',root.clock_ids(id)-1);else condition='output';endif
+      child=root.children{id};
+      if(root.clock_ids(id)==0&&!isempty(child)&&strcmp(child.options.mode,'enabled') ...
+         &&strcmp(child.options.control,'sampled')&&!isempty(child.all_clocks))
+        % An inherited enabled control also samples at its body's inner clock
+        % hits (as nested children and ob_runtime_engine process_hits do), so
+        % activation and deactivation are seen at those hits, not only at
+        % output times.
+        terms=arrayfun(@(c)sprintf('due[%d]',c-1),child.all_clocks,'uniformoutput',false);
+        condition=['output||' strjoin(terms,'||')];
+      endif
       add(sprintf('  hit[%d]=%s;',id-1,condition));
     endfor
     add('  int status=ob_eval(m,time,m->state,m->value,0,NULL,hit,m,0.0,OB_INTERVAL_ELAPSED,frame);if(status!=OB_OK)return status;', ...
@@ -163,9 +174,10 @@ function lines = ob_emit_c_event_root (root)
         '    int changed=0;');
     for index=1:numel(guards)
       g=guards(index);
-      if(!strcmp(g.side,'control')),continue;endif
+      if(!any(strcmp(g.side,{'control','enable'}))),continue;endif
       [access,active]=guard_access(root,g.compiled_path);child=sprintf('%schild_%d.',access,g.block_id);
-      add(sprintf('    if((%s)&&at.active[%d]&&ob_event_sign(at.value[%d])!=m->%scontrol_sign){ob_event_record(m,%d,begin);changed=1;}',active,index-1,index-1,child,index-1));
+      field='control_sign';if(strcmp(g.side,'enable')),field='enable_sign';endif
+      add(sprintf('    if((%s)&&at.active[%d]&&ob_event_sign(at.value[%d])!=m->%s%s){ob_event_record(m,%d,begin);changed=1;}',active,index-1,index-1,child,field,index-1));
     endfor
     if(!isempty(guards))
       add('    if(m->event_memory_valid&&m->event_memory_time==begin){', ...
@@ -203,7 +215,27 @@ function lines = ob_emit_c_event_root (root)
           '    }');
     endif
     add('    *m=candidate;ob_event_remember(m,upper,&sampled,mode,0);');
-    if(!isempty(guards)),add('    for(size_t i=0;i<OB_EVENT_COUNT;++i)if(ob_event_one_crossed(i,&at,&sampled,mode))ob_event_record(m,i,upper);');
+    if(!isempty(guards))
+      % As private/ob_integrate_events (origin_departures): when every
+      % bisection midpoint was already past the crossing, a guard exactly
+      % zero at the previous stop left zero there, so its record carries that
+      % stop's time; if the stop already reported its arrival at zero from
+      % the opposite side, the guard continued through and that arrival
+      % record stands for the crossing.  The new stop still marks it reported.
+      % Guards are counted in index order, but a departure at begin can be
+      % counted after a crossing at upper; last_event_time keeps the latest
+      % time, as Octave's time-ordered result.events ends with it.  (The
+      % event_count==1 test covers the zero-initialized field and negative
+      % times.)  ob_accelerate's instrument_typed matches the counting
+      % statement exactly; change both together.
+      add('    const int from_origin=lower==begin;', ...
+          '    for(size_t i=0;i<OB_EVENT_COUNT;++i)if(ob_event_one_crossed(i,&at,&sampled,mode)){', ...
+          '      double when=upper;', ...
+          '      if(from_origin&&at.value[i]==0.0){when=begin;', ...
+          '        if(origin.event_memory_valid&&origin.event_memory_time==begin&&origin.event_snapshot.active[i]', ...
+          '           &&origin.event_snapshot.value[i]==0.0&&origin.event_reported[i]', ...
+          '           &&ob_event_side(i,origin.event_mode)==-ob_event_sign(sampled.value[i])){m->event_reported[i]=1;continue;}}', ...
+          '      if(!m->event_reported[i]){m->event_count++;if(m->event_count==1||when>m->last_event_time)m->last_event_time=when;m->event_reported[i]=1;}}');
     else add('    (void)ob_event_one_crossed;(void)ob_event_record;');endif
     add('    if(++*instants>1000)return OB_EVENT_ERROR;', ...
         '    return ob_event_reconcile(m,upper,NULL);', ...

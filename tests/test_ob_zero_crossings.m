@@ -127,6 +127,56 @@ function test_ob_zero_crossings ()
     result = ob_run (dead, [0 1], options);
     assert_close (ob_scope_data(result,4)', [0 .025]);
     assert_events (result.events, 2, [.2 .7], [1 1], [1 1]);
+
+    % A continuous enable exactly zero at a requested stop, passing through
+    % it, is one crossing.  The next advance finds the departure from zero;
+    % it merges with the arrival record at that stop instead of adding a
+    % second rising record one bisection tolerance (7e-13) later.
+    bounded = options; bounded.maxstep = .1;
+    pulse = enabled_sine_integrator (-.2);
+    result = ob_run (pulse, 0:.1:1, bounded);
+    assert_events (result.events, 7, [.2 .7], [1 1], [1 -1]);
+    assert (result.events(1).time == .2);
+    assert (abs (result.values{end,8} - 4) < 1e-9);
+    % The same merge holds across separately stepped contexts and checkpoints.
+    runtime = ob_runtime_step (ob_runtime_init (pulse, 0, bounded), .2);
+    file = [tempname() '.mat'];
+    unwind_protect
+      save ('-mat7-binary', file, 'runtime');
+      restored = load (file);
+      for context = {runtime, restored.runtime}
+        later = ob_runtime_step (context{1}, .3);
+        assert (numel (later.events) == 1 && later.events.time == .2 && later.events.direction == 1);
+      endfor
+    unwind_protect_cleanup
+      if (exist(file,'file')), unlink(file); endif
+    end_unwind_protect
+    % A touch that returns to its incoming side is two transitions.  Both
+    % keep their records, at the stop itself: (t-.2)^2 disables the body at
+    % .2 and re-enables it; -(t-.2)^2 never enables it.
+    for gain = [1 -1]
+      result = ob_run (touching_enable (gain), 0:.1:.5, bounded);
+      assert (numel (result.events) == 2 && all ([result.events.time] == .2));
+      assert ([result.events.direction] == [-gain gain]);
+      if (gain > 0), assert (abs (result.values{end,8} - .5) < 1e-11);
+      else assert (all ([result.values{:,8}] == -9)); endif
+    endfor
+    % A departure at the stop found by the same search as another guard's
+    % crossing just after the stop is listed first, so the records stay in
+    % time order: block 9 touches zero at .2 from below, block 5 crosses
+    % 1e-13 later (located one bisection tolerance after .2).  The
+    % accelerator and generated C keep the same order and latest time
+    % (test_ob_accelerate, test_ob_event_codegen_hierarchy).
+    staggered = ob_staggered_enables_example ();
+    result = ob_run (staggered, 0:.1:.5, bounded);
+    assert (issorted ([result.events.time]));
+    assert (isequal ([result.events.path], [9 9 5]) && isequal ([result.events.direction], [1 -1 1]));
+    assert (all ([result.events(1:2).time] == .2) && result.events(3).time > .2);
+    assert_events (result.events, 5, .2, 1, 1);
+    assert (abs (result.values{end,11} - .3) < 1e-11 && all ([result.values{:,12}] == -9));
+    runtime = ob_runtime_init (staggered, 0, bounded);
+    for stop = .1:.1:.5, runtime = ob_runtime_step (runtime, stop); endfor
+    assert (isequal (runtime.events, result.events));
   endfor
 
   options = event_options ('rk4');
@@ -410,6 +460,28 @@ function model = failing_switch ()
   model = append_block (model, 'Scope', []);
   model.edges = [model.edges;2 1 13 1;14 1 15 1;13 1 15 2;15 1 16 1;16 1 17 1;17 1 18 1];
   model.sample_times(13:18,:) = 0;
+endfunction
+
+function model = enabled_sine_integrator (offset)
+  % Continuous enable sin(2*pi*(t+offset)) around an Integrator of 2 that
+  % holds its state (initially 3) while disabled; root Subsystem is block 7.
+  child = make_model ({'Inport','Integrator','Outport'}, {1,3,1});
+  child.edges = [1 1 2 1;2 1 3 1];
+  child.execution = struct ('mode','enabled','control','continuous','initial_outputs',{{-9}});
+  model = make_model ({'Constant','Time','Constant','Sum','Gain','Function','Subsystem','Scope'}, ...
+      {2,[],offset,[],2*pi,[],child,[]});
+  model.blocks(6).name = 'sin';
+  model.edges = [2 1 4 1;3 1 4 2;4 1 5 1;5 1 6 1;1 1 7 1;6 1 7 2;7 1 8 1];
+endfunction
+
+function model = touching_enable (gain)
+  % Continuous enable gain*(t-.2)^2 around an Integrator of 1.
+  child = make_model ({'Inport','Integrator','Outport'}, {1,0,1});
+  child.edges = [1 1 2 1;2 1 3 1];
+  child.execution = struct ('mode','enabled','control','continuous','initial_outputs',{{-9}});
+  model = make_model ({'Constant','Time','Constant','Sum','Product','Gain','Subsystem','Scope'}, ...
+      {1,[],-.2,[],[],gain,child,[]});
+  model.edges = [2 1 4 1;3 1 4 2;4 1 5 1;4 1 5 2;5 1 6 1;1 1 7 1;6 1 7 2;7 1 8 1];
 endfunction
 
 function model = append_block (model, type, value)

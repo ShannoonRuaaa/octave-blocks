@@ -1,6 +1,6 @@
 function test_ob_matlab_numeric ()
   test_path_cleanup = ob_test_setup ();
-  file = fullfile (fileparts(mfilename('fullpath')), 'reference', 'matlab-numeric-reference.json');
+  file = ob_test_reference ('matlab-numeric-reference.json');
   reference = jsondecode (fileread (file));
   assert (! isempty (strfind(reference.matlab_version, 'R2026b')));
   a = reshape (reference.input_a, reference.input_a_shape');

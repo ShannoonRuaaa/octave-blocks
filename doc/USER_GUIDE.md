@@ -8,7 +8,8 @@ checkouts. See [package layout and installation](PACKAGE_LAYOUT.md).
 An Octave-native block diagram editor and evaluator. Function blocks call ordinary
 `.m` functions on Octave's path with `feval`, so block logic uses Octave's language.
 
-The project is available under the [MIT license](../LICENSE). See
+The combined project is [GPL-3.0-or-later](../COPYING), with original MIT
+grants retained; see [licensing](LICENSING.md). See
 [VALIDATION.md](VALIDATION.md) for the latest verification results, reproduction
 commands, and known limits. This is an experimental independent implementation;
 full Simulink compatibility remains unfinished.

@@ -1,15 +1,16 @@
 Name: octave-blocks
-Version: 0.2.1
+Version: 0.3.0
 Date: 2026-11-22
 Author: Shannon Ruan
 Maintainer: Shannon Ruan
 Title: Visual block diagrams and simulation for GNU Octave
 Description: Build continuous and discrete block diagrams, run ordinary
  Octave functions, inspect signals and export a supported C99 model subset.
- Includes a Qt editor, multirate simulation and conditional subsystems.
+ Includes a Qt editor, multirate simulation, conditional subsystems and
+ cached C acceleration.
 Categories: Simulation
 Depends: octave (>= 11.3.0)
-License: MIT
+License: GPL-3.0-or-later
 Url: https://github.com/ShannoonRuaaa/octave-blocks
 Tracker: https://github.com/ShannoonRuaaa/octave-blocks/issues
 SystemRequirements: Qt graphics for the editor; a C99 compiler for exported code

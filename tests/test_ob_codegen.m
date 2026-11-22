@@ -3,6 +3,8 @@ function test_ob_codegen (directory, conditional_references_only = false)
   % Prepare real exports and Octave references; Test-Codegen.ps1 compiles/runs them.
   if (! exist (directory, 'dir')), mkdir (directory); endif
   cases = struct ('name', {}, 'source', {}, 'standalone', {}, 'expected', {});
+  % Per-case comparison tolerance (verify_ob_codegen): 1e-11 unless set.
+  tolerances = containers.Map ();
   add_case ('time_gain', ob_example (), [0 1 0.3]);
   add_case ('nested', ob_subsystem_example (), [0 10 0.1]);
   [inner_cases, inner_api] = test_ob_inner_clock_c_cases ();
@@ -508,6 +510,25 @@ function test_ob_codegen (directory, conditional_references_only = false)
   masked.edges(end+1,:) = [5 1 2 2];
   add_case ('multi_masked_domain',masked,[0 2 0.5]);
 
+  % Transport Delay and Limited Integrator on the flat RK4 path.  The C
+  % history and segment loop must reproduce ob_run exactly (CODEGEN.md).
+  B = @(type, value, name) struct ('type', type, 'value', value, 'name', name, 'x', 0, 'y', 0);
+  delayed = delay_integrator_cases (B);
+  for item = delayed
+    add_case (item.name, item.model, item.config);
+  endfor
+
+  % Adaptive ode45 on the flat path (ob_c_ode45_lines): Octave's own ode45
+  % per integration segment.  On the verified toolchain the results equal
+  % ob_run exactly for up to three continuous states and to rounding for
+  % more; the documented tolerance is 1e-9 because a rounding difference
+  % that flips one accept or reject decision changes the trajectory at the
+  % level of the solver's local error (CODEGEN.md), kept small here by
+  % tight tolerances.
+  for item = ode45_cases (B)
+    add_case (item.name, item.model, item.config, item.options, 1e-9);
+  endfor
+
   % Unsupported exports must not replace an existing source file.
   protected = fullfile (directory, 'protected.c'); write_text (protected, 'keep me');
   assert_error (@() ob_codegen (ob_function_example (), protected), 'unsupported Function');
@@ -538,7 +559,16 @@ function test_ob_codegen (directory, conditional_references_only = false)
   invalid = control_switch (7, -7, 1, 0); invalid.edges(1, 1) = 4;
   assert_error (@() ob_codegen (invalid, protected), 'algebraic loop');
   assert (strcmp (fileread(protected), 'keep me'));
-  assert_error (@() ob_codegen (ob_example (), protected, [0 1 0.1], struct('solver','ode45')), 'requires rk4');
+  assert_error (@() ob_codegen (ob_example (), protected, [0 1 0.1], struct('solver','ode15s')), 'ode15s is interpreted only');
+  assert_error (@() ob_codegen (ob_conditional_example (), protected, [0 1 0.1], struct('solver','ode45')), 'requires rk4');
+  assert_error (@() ob_codegen (ob_zero_crossing_example (), protected, [0 1 0.1], ...
+                                struct('solver','ode45','zero_crossings',true)), 'requires rk4');
+  % ob_run reproduces Octave's ode45 in C arithmetic only for double settings.
+  for setting = {'reltol', 'abstol', 'maxstep'}
+    assert_error (@() ob_codegen (ob_oscillator (), protected, [0 1 0.1], ...
+                                  struct('solver','ode45',setting{1},single(1e-3))), ...
+                  'ode45 C export needs double reltol, abstol and maxstep');
+  endfor
   invalid = ob_example (); invalid.blocks(2).value = [1 2];
   invalid.blocks(1).type = 'Constant'; invalid.blocks(1).value = [1 2];
   assert_error (@() ob_codegen (invalid, protected), 'incompatible matrix multiplication');
@@ -578,6 +608,39 @@ function test_ob_codegen (directory, conditional_references_only = false)
   end_unwind_protect
   loop = ob_example (); loop.edges = [2 2; 2 3];
   assert_error (@() ob_codegen (loop, protected), 'algebraic loop');
+  assert (strcmp (fileread(protected), 'keep me'));
+
+  % Transport Delay and Limited Integrator stay outside the typed
+  % conditional/event exporter and keep ob_run's static contracts.
+  dde = delayed(1).model;
+  assert_error (@() ob_codegen (dde, protected, [0 1 .1], struct ('zero_crossings', true)), ...
+                'not supported with zero_crossings=true');
+  limited_child.blocks = [B('Inport', 1, 'In') B('Limited Integrator', 0, 'Limited') B('Outport', 1, 'Out')];
+  limited_child.edges = [1 2; 2 3]; limited_child.execution = struct ('mode', 'enabled');
+  limited_parent.blocks = [B('Constant', 1, 'One') B('Subsystem', limited_child, 'Enabled') B('Scope', [], 'Scope')];
+  limited_parent.edges = [1 1 2 1; 1 1 2 2; 2 1 3 1];
+  assert_error (@() ob_codegen (limited_parent, protected), 'inside a conditional subsystem');
+  mixed_multi = multi_builtin ('max', [1 2]);
+  mixed_multi.blocks(5) = mixed_multi.blocks(1);
+  mixed_multi.blocks(5).type = 'Transport Delay'; mixed_multi.blocks(5).value = [0.5 0];
+  mixed_multi.edges(end+1,:) = [1 1 5 1];
+  assert_error (@() ob_codegen (mixed_multi, protected), 'conditional/event C exporter');
+  bad_reset.blocks = [B('Constant', 1, 'One') ...
+                      B('Limited Integrator', struct ('initial', 0, 'reset', 'rising'), 'Limited') ...
+                      B('Constant', [1 2], 'Reset') B('Scope', [], 'Scope')];
+  bad_reset.edges = [1 1 2 1; 3 1 2 2; 2 1 4 1];
+  assert_error (@() ob_codegen (bad_reset, protected), 'reset signal must be scalar');
+  bad_shape.blocks = [B('Time', [], 'Time') B('Gain', [1; -2], 'Gain') ...
+                      B('Transport Delay', struct ('delay', 0.2, 'initial', [1 2 3]), 'Delay') B('Scope', [], 'Scope')];
+  bad_shape.edges = [1 2; 2 3; 3 4];
+  assert_error (@() ob_codegen (bad_shape, protected), 'shape must match its initial output');
+  % As in ob_run, a second scalar-initial delay learns the first one's
+  % scalar probe output and then sees its broadcast matrix.
+  bad_chain.blocks = [B('Constant', [1 2], 'Row') B('Transport Delay', [0.5 0], 'First') ...
+                      B('Transport Delay', [0.5 0], 'Second') B('Scope', [], 'Scope')];
+  bad_chain.edges = [1 2; 2 3; 3 4];
+  assert_error (@() ob_run (bad_chain, 0:0.5:1), 'changed shape');
+  assert_error (@() ob_codegen (bad_chain, protected), 'changed shape');
   assert (strcmp (fileread(protected), 'keep me'));
 
   % Exercise the public C API independently of the CSV main program.
@@ -788,10 +851,113 @@ function test_ob_codegen (directory, conditional_references_only = false)
   cases(end+1)=struct('name','api_continuous','source','api_continuous.c','standalone',false,'expected','');
   write_text(fullfile(directory,inner_api.source),inner_api.text);
   cases(end+1)=struct('name',inner_api.name,'source',inner_api.source,'standalone',false,'expected','');
+  % A Transport Delay history sized for a coarse grid overflows under a fine
+  % host schedule: the step reports OB_DELAY_OVERFLOW and keeps the context.
+  overflow.blocks = [B('Time', [], 'Time') B('Transport Delay', [1 0], 'Delay') B('Scope', [], 'Scope')];
+  overflow.edges = [1 2; 2 3];
+  ob_codegen (overflow, fullfile (directory, 'delay_overflow.c'), [0 1 1]);
+  delay_api = {'#include <assert.h>', '#include <stdio.h>', '#include "delay_overflow.c"', ...
+    'int main(void) {', '  ob_model model, saved;', '  int status = OB_OK, steps = 0;', ...
+    '  assert(OB_DELAY_COUNT == 1 && ob_delay_time[0] == 1.0 && ob_delay_capacity[0] == 64);', ...
+    '  assert(ob_model_init(&model, 0.0) == OB_OK);', ...
+    '  while (status == OB_OK && steps < 1000) {', ...
+    '    saved = model; ++steps;', '    status = ob_model_step(&model, steps * 1e-3);', '  }', ...
+    '  assert(status == OB_DELAY_OVERFLOW && steps > 32 && steps < 128);', ...
+    '  assert(memcmp(&model, &saved, sizeof(model)) == 0);', ...
+    '  /* Every stored sample is still within the delay window: still full. */', ...
+    '  assert(ob_model_step(&model, model.time + 2.0) == OB_DELAY_OVERFLOW);', ...
+    '  assert(ob_model_init(&model, 0.0) == OB_OK);', ...
+    '  assert(ob_model_step(&model, 2.0) == OB_OK && model.value[ob_block_offset[1]] == 1.0);', ...
+    '  puts("C Transport Delay overflow and rollback tests passed");', '  return 0;', '}'};
+  write_text (fullfile (directory, 'api_delay.c'), strjoin (delay_api, char (10)));
+  cases(end+1) = struct ('name','api_delay','source','api_delay.c','standalone',false,'expected','');
+  % Delay exports roll back in place (no ob_model copies): failed steps that
+  % recorded, pruned and stored a jump, a failed provider change and a failed
+  % re-initialization must leave the context byte-identical, and the context
+  % must then evolve exactly like a twin that never failed.
+  rollback.blocks = [B('Inport', 1, 'In') B('Step', [0.62 0 1], 'Step') B('Sum', [], 'Sum') ...
+                     B('Transport Delay', [0.05 0], 'Delay') B('Integrator', 0, 'x') B('Scope', [], 'Scope')];
+  rollback.edges = [1 1 3 1; 2 1 3 2; 3 1 4 1; 4 1 5 1; 5 1 6 1];
+  rollback.inputs = {ob_input_signal([0; 1], [0; 0], [1 1], 'linear')};
+  ob_codegen (rollback, fullfile (directory, 'delay_rollback.c'), [0 1 0.1]);
+  rollback_api = {'#include <assert.h>', '#include <stdio.h>', '#include "delay_rollback.c"', ...
+    'typedef struct { int fail; } control;', ...
+    'static int forcing(double time, int left, double *out, size_t count, void *user) {', ...
+    '  const control *c = (const control *)user; (void)left;', ...
+    '  if (count != 1) return 1;', ...
+    '  out[0] = (c->fail && time > 0.75) ? NAN : sin(3.0*time);', '  return OB_OK;', '}', ...
+    'int main(void) {', '  static ob_model model, twin, saved;', '  control c = {0};', ...
+    '  assert(ob_model_init_inputs(&model, 0.0, forcing, NULL, &c) == OB_OK);', ...
+    '  assert(ob_model_init_inputs(&twin, 0.0, forcing, NULL, &c) == OB_OK);', ...
+    '  for (int k = 1; k <= 5; ++k)', ...
+    '    assert(ob_model_step(&model, 0.1*k) == OB_OK && ob_model_step(&twin, 0.1*k) == OB_OK);', ...
+    '  assert(memcmp(&model, &twin, sizeof(model)) == 0);', ...
+    '  /* Records the Step jump at 0.62 and prunes, then fails after 0.75. */', ...
+    '  saved = model; c.fail = 1;', ...
+    '  assert(ob_model_step(&model, 1.0) == OB_NONFINITE);', ...
+    '  assert(memcmp(&model, &saved, sizeof(model)) == 0);', ...
+    '  c.fail = 0;', ...
+    '  assert(ob_model_step(&model, 1.0) == OB_OK && ob_model_step(&twin, 1.0) == OB_OK);', ...
+    '  assert(memcmp(&model, &twin, sizeof(model)) == 0);', ...
+    '  /* A host step far longer than the export grid''s fills the history with', ...
+    '     segment samples and overflows after pruning. */', ...
+    '  assert(ob_model_step(&model, 100.0) == OB_DELAY_OVERFLOW);', ...
+    '  assert(memcmp(&model, &saved, sizeof(model)) != 0 && memcmp(&model, &twin, sizeof(model)) == 0);', ...
+    '  c.fail = 1;', ...
+    '  assert(ob_model_set_input_provider(&model, forcing, NULL, &c) == OB_NONFINITE);', ...
+    '  assert(memcmp(&model, &twin, sizeof(model)) == 0);', ...
+    '  assert(ob_model_init_inputs(&model, 0.8, forcing, NULL, &c) == OB_NONFINITE);', ...
+    '  assert(memcmp(&model, &twin, sizeof(model)) == 0);', ...
+    '  c.fail = 0;', ...
+    '  for (int k = 1; k <= 3; ++k)', ...
+    '    assert(ob_model_step(&model, 1.0 + 0.1*k) == OB_OK && ob_model_step(&twin, 1.0 + 0.1*k) == OB_OK);', ...
+    '  assert(memcmp(&model, &twin, sizeof(model)) == 0);', ...
+    '  /* Re-initialization clears every old sample. */', ...
+    '  assert(ob_model_init_inputs(&model, 0.0, forcing, NULL, &c) == OB_OK);', ...
+    '  static ob_model fresh;', '  memset(&fresh, 0xA5, sizeof(fresh));', ...
+    '  assert(ob_model_init_inputs(&fresh, 0.0, forcing, NULL, &c) == OB_OK);', ...
+    '  /* Up to the last member: trailing padding is never written. */', ...
+    '  assert(memcmp(&model, &fresh, offsetof(ob_model, delay_left) + sizeof(model.delay_left)) == 0);', ...
+    '  puts("C Transport Delay in-place rollback tests passed");', '  return 0;', '}'};
+  write_text (fullfile (directory, 'api_delay_rollback.c'), strjoin (rollback_api, char (10)));
+  cases(end+1) = struct ('name','api_delay_rollback','source','api_delay_rollback.c','standalone',false,'expected','');
+  % ode45 C API: x' = x^2, x(0) = 1 blows up at t = 1.  ob_run raises "ode45
+  % failed to reach time"; the C step returns OB_STEP_FAILED and leaves the
+  % context unchanged, and shorter steps still succeed (x = 1/(1 - t)).
+  blow.blocks = [B('Integrator', 1, 'x') B('Product', [], 'Square') B('Scope', [], 'Scope')];
+  blow.edges = [1 1 2 1; 1 1 2 2; 2 1 1 1; 1 1 3 1];
+  quiet = warning ('off', 'integrate_adaptive:unexpected_termination');
+  assert_error (@() ob_run (blow, [0 0.5 1.5], struct ('solver', 'ode45')), 'ode45 failed to reach time 1.5');
+  warning (quiet);
+  ob_codegen (blow, fullfile (directory, 'api_ode45_model.c'), [0 1 0.5], ...
+              struct ('solver', 'ode45', 'reltol', 1e-10, 'abstol', 1e-12));
+  ode45_api = {'#include <assert.h>', '#include <stdio.h>', '#include "api_ode45_model.c"', ...
+    'int main(void) {', '  ob_model model, saved;', ...
+    '  assert(ob_model_init(&model, 0.0) == OB_OK);', ...
+    '  assert(ob_model_step(&model, 0.5) == OB_OK && fabs(model.value[0] - 2.0) < 1e-8);', ...
+    '  saved = model;', ...
+    '  assert(ob_model_step(&model, 1.5) == OB_STEP_FAILED);', ...
+    '  assert(memcmp(&model, &saved, sizeof(model)) == 0);', ...
+    '  assert(ob_model_step(&model, 0.9) == OB_OK && fabs(model.value[0] - 10.0) < 1e-6);', ...
+    '  puts("C ode45 failure and rollback tests passed");', '  return 0;', '}'};
+  write_text (fullfile (directory, 'api_ode45.c'), strjoin (ode45_api, char (10)));
+  cases(end+1) = struct ('name','api_ode45','source','api_ode45.c','standalone',false,'expected','');
+  % Simulink-style command API model using the structural Switch criteria and
+  % non-scalar Gain realizations (SIMULINK_API.md), compiled and compared.
+  cases(end+1) = ob_simulink_codegen_case (directory);
+  names = {cases.name};
+  assert (numel (unique (names)) == numel (names), 'test_ob_codegen: duplicate case names');
+  for k = 1:numel (cases)
+    cases(k).tolerance = 1e-11;
+    if (isKey (tolerances, cases(k).name)), cases(k).tolerance = tolerances(cases(k).name); endif
+  endfor
   write_text (fullfile(directory, 'manifest.json'), jsonencode(cases));
   fprintf ('Prepared %d C compilation cases and validated export rejection paths\n', numel(cases));
 
-  function add_case (name, model, config)
+  function add_case (name, model, config, options = struct (), tolerance = 1e-11)
+    % Case files are named after the case: a repeated name would overwrite
+    % another case's source and reference.
+    assert (! any (strcmp ({cases.name}, name)), 'test_ob_codegen: duplicate case name %s', name);
     source = [name '.c']; expected_file = [name '.expected.csv'];
     if (conditional_references_only)
       result = ob_run (model, ob_time_grid(config(1),config(2),config(3)));
@@ -804,8 +970,9 @@ function test_ob_codegen (directory, conditional_references_only = false)
       endfor
       return;
     endif
-    info = ob_codegen (model, fullfile(directory, source), config);
-    result = ob_run (model, ob_time_grid(config(1),config(2),config(3)));
+    info = ob_codegen (model, fullfile(directory, source), config, options);
+    result = ob_run (model, ob_time_grid(config(1),config(2),config(3)), options);
+    tolerances(name) = tolerance;
     expected = result.t;
     for block = 1:numel (result.compiled_model.blocks)
       count = prod (info.shapes{block});
@@ -821,6 +988,190 @@ function test_ob_codegen (directory, conditional_references_only = false)
     endfor
     dlmwrite (fullfile(directory, expected_file), expected, 'precision', '%.17g');
     cases(end + 1) = struct ('name',name,'source',source,'standalone',true,'expected',expected_file);
+  endfunction
+endfunction
+
+function cases = ode45_cases (B)
+  % Flat ode45 exports: plain, Step and input boundaries, discrete clocks,
+  % MaxStep, ten states (FMA BLAS kernels in Octave), Transport Delays with
+  % recorded interior points and Limited Integrators.
+  cases = struct ('name', {}, 'model', {}, 'config', {}, 'options', {});
+  tight = struct ('solver', 'ode45', 'reltol', 1e-10, 'abstol', 1e-12);
+  add ('ode45_oscillator', ob_oscillator (), [0 20 0.1], ...
+       struct ('solver', 'ode45', 'reltol', 1e-8, 'abstol', 1e-10));
+  add ('ode45_oscillator_maxstep', ob_oscillator (), [0 5 0.25], setfield (tight, 'maxstep', 0.05));
+  step = ob_example ();
+  step.blocks(1).type = 'Step'; step.blocks(1).value = [0.35 0 1];
+  step.blocks(2).type = 'Integrator'; step.blocks(2).value = 0;
+  add ('ode45_step_unaligned', step, [0 1 0.3], tight);
+  add ('ode45_input', ob_input_example (), [0 1.5 0.05], tight);
+  add ('ode45_multirate', ob_multirate_example (), [0 3 0.1], tight);
+  n = 10;
+  A = -eye (n) + diag (0.5 * ones (n-1, 1), 1);
+  linear.blocks = [B('Step', [1 0 1], 'Step') ...
+                   B('Subsystem', ob_state_space (A, ones (n, 1), ones (1, n), 0, zeros (n, 1)), 'Plant') ...
+                   B('Scope', [], 'Scope')];
+  linear.edges = [1 2; 2 3];
+  add ('ode45_linear10', linear, [0 10 0.1], tight);
+  dde.blocks = [B('Integrator', 1, 'x') B('Transport Delay', [1 1], 'Delay') ...
+                B('Gain', -1, 'Gain') B('Scope', [], 'Scope')];
+  dde.edges = [1 2; 2 3; 3 1; 1 4];
+  add ('ode45_dde', dde, [0 6 0.1], tight);
+  delayed.blocks = [B('Step', [0.35 0 1], 'Step') B('Transport Delay', [0.2 -1], 'Delay') ...
+                    B('Integrator', 0, 'Integrator') B('Scope', [], 'Scope')];
+  delayed.edges = [1 2; 2 3; 3 4];
+  add ('ode45_delay_step', delayed, [0 1.5 0.1], tight);
+  gate.blocks = [B('Constant', 1, 'One') ...
+                 B('Limited Integrator', struct ('initial', 0.25, 'lower', 0, 'upper', 0.9, 'reset', 'level'), 'Limited') ...
+                 B('Step', [1.05 0 1], 'Open') B('Step', [2.05 0 -1], 'Close') ...
+                 B('Scope', [], 'Scope') B('Sum', [], 'Gate')];
+  gate.edges = [1 1 2 1; 3 1 6 1; 4 1 6 2; 6 1 2 2; 2 1 5 1];
+  add ('ode45_limited_level', gate, [0 3 0.1], tight);
+  wave = ob_input_signal ((0:0.5:3)', [-1; 1; -1; 1; -1; 1; -1], [1 1], 'zoh');
+  reset.blocks = [B('Constant', 1, 'One') ...
+                  B('Limited Integrator', struct ('initial', 0.25, 'lower', 0, 'upper', 0.9, 'reset', 'either'), 'Limited') ...
+                  B('Inport', 1, 'Reset') B('Scope', [], 'Scope')];
+  reset.edges = [1 1 2 1; 3 1 2 2; 2 1 4 1];
+  reset.inputs = {wave};
+  add ('ode45_limited_reset', reset, [0 3 0.1], tight);
+
+  function add (name, model, config, options)
+    cases(end+1) = struct ('name', name, 'model', model, 'config', config, 'options', options);
+  endfunction
+endfunction
+
+function cases = delay_integrator_cases (B)
+  % Flat RK4 models with Transport Delay and Limited Integrator blocks
+  % (builtin blocks only), each with its export/run grid [start stop step].
+  cases = struct ('name', {}, 'model', {}, 'config', {});
+  % Delay differential equation x' = -x(t - 1), x = 1 for t <= 0.
+  dde.blocks = [B('Integrator', 1, 'x') B('Transport Delay', [1 1], 'Delay') ...
+                B('Gain', -1, 'Gain') B('Scope', [], 'Scope')];
+  dde.edges = [1 2; 2 3; 3 1; 1 4];
+  add ('delay_dde', dde, [0 6 0.05]);
+  % Mackey-Glass x' = 0.2 z / (1 + z^10) - 0.1 x, z = x(t - 17).
+  mackey.blocks = [B('Integrator', 0.5, 'x') B('Transport Delay', [17 0.5], 'Delay') ...
+                   B('Constant', 10, 'Ten') B('Function', [], 'power') B('Constant', 1, 'One') ...
+                   B('Sum', [], 'Denominator') B('Function', [], 'rdivide') B('Gain', 0.2, 'Production') ...
+                   B('Gain', -0.1, 'Decay') B('Sum', [], 'Rate') B('Scope', [], 'Scope')];
+  mackey.edges = [1 1 2 1; 2 1 4 1; 3 1 4 2; 5 1 6 1; 4 1 6 2; 2 1 7 1; 6 1 7 2; ...
+                  7 1 8 1; 1 1 9 1; 8 1 10 1; 9 1 10 2; 10 1 1 1; 1 1 11 1];
+  add ('delay_mackey_glass', mackey, [0 120 0.5]);
+  % Delayed steps: a jump between output times, and delayed jumps that meet
+  % the output grid only up to rounding (0.1 + 0.2, 7 * 0.1).
+  step.blocks = [B('Step', [0.35 0 1], 'Step') B('Transport Delay', [0.2 -1], 'Delay') ...
+                 B('Integrator', 0, 'Integrator') B('Scope', [], 'Scope')];
+  step.edges = [1 2; 2 3; 3 4];
+  add ('delay_step_between', step, [0 1.5 0.1]);
+  step.blocks(1).value = [0.1 0 1]; step.blocks(2).value = [0.2 0];
+  add ('delay_step_rounding', step, [0 1 0.1]);
+  step.blocks(1).value = [0.7 0 1]; step.blocks(2).value = [0.1 0];
+  add ('delay_step_merge', step, [0 2 0.1]);
+  % Start time 0.1 with T = 0.2: (0.1 + 0.2) - 0.2 misses 0.1 by an ulp.
+  ramp.blocks = [B('Time', [], 'Time') B('Transport Delay', [0.2 7], 'Delay') ...
+                 B('Integrator', 0, 'Integrator') B('Scope', [], 'Scope')];
+  ramp.edges = [1 2; 2 3; 3 4];
+  add ('delay_start_offset', ramp, [0.1 2.1 0.1]);
+  % Two delays: the second reads the first one's jump at start + T.
+  pair.blocks = [B('Time', [], 'Time') B('Transport Delay', [0.2 7], 'Delay') ...
+                 B('Transport Delay', [0.05 7], 'Second') B('Scope', [], 'Scope')];
+  pair.edges = [1 2; 2 3; 3 4];
+  add ('delay_pair', pair, [0.1 0.6 0.05]);
+  % A delay shorter than the output interval subdivides each interval.
+  short.blocks = [B('Time', [], 'Time') B('Function', [], 'sin') ...
+                  B('Transport Delay', [0.03 0], 'Delay') B('Integrator', 0, 'Integrator') B('Scope', [], 'Scope')];
+  short.edges = [1 2; 2 3; 3 4; 4 5];
+  add ('delay_short', short, [0 1 0.1]);
+  add ('delay_long_interval', short, [0 3 1]);
+  % Direct feedback through delays, no continuous state: y = 1 - y(t-1)/2,
+  % and a second delay reading y's stored jumps.
+  feedback.blocks = [B('Constant', 1, 'One') B('Sum', [], 'Sum') B('Transport Delay', [1 0], 'Delay') ...
+                     B('Gain', -0.5, 'Gain') B('Scope', [], 'Scope') B('Transport Delay', [0.25 1], 'Second') ...
+                     B('Scope', [], 'Scope')];
+  feedback.edges = [1 1 2 1; 4 1 2 2; 2 1 3 1; 3 1 4 1; 2 1 5 1; 2 1 6 1; 6 1 7 1];
+  add ('transport_delay_feedback', feedback, [0 3 0.1]);
+  % Matrix signals: matrix initial output, scalar initial broadcast, and a
+  % scalar input expanded to a matrix initial output.
+  matrix.blocks = [B('Time', [], 'Time') B('Gain', [1; -2], 'Gain') ...
+                   B('Transport Delay', struct ('delay', 0.2, 'initial', [5; 6]), 'Delay') ...
+                   B('Integrator', [0; 1], 'Integrator') B('Scope', [], 'Scope')];
+  matrix.edges = [1 2; 2 3; 3 4; 4 5];
+  add ('delay_matrix', matrix, [0 1 0.1]);
+  matrix.blocks(2).value = [1 2; 3 4]; matrix.blocks(3).value = [0.2 3];
+  matrix.blocks(4).value = zeros (2);
+  add ('delay_matrix_broadcast', matrix, [0 1 0.1]);
+  scalar.blocks = [B('Time', [], 'Time') ...
+                   B('Transport Delay', struct ('delay', 0.2, 'initial', [5; 6]), 'Delay') B('Scope', [], 'Scope')];
+  scalar.edges = [1 2; 2 3];
+  add ('delay_scalar_expansion', scalar, [0 0.5 0.1]);
+  % Root input knots (ZOH and linear) become segment boundaries.
+  for method = {'zoh', 'linear'}
+    knots.blocks = [B('Inport', 1, 'In') B('Transport Delay', [0.15 0], 'Delay') ...
+                    B('Integrator', 0, 'Integrator') B('Scope', [], 'Scope')];
+    knots.edges = [1 2; 2 3; 3 4];
+    knots.inputs = {ob_input_signal([0; 0.25; 0.6; 0.95], [0; 1; -1; 2], [1 1], method{1})};
+    add (['delay_input_' method{1}], knots, [0 1.5 0.1]);
+  endfor
+  % An explicit clock feeds the delay with a held staircase.
+  clocked.blocks = [B('Time', [], 'Time') B('Unit Delay', 0, 'Hold') B('Transport Delay', [0.4 0], 'Delay') ...
+                    B('Integrator', 0, 'Integrator') B('Scope', [], 'Scope')];
+  clocked.edges = [1 2; 2 3; 3 4; 4 5];
+  clocked.sample_times = [0 0; 0.25 0; 0 0; 0 0; 0 0];
+  add ('delay_clocked', clocked, [0 2 0.1]);
+  % Limited Integrator: bounds reached exactly, inward release, elementwise
+  % and one-sided limits, a clipped initial condition.
+  limited.blocks = [B('Constant', 1, 'One') ...
+                    B('Limited Integrator', struct ('initial', 0, 'lower', 0, 'upper', 1), 'Limited') ...
+                    B('Scope', [], 'Scope')];
+  limited.edges = [1 2; 2 3];
+  add ('limited_bound', limited, [0 2 0.25]);
+  cosine.blocks = [B('Time', [], 'Time') B('Function', [], 'cos') ...
+                   B('Limited Integrator', struct ('initial', 0, 'lower', -0.5, 'upper', 0.5), 'Limited') ...
+                   B('Scope', [], 'Scope')];
+  cosine.edges = [1 2; 2 3; 3 4];
+  add ('limited_cosine', cosine, [0 7 0.05]);
+  limited.blocks(1).value = [1 -1 2];
+  limited.blocks(2).value = struct ('initial', [0 0 0], 'lower', [-0.5 -0.25 -1], 'upper', [0.5 1 1]);
+  add ('limited_matrix', limited, [0 1 0.25]);
+  limited.blocks(1).value = [1; -1];
+  limited.blocks(2).value = struct ('initial', [5; -5], 'upper', 3);
+  add ('limited_one_sided', limited, [0 3 0.5]);
+  % Sampled resets against a square wave input of period 1.
+  wave = ob_input_signal ((0:0.5:3)', [-1; 1; -1; 1; -1; 1; -1], [1 1], 'zoh');
+  for mode = {'rising', 'falling', 'either'}
+    reset.blocks = [B('Constant', 1, 'One') ...
+                    B('Limited Integrator', struct ('initial', 0.25, 'reset', mode{1}), 'Limited') ...
+                    B('Inport', 1, 'Reset') B('Scope', [], 'Scope')];
+    reset.edges = [1 1 2 1; 3 1 2 2; 2 1 4 1];
+    reset.inputs = {wave};
+    add (['limited_reset_' mode{1}], reset, [0 3 0.1]);
+  endfor
+  % Level resets with gate edges between samples (RK4 'level' also fires
+  % when the signal returns to zero), on a dense and a sparse grid, and a
+  % matrix state held by a scalar gate.
+  for mode = {'level', 'level hold'}
+    gate.blocks = [B('Constant', 1, 'One') ...
+                   B('Limited Integrator', struct ('initial', 0.25, 'reset', mode{1}), 'Limited') ...
+                   B('Step', [1.05 0 1], 'Open') B('Step', [2.05 0 -1], 'Close') ...
+                   B('Scope', [], 'Scope') B('Sum', [], 'Gate')];
+    gate.edges = [1 1 2 1; 3 1 6 1; 4 1 6 2; 6 1 2 2; 2 1 5 1];
+    name = strrep (mode{1}, ' ', '_');
+    add (['limited_reset_' name], gate, [0 3 0.1]);
+    add (['limited_reset_' name '_sparse'], gate, [0 3 1]);
+    gate.blocks(1).value = [1 -2];
+    gate.blocks(2).value = struct ('initial', [0.25 0], 'lower', -1, 'upper', 2, 'reset', mode{1});
+    add (['limited_reset_' name '_matrix'], gate, [0 3 0.1]);
+  endfor
+  % A limited state driven through a delay, with a reset.
+  combined.blocks = [B('Limited Integrator', struct ('initial', 1, 'lower', -0.5, 'upper', 0.8, 'reset', 'rising'), 'x') ...
+                     B('Transport Delay', [0.5 1], 'Delay') B('Gain', -2, 'Gain') B('Inport', 1, 'Reset') ...
+                     B('Scope', [], 'Scope')];
+  combined.edges = [1 1 2 1; 2 1 3 1; 3 1 1 1; 4 1 1 2; 1 1 5 1];
+  combined.inputs = {ob_input_signal([0; 1.3; 2.6], [-1; 1; -1], [1 1], 'zoh')};
+  add ('delay_limited_reset', combined, [0 4 0.1]);
+
+  function add (name, model, config)
+    cases(end+1) = struct ('name', name, 'model', model, 'config', config);
   endfunction
 endfunction
 

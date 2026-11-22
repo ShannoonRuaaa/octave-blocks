@@ -17,6 +17,7 @@ From this project directory in Octave:
 
 ```octave
 addpath (pwd ());
+ob_setup ();
 model = ob_zero_crossing_example ();
 options = struct ('solver', 'rk4', 'zero_crossings', true);
 result = ob_run (model, [0 1], options);
@@ -159,6 +160,30 @@ values preserve continuity across output/search boundaries, while already
 reported crossings are not duplicated. Reads of cached outputs do not perform
 this additional search.
 
+The same holds when a guard reaches exactly zero at a stop and leaves it at
+once, as a continuous enable or trigger control does when its zero falls on
+an output time. The search after the stop brackets the departure between the
+stop and its first sample. When every bisection midpoint is already past
+zero, the departure lies within the time tolerance of the stop, and its
+record uses the stop's exact timestamp, not the bisection's upper bound.
+If the stop already recorded the guard's arrival at zero and the guard
+continues through it, that arrival record describes the crossing and no
+second record is added. A guard that touches zero and returns to its incoming
+side keeps a second record, in the opposite direction, at the same timestamp.
+For example, a continuous enable driven by `sin(2*pi*(t-0.2))` on the output
+grid `0:0.1:1` records one rising event at exactly 0.2 and one falling event
+near 0.7. Before this rule it also recorded a rising event at
+0.2000000000007276. The subsystem's activation is unchanged: it is still
+dispatched at the bisected time, the first time at which the control is
+positive.
+
+Records are kept in time order. One search can find such a departure at the
+stop together with another guard's crossing located just after it, for
+example an enable `-(t-0.2)^2` that touches zero at the stop 0.2 next to an
+enable `t-0.2-1e-13`. The departure, at exactly 0.2, is listed before the
+crossing, at 0.2000000000007276. Records with the same time keep the guards'
+order.
+
 ## Work limits and failures
 
 | Mechanism | Current bound |
@@ -180,24 +205,35 @@ adaptive zero-crossing guard bands or all its Zeno-handling policies.
 `ob_codegen` accepts `zero_crossings=true` with `solver='rk4'`, selecting a
 typed event runtime with frozen incoming regimes, raw guards and accepted
 outgoing-mode reconciliation. Pass an appropriate `maxstep` to bound searched
-segments; it cannot guarantee arbitrary multiple or tangential roots. Adaptive
-C solvers remain unsupported and fail before replacing an output file.
+segments; it cannot guarantee arbitrary multiple or tangential roots. Event
+exports are RK4 only: `ode45` export is limited to flat models without zero
+crossings ([CODEGEN.md](CODEGEN.md#adaptive-ode45-export)), so `ode45` or
+`ode15s` with `zero_crossings=true` fails before replacing an output file.
+The accelerator likewise runs zero-crossing models compiled with `rk4` only.
 
 Generated contexts retain cumulative `event_count` and `last_event_time`, not
 an unbounded copy of Octave's detailed event array. Output reads do not search
 beyond the accepted time; a later advance can report a plateau departure at
-the previous stop. Nonsettling/chattering behavior returns `OB_EVENT_ERROR=4`
-without committing caller state. See [CODEGEN.md](CODEGEN.md) for metadata,
+the previous stop. A continuous control that reaches exactly zero at a stop
+follows the same rule as Octave: its departure is counted at the stop, or
+merged into the arrival counted there, so `event_count` matches the length of
+Octave's event array (4 records for the `sin(2*pi*(t-0.2))` example on
+`0:0.1:2`). In the time-order case above, `last_event_time` keeps the latest
+counted time (0.2000000000007276, the time of Octave's last record) although
+the guards are counted in index order, and the accelerator (`ob_accelerate`)
+lists the departure before the crossing, as `ob_run` does. Nonsettling/chattering behavior
+returns `OB_EVENT_ERROR=4` without committing caller state. See [CODEGEN.md](CODEGEN.md) for metadata,
 other return codes, transactional APIs and export options.
 
 Run `test_ob_zero_crossings()` for the feature's numerical regression coverage.
 The suite checks analytic rising/falling and state-defined Switch transitions,
 Saturation/Dead Zone integrals, matrix/simultaneous guards, bounded oscillatory
-searches, zero plateaus, exact output boundaries, clock coincidences, runtime
-forks/checkpoints, hierarchy, small/large time scales, failure rollback,
-chattering, guard-layout changes, persistence, event-export metadata and
-protected invalid C-export rejection. Run `tests/Test-EventCodegen.ps1`,
-`tests/Test-EventCodegenEdges.ps1` and `tests/Test-EventCodegenHierarchy.ps1` for strict
+searches, zero plateaus, exact output boundaries (including continuous controls
+that reach zero exactly at a stop, and the time order of their records), clock
+coincidences, runtime forks/checkpoints, hierarchy, small/large time scales,
+failure rollback, chattering, guard-layout changes, persistence, event-export
+metadata and protected invalid C-export rejection. Run `Test-EventCodegen.ps1`,
+`Test-EventCodegenEdges.ps1` and `Test-EventCodegenHierarchy.ps1` for strict
 compiled full-channel comparisons and API checks. Current completed results
 belong in [VALIDATION.md](VALIDATION.md).
 The tests and independent probes use analytic expectations and native Octave.
@@ -216,7 +252,10 @@ This implementation therefore monitors accepted outputs through `OutputFcn`
 and controls localization/restarts itself. See
 [Octave's MATLAB-compatible solvers](https://docs.octave.org/latest/Matlab_002dcompatible-solvers.html)
 and [MATLAB event-location limitations](https://www.mathworks.com/help/matlab/math/ode-event-location.html).
-The MathWorks comparison uses public documentation, not a running Simulink
-trajectory. The retained environment probe reported no runnable Simulink;
-current availability has not been rechecked. See
-[REFERENCE_EVIDENCE.md](REFERENCE_EVIDENCE.md) for the evidence limits.
+Simulink 26.2 traces (`reference_ob_simulink_continuous.m`) of Switch,
+Saturation and Dead Zone crossings feeding Integrators agree within 2e-8 with
+ode45 and ode15s, and the crossing times Simulink locates match
+`result.events` (`test_ob_simulink_extended`). Simulink's guard bands and
+repeated-crossing policies are not compared. See
+[REFERENCE_EVIDENCE.md](REFERENCE_EVIDENCE.md#live-simulink-references) for the
+evidence limits.

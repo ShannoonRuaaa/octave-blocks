@@ -4,7 +4,7 @@
 
 [![Stage: preview](https://img.shields.io/badge/stage-preview-e6a23c)](https://github.com/ShannoonRuaaa/octave-blocks/releases)
 [![GNU Octave](https://img.shields.io/badge/GNU%20Octave-11.3.0-0790c0)](https://octave.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-2b8a65)](LICENSE)
+[![License: GPL--3.0--or--later](https://img.shields.io/badge/license-GPL--3.0--or--later-2b8a65)](LICENSE)
 
 Octave Blocks is a visual modeling and simulation project built around GNU
 Octave. Connect continuous and discrete blocks, place your own `.m` functions
@@ -48,7 +48,7 @@ See the [user guide](doc/USER_GUIDE.md) for input data and subsystem editing.
 For a packaged release, use Octave’s package manager:
 
 ```octave
-pkg install '/path/to/octave-blocks-0.2.1.tar.gz';
+pkg install '/path/to/octave-blocks-0.3.0.tar.gz';
 pkg load octave-blocks;
 octave_blocks();
 ```
@@ -67,17 +67,19 @@ and the [documentation index](doc/README.md).
 | Octave functions | Ordinary `.m` functions on the Octave path, including multiple outputs |
 | Controls and hierarchy | Enabled/triggered subsystems, state/output policies, Saturation, Dead Zone, Switch and registered zero crossings |
 | Linear systems | Continuous state-space and proper SISO transfer-function builders |
-| C export | Static real-double C99 subset with RK4, supported events, input callbacks and transactional model contexts |
+| C export | Static real-double C99 subset with RK4 and flat-model adaptive ode45, supported events and transactional APIs |
+| Acceleration | Cached compiled MEX simulation for supported flat and conditional models; explicit fallback outside the subset |
+| Additional blocks | PID and discrete-system builders, lookup tables, Transport Delay and Limited Integrator within the documented subsets |
+| Programmatic modeling | Simulink-style construction, parameter and simulation commands with recorded reference comparisons |
 
 This is an experimental independent project. Simulink `.slx`/`.mdl` file
 interchange and full Simulink compatibility are unfinished. Arbitrary `.m`
 functions run in Octave; export supports a documented subset of Function blocks.
 See [supported exports](doc/CODEGEN.md) and [compatibility gaps](doc/COMPATIBILITY_GAPS.md).
 
-The newer accelerator, adaptive C export, Transport Delay, Limited Integrator
-and reorganized source layout are under review in
-[draft PR #4](https://github.com/ShannoonRuaaa/octave-blocks/pull/4).
-They are not included in the `main` preview release.
+The [advanced feature guide](doc/ADVANCED_EXTENSIONS.md), [command API](doc/SIMULINK_API.md)
+and [validation record](doc/VALIDATION.md) describe the supported combinations.
+The broader compatibility goal remains incomplete.
 
 ## Try an example
 
@@ -143,6 +145,9 @@ versioned source ZIPs, SHA-256 checksums and feature notes. Preview releases
 are intended for experimentation. See [CHANGELOG.md](CHANGELOG.md) and
 [release instructions](doc/RELEASING.md).
 
-Distributed under the [MIT license](LICENSE). GNU Octave is a separate dependency.
+The combined distribution is [GPL-3.0-or-later](COPYING), including adapted
+Octave solver code. Original MIT copyright and permission notices are retained
+in [LICENSES/MIT.txt](LICENSES/MIT.txt). Adaptive generated C includes GPL-derived
+solver code; see [licensing and provenance](doc/LICENSING.md). GNU Octave is a separate dependency.
 Octave Blocks is not affiliated with GNU Octave or MathWorks. MATLAB and
 Simulink are trademarks of The MathWorks, Inc.

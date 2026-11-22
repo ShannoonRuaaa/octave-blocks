@@ -1,6 +1,9 @@
-function lines = ob_c_schedule_lines (flat, edges, offsets, state_offsets, sizes, sources = [])
+function lines = ob_c_schedule_lines (flat, edges, offsets, state_offsets, sizes, sources = [], before_eval = {}, after_eval = {})
   % Emit event handling after ob_eval; all scheduling state belongs to instance.
-  if (nargin < 6), sources = ob_c_adjacency (numel(flat.blocks), edges); endif
+  % before_eval runs after the hit commits and before the committed
+  % evaluation (Limited Integrator resets); after_eval runs right after it
+  % (Transport Delay right-limit records), as in ob_runtime_engine.
+  if (nargin < 6 || isempty (sources)), sources = ob_c_adjacency (numel(flat.blocks), edges); endif
   lines = {};
   types = {flat.blocks.type};
   rates = flat.sample_times;
@@ -34,8 +37,10 @@ function lines = ob_c_schedule_lines (flat, edges, offsets, state_offsets, sizes
   for id = find (strcmp(types, 'Rate Transition') & rates(:, 1)' == 0)
     add (sprintf ('  if (output) hit[%d] = 1;', id-1));
   endfor
+  add (before_eval{:});
   add ('  int status = ob_eval(model, time, model->state, model->value, 0, hit, model->state);', ...
        '  if (status != OB_OK) return status;');
+  add (after_eval{:});
   for id = explicit
     add (sprintf ('  if (hit[%d]) {', id-1));
     if (any (id == discrete))

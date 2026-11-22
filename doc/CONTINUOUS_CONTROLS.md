@@ -73,14 +73,14 @@ deactivation, so a held feedthrough output reflects the disable boundary.
 
 Inactive ancestors suppress descendant integration and inner guard evaluation.
 Active enabled ancestors propagate current inputs into nested continuous
-controls. Resetting an ancestor currently reconstructs nested contexts;
-independent descendant reset-policy precedence remains a compatibility gap.
+controls. Descendant Enable state settings take precedence on reactivation;
+see [nested Enable state policies](COMBINED_CONTROLS.md).
 
 Triggered bodies hold their states and outputs between executions. A trigger
 executes its body once using data evaluated at the accepted event time. The
 body still cannot contain continuous Integrators, independent sample clocks,
-or descendants configured with continuous control. Combined enable-and-trigger,
-function-call, and other atomic variants remain outside this implementation.
+or descendants configured with continuous control. Function-call and other
+atomic variants remain outside this implementation.
 
 ## Discrete clocks and elapsed active time
 
@@ -116,11 +116,29 @@ whose equality branch is positive.
 
 ## Trigger initialization and zero plateaus
 
-`initial_control` is a numeric prior-control convention and defaults to zero.
-An initially negative signal can therefore execute a `falling` or `either`
-body at the start time. Set `initial_control = -1` when a matching negative
-prior sign should suppress that startup edge. Matching positive initialization
-can similarly prearm a positive initial signal.
+`initial_control` is the prior control value and defaults to zero. An
+initially negative signal can therefore execute a `falling` or `either` body
+at the start time. Set `initial_control = -1` when a matching negative prior
+sign should suppress that startup edge. Matching positive initialization can
+similarly prearm a positive initial signal. `initial_control = 'compatibility'`
+(Simulink's default trigger state) suppresses whatever edge the first sample
+would make: the first evaluation only records it. These settings apply to
+trigger-only modes. Combined enable-and-trigger modes always behave like
+`'compatibility'` and ignore numeric values (see
+[COMBINED_CONTROLS.md](COMBINED_CONTROLS.md) and
+[CONDITIONAL.md](CONDITIONAL.md#initial-trigger-control)).
+
+Simulink 26.2 recorded root Triggered Subsystems on a continuous cosine
+trigger under ode45 with zero-crossing location, with every trigger state.
+The trigger starts high or low and crosses zero near 0.2528, 0.8778 and
+1.5028. Under `compatibility` none of them executes at t = 0. Under `zero`,
+the rising and either modes execute at t = 0 when the trigger starts high,
+and the falling and either modes when it starts low. A pass-through body
+holds the time of each execution, so the recorded traces also give Simulink's
+located crossing times. Octave Blocks reproduces all 24 traces within
+1.3e-13 with ode45 (`test_ob_simulink_conditional`), and within the 1e-9
+bound that `test_ob_continuous_controls` asserts with rk4 and ode15s.
+Generated RK4 C reproduces Octave exactly.
 
 Continuous timing preserves the most recent edge across unchanged control
 signs. Extra requested outputs or unrelated clock hits on a zero plateau do
@@ -130,8 +148,7 @@ mode retains its existing sample-based plateau convention.
 
 This continuous plateau policy is a defined project behavior. MathWorks'
 documented consecutive-step suppression concerns discrete-time triggering;
-live continuous-plateau compatibility has not been established. The separate
-Simulink first-evaluation compatibility option is also not implemented here.
+live continuous-plateau compatibility has not been established.
 
 ## Event ordering and records
 
@@ -189,7 +206,9 @@ A continuous control requires `zero_crossings=true`; runtime initialization
 and C generation reject the model otherwise. RK4 C export supports declared
 continuous enable/trigger controls through the typed event runtime. Turning
 events off cannot silently convert a declared continuous gate to sampled timing.
-Adaptive solver emission remains unsupported and fails before file replacement.
+The typed event runtime is RK4 only: `ode45` and `ode15s` exports of these
+models fail before file replacement (flat models without events may export
+with `ode45`). The accelerator runs them compiled with `rk4` only.
 See [CODEGEN.md](CODEGEN.md) for options, static-shape restrictions and APIs.
 
 Generated contexts store cumulative `event_count` and `last_event_time` instead
@@ -207,8 +226,8 @@ integration, repeated triggers with current data, triggered Delay capture,
 zero endpoints/plateaus, logical controls, global inner clocks, root clock
 isolation, source jumps, primitive-to-gate ordering, coincident activation,
 nested inactivity, forks/checkpoints, rollback, persistence, and rejection paths.
-Strict generated-C model/API comparisons are in `tests/Test-EventCodegen.ps1`,
-`tests/Test-EventCodegenEdges.ps1` and `tests/Test-EventCodegenHierarchy.ps1`. These are
+Strict generated-C model/API comparisons are in `Test-EventCodegen.ps1`,
+`Test-EventCodegenEdges.ps1` and `Test-EventCodegenHierarchy.ps1`. These are
 regression commands, not a claim that every compatibility case is covered.
 Current completed verification belongs in [VALIDATION.md](VALIDATION.md).
 
@@ -224,10 +243,20 @@ explicit declaration is not equivalent to that propagation. See
 Its trigger-initialization options are described in the
 [Trigger reference](https://www.mathworks.com/help/simulink/slref/trigger.html).
 
-The comparison uses official documentation, analytic reference values, and
-Octave execution. The retained MATLAB environment probe reported no runnable
-Simulink engine; current availability has not been rechecked. No live Simulink
-trajectory or full nested-policy comparison is claimed. Automatic rate
-propagation, nested reset-policy overrides, broader gate variants, implicit
-DAE support and adaptive C emission remain tracked advanced-goal work in
-[COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md).
+Continuous (zero-crossing) controls are compared with official documentation,
+analytic reference values and Octave execution. Simulink 26.2 is installed and
+its recorded traces verify the sampled conditional, combined and nested-reset
+policies (`test_ob_simulink_conditional`). Root trigger-only continuous
+triggers under ode45 are recorded for every initial trigger state (see
+above). `reference_ob_simulink_continuous.m` records continuous Enable
+controls (integrator, feedthrough, Switch and inner-clock bodies, held and
+reset policies) and continuous triggers, including a triggered Unit Delay,
+under ode45 and ode15s; with the primitive crossings of [ZERO_CROSSINGS.md](ZERO_CROSSINGS.md),
+all 50 cases agree within 1.3e-7
+(`test_ob_simulink_extended`). Continuous combined controls, and continuous
+controls inside nested conditional subsystems, have no live variable-step
+trajectory yet. Automatic rate propagation, broader gate variants, implicit
+DAE support and adaptive C emission for event exports remain tracked
+advanced-goal work in [COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md).
+
+Combined enable-and-trigger execution is documented separately in [COMBINED_CONTROLS.md](COMBINED_CONTROLS.md). Both controls receive independent scalar guards.

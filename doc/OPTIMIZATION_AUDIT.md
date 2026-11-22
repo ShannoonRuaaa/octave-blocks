@@ -1,7 +1,7 @@
 # Optimization report audit — 2026-11-13
 
 Status: optimization implementation, full regression verification and measured
-comparison are complete. The publication branch is `codex/optimized-release`,
+comparison are complete. The publication branch is `development/optimized-release`,
 based on published release `2ae43f3`. It contains the optimization changes without
 the separate experimental C event runtime from the local development branch.
 
@@ -61,7 +61,7 @@ measured cutoff, not a claim of a universally optimal threshold.
 - `test_ob_performance_events`: cached/legacy snapshot equality, descriptor order,
   nested clock/output routes, finite/shape rejection and legacy replay.
   Snapshot BIST passed 12/12.
-- Expanded `tests/Test-Editor.ps1` passed. It checks existing selection/drag/Undo/Run
+- Expanded `Test-Editor.ps1` passed. It checks existing selection/drag/Undo/Run
   behavior plus external model/settings/saved-state invalidation, dirty markers,
   deleted graphics and unchanged nonincident wires during branch-consumer drag.
 - Whitespace checks passed before checkpointing.
@@ -75,7 +75,7 @@ The final `Launch-Blocks.ps1 -SelfTest` completed with exit 0:
   API harnesses passed.
 - The expanded Qt editor regression passed.
 
-The isolated `codex/optimized-release` publication branch subsequently passed
+The isolated `development/optimized-release` publication branch subsequently passed
 the same complete gate with exit 0, including the 167 supported C cases and Qt
 checks, without the experimental C event-runtime changes. Its local log is
 `.validation-artifacts/optimization-publication-full-gate.log`; details are in

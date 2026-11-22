@@ -126,7 +126,32 @@ Integrator → Scope and sets the run configuration to `[0 1 0.1]`.
 This implements deterministic numerical rate crossings with sample-and-hold
 semantics. It does not yet implement asynchronous tasks, thread scheduling,
 real-time deadlines, or Simulink's complete set of Rate
-Transition block data-integrity and transfer-delay modes.
+Transition block data-integrity and transfer-delay modes. Simulink 26.2
+recordings (`simulink-inner-clocks-reference.json`, compared by
+`test_ob_simulink_extended`) show the two differences that follow:
+
+- **Deterministic transfer** (Simulink's default: Integrity and
+  Deterministic on). A slow-to-fast Rate Transition outputs the *previous*
+  slow sample, updated only at slow hits: its initial condition at the
+  first slow hit, then each slow value one slow period late. The Octave
+  Blocks Rate Transition passes the current value. A slow Unit Delay
+  (initial condition = the transition's) followed by a Rate Transition at
+  the slow period reproduces Simulink exactly, including the Outport that
+  shares the transition's buffer showing its initial output before the
+  first slow hit. Fast-to-slow transfers agree.
+- **Integrity and Deterministic off.** The logged Rate Transition output is
+  the same 0.25 s staircase in both products, but a continuous Integrator
+  downstream sees the input updated at every major solver step: each ode4
+  step of Simulink's integral adds h·t_n (0.475 at t = 1 with h = 0.05,
+  instead of 0.375). A Rate Transition whose period is the fixed step
+  reproduces that integral. Under ode45 the integral lies between the
+  0.25 s hold and the exact t²/2, as major-step sampling implies.
+
+In enabled bodies with inner clocks, an Outport fed by a Rate Transition
+updates only when the Rate Transition hits. A slow Unit Delay that drives an
+Outport directly shares its buffer, so a faster Rate Transition that samples
+it before its first hit after (re)activation samples the Outport's value;
+see [CONDITIONAL.md](CONDITIONAL.md#when-the-outports-of-a-body-with-inner-clocks-update).
 
 Run `test_ob_multirate` in Octave for explicit/legacy schedules, simultaneous
 hits, offsets, held integration, nested models, validation, and persistence.
@@ -136,7 +161,9 @@ Generated-code timing is verified through the compiled C tests described in
 Enabled bodies now support independent inner clocks in Octave simulation,
 including skipped inactive hits and globally aligned phase on resume. Their
 enclosing clock samples the enable control. Inherited controls additionally
-sample at inner-clock hits. Triggered bodies retain inherited-only execution,
+sample at inner-clock hits (in Octave and in both C exporters, also when
+those hits fall between output times). Triggered bodies retain
+inherited-only execution,
 and C export supports the same enabled inner clocks. See
 [CONDITIONAL.md](CONDITIONAL.md) and `test_ob_enabled_multirate`.
 

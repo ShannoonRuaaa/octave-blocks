@@ -1,1 +1,4 @@
 rmpath (fullfile (fileparts (mfilename ('fullpath')), 'examples'));
+wrapper_path = fullfile(fileparts(mfilename('fullpath')),'simulink');
+if (any(strcmp(strsplit(path(),pathsep()),wrapper_path))), rmpath(wrapper_path); endif
+clear wrapper_path;

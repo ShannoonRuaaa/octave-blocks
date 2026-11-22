@@ -52,6 +52,12 @@ function test_ob_continuous_controls ()
       assert_close (ob_scope_data(sparse,8)', [-9 expected{index}(end)]);
       later_times = execution_times{index}(execution_times{index}>0);
       assert_close (conditional_snapshot(sparse,7).executions,later_times,2e-8);
+      % 'compatibility' only records the first (negative) sample, so it
+      % suppresses the same startup edge without a configured sign.
+      compat = triggered; compat.blocks(7).value.execution.initial_control = 'compatibility';
+      sparse = ob_run (compat,[0 1.8],options);
+      assert_close (ob_scope_data(sparse,8)', [-9 expected{index}(end)]);
+      assert_close (conditional_snapshot(sparse,7).executions,later_times,2e-8);
       % A triggered Unit Delay commits the previous event's data exactly
       % once. Trial/root observations and output requests are not executions.
       delayed = prearmed;
@@ -268,6 +274,22 @@ function test_ob_continuous_controls ()
   legacy = ob_subsystem_template ();
   legacy.execution = struct ('mode','enabled');
   assert (strcmp(ob_execution_options(legacy).control,'sampled'));
+
+  % Simulink 26.2 (ode45) recorded continuous triggers with every
+  % InitialTriggerSignalState; under 'compatibility' a trigger starting
+  % high (rising, either) or low (falling, either) does not execute at t=0.
+  % test_ob_simulink_conditional runs them with ode45; RK4 and ode15s must
+  % locate the same crossing times.
+  simulink = ob_simulink_conditional_cases ();
+  continuous = simulink(strncmp({simulink.name},'probes/continuous_',18));
+  assert (numel(continuous) == 24);
+  for solver = {'rk4','ode15s'}
+    for c = continuous
+      options = c.options; options.solver = solver{1};
+      result = ob_run (c.model,c.times,options);
+      assert (max(abs(ob_scope_data(result,c.scopes) - c.expected)) < 1e-9, c.name);
+    endfor
+  endfor
   disp ('Octave Blocks continuous control tests passed');
 endfunction
 

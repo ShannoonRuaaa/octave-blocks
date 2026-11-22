@@ -16,9 +16,27 @@ function [next, count, times, samples] = ob_flow_segment (model, edges, order, i
     return;
   endif
   initial = pack_states (states, ids);
-  has_flow = !isempty (fieldnames(flow));
+  % numfields is the builtin equivalent of isempty (fieldnames (struct)).
+  has_flow = numfields (flow) > 0;
+  % The trusted plan's evaluation program, as ob_runtime_eval would use it.
+  program = []; parameters = {};
+  if (isfield (model, 'runtime_info'))
+    info = model.runtime_info;
+    if (isfield (info, 'plan') && isscalar (info) && isfield (info, 'kind') ...
+        && strcmp (info.kind, 'octave-blocks-runtime-info-v1') && isfield (info.plan, 'program'))
+      program = info.plan.program; parameters = info.plan.parameters;
+    endif
+  endif
   packed_ids = num2cell (1:numel(ids));
   routes = derivative_routes (model, edges, ids, states);
+  % Flat paths whose states are all scalars unpack solver vectors directly
+  % (the general unpack yields the same double scalars) and pack finite
+  % double scalar derivatives without per-integrator conversion.
+  flat_ids = [];
+  if (all (cellfun ('numel', ids) == 1))
+    candidate = [ids{:}];
+    if (all (cellfun ('prodofsize', states(candidate)) == 1)), flat_ids = candidate; endif
+  endif
   if (strcmp (options.solver, 'rk4'))
     h = finish - begin;
     k1 = rhs (begin, initial);
@@ -40,13 +58,24 @@ function [next, count, times, samples] = ob_flow_segment (model, edges, order, i
   duration = finish - begin;
   monitor_stopped = false; stopped_elapsed = []; stopped_state = [];
   last_monitored_time = begin;
-  settings = odeset ('RelTol', options.reltol, 'AbsTol', options.abstol, ...
-                    'MaxStep', min (options.maxstep, duration), 'Refine', 1);
-  if (! isempty (monitor)), settings = odeset (settings, 'OutputFcn', @accepted_output); endif
-  if (strcmp (options.solver, 'ode15s'))
-    settings = odeset (settings, 'InitialSlope', rhs (begin, initial));
+  maxstep = min (options.maxstep, duration);
+  if (strcmp (options.solver, 'ode45') && isa (options.reltol, 'double') ...
+      && isa (options.abstol, 'double') && isa (maxstep, 'double') ...
+      && ob_dormand_prince ('available'))
+    % ode45 itself, without its per-call option handling (ob_dormand_prince).
+    output = [];
+    if (! isempty (monitor)), output = @accepted_output; endif
+    [elapsed, solution] = ob_dormand_prince (@elapsed_rhs, 0, duration, initial, ...
+                                             options.reltol, options.abstol, maxstep, output);
+  else
+    settings = ob_ode_settings ('RelTol', options.reltol, 'AbsTol', options.abstol, ...
+                                'MaxStep', maxstep, 'Refine', 1);
+    if (! isempty (monitor)), settings = ob_ode_settings (settings, 'OutputFcn', @accepted_output); endif
+    if (strcmp (options.solver, 'ode15s'))
+      settings = ob_ode_settings (settings, 'InitialSlope', rhs (begin, initial));
+    endif
+    [elapsed, solution] = feval (options.solver, @elapsed_rhs, [0 duration], initial, settings);
   endif
-  [elapsed, solution] = feval (options.solver, @elapsed_rhs, [0 duration], initial, settings);
   elapsed = elapsed(:);
   tolerance = 8 * eps (1) * max (realmin(), duration);
   if (numel (elapsed) < 2 || rows (solution) != numel (elapsed) ...
@@ -95,14 +124,32 @@ function [next, count, times, samples] = ob_flow_segment (model, edges, order, i
   endfunction
 
   function derivative = rhs (stage_time, vector)
-    trial = unpack_states (vector, states, ids);
+    if (isempty (flat_ids))
+      trial = unpack_states (vector, states, ids);
+    else
+      trial = states;
+      trial(flat_ids) = num2cell (vector);
+    endif
     left_limit = stage_time >= finish;
     if (left_limit), stage_time = finish; endif
-    if (!has_flow)
+    if (! isempty (program))
+      evaluated = ob_program_eval (program, parameters, model, stage_time, trial, left_limit, flow);
+    elseif (!has_flow)
       evaluated = ob_runtime_eval (model, edges, order, stage_time, trial, left_limit);
     else
       evaluated = ob_runtime_eval (model, edges, order, stage_time, trial, ...
                                    left_limit, [], [], struct (), flow);
+    endif
+    if (! isempty (flat_ids))
+      rates = evaluated(routes);
+      if (all (cellfun ('isclass', rates, 'double')) && all (cellfun ('prodofsize', rates) == 1) ...
+          && all (cellfun ('prodofsize', evaluated(flat_ids)) == 1))
+        derivative = [rates{:}].';
+        % With scalar integrator outputs these are derivatives ()'s checks.
+        if (isreal (derivative) && ! issparse (derivative) && all (isfinite (derivative)))
+          return;
+        endif
+      endif
     endif
     rates = derivatives (evaluated, ids, routes);
     derivative = pack_states (rates, packed_ids);
@@ -178,11 +225,21 @@ function rates = derivatives (current, integrators, routes)
 endfunction
 
 function vector = pack_states (states, ids)
-  parts = cell (numel(ids), 1);
-  for item = 1:numel(ids)
-    value = get_state (states, ids{item});
-    parts{item} = double(value(:));
-  endfor
+  if (all (cellfun ('numel', ids) == 1))
+    values = states([ids{:}]);
+    % Full double scalars concatenate to the same vector without conversion.
+    if (all (cellfun ('isclass', values, 'double')) && all (cellfun ('prodofsize', values) == 1))
+      vector = [values{:}].';
+      return;
+    endif
+    parts = cellfun (@(s) double(s(:)), values, 'UniformOutput', false);
+  else
+    parts = cell (numel(ids), 1);
+    for item = 1:numel(ids)
+      value = get_state (states, ids{item});
+      parts{item} = double(value(:));
+    endfor
+  endif
   vector = vertcat (parts{:});
 endfunction
 

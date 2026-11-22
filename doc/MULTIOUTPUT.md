@@ -57,6 +57,28 @@ numeric-capable output proxies. Internal paths contain zero. Use the signal
 APIs instead of assuming every `result.flat_values` cell is numeric. Context
 copies and MAT checkpoints retain the same mappings and all cached outputs.
 
+## Subsystems with several Outports
+
+A conditional Subsystem with several numbered Outports takes one initial
+output per port and either one disabled-output policy for all of them or one
+per port, like Simulink's per-Outport `OutputWhenDisabled`:
+
+```octave
+child.execution = struct ('mode', 'enabled', 'outputs', {{'held', 'reset', 'held'}}, ...
+                          'initial_outputs', {{-1, 5, -3}});
+```
+
+A scalar initial output is expanded to its port's width, so a 2-element
+port with initial output `-4` shows `[-4 -4]` before its first execution
+and while reset. The width comes from static shape propagation
+(`ob_expand_initial_outputs`, applied by the root runtime initialization),
+so a root-level subsystem whose first evaluation comes after the start also
+holds `[-4 -4]` from `t = 0`. See
+[CONDITIONAL.md](CONDITIONAL.md#states-and-outputs).
+Simulink 26.2 recordings of these cases (three Outports with mixed
+policies, held and reset states, a vector port with a scalar
+`InitialOutput`) agree exactly in `test_ob_simulink_extended`.
+
 ## Generated C subset
 
 C export currently supports one full finite real-double scalar/matrix input
@@ -91,3 +113,7 @@ dimensions, and zero-sign flags are checked by `test_ob_matlab_numeric`.
 JSON input/output zero signs are recorded separately so serialization cannot
 erase them. This proves measured agreement for those cases; it does not
 establish agreement for every MATLAB signature or Simulink block.
+`simulink-multioutput-reference.json` also records two- and three-output
+MATLAB code (a MATLAB System block and a MATLAB Function block) and a
+virtual subsystem with three Outports; all agree in
+`test_ob_simulink_extended`.

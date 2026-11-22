@@ -31,6 +31,11 @@ function cases = test_ob_event_codegen_hierarchy (directory = '', verify = false
        -7 2.125 2.375 2.375 2.625 2.875 3.125; ...
        -5 -5 .25 .25 .5 1 1.25]);
   reset=policy_model('reset','held');
+  add('event_hierarchy_parent_reset_child_held',reset,[0 1.5 .25],[4.125 3.125 1.25],false, ...
+      [-9 3.125 3.375 3.5 3.625 3.875 4.125; ...
+       -7 2.125 2.375 2.375 2.625 2.875 3.125; ...
+       -5 -5 .25 .25 .5 1 1.25]);
+  reset.blocks(3).value.blocks(3).value.execution.states='reset';
   add('event_hierarchy_reset_euler',reset,[0 1.5 .25],[3.625 2.625 1.25],false, ...
       [-9 3.125 3.375 3.5 3.125 3.375 3.625; ...
        -7 2.125 2.375 2.375 2.125 2.375 2.625; ...
@@ -44,6 +49,12 @@ function cases = test_ob_event_codegen_hierarchy (directory = '', verify = false
   add('event_hierarchy_coincident',coincident_model(),[0 1 .25],[1.5 .75 .75],true);
   add('event_hierarchy_simultaneous_channels',simultaneous_model(),[0 1 .25],{[.5;1.5]},true);
   add('event_hierarchy_plateau_memory',plateau_model(),[0 1 .25],.5,true);
+  % One search from the stop .2 counts block 5's crossing (bisected to
+  % .2000000000007276) before block 9's departure from zero at exactly .2,
+  % in guard order; last_event_time is still the latest time, Octave's
+  % events(end).time (checked exactly by the counter harness).
+  bounded=options;bounded.maxstep=.1;
+  add('event_hierarchy_staggered_departure',ob_staggered_enables_example(),[0 .5 .1],[.3 -9],true,[],bounded);
   if (isempty(directory)), return; endif
   if (!exist(directory,'dir')),mkdir(directory);endif
   manifest=struct('name',{},'source',{},'standalone',{},'expected',{});
@@ -77,8 +88,8 @@ function cases = test_ob_event_codegen_hierarchy (directory = '', verify = false
   write_text(fullfile(directory,'event-hierarchy-manifest.json'),jsonencode(manifest));
   fprintf('Prepared %d nested event C compilation/API cases (%d numeric models)\n',numel(manifest),numel(cases));
 
-  function add(name,model,config,wanted,counters=false,trace=[])
-    result=ob_run(model,ob_time_grid(config(1),config(2),config(3)),options);
+  function add(name,model,config,wanted,counters=false,trace=[],settings=options)
+    result=ob_run(model,ob_time_grid(config(1),config(2),config(3)),settings);
     scopes=find(strcmp({model.blocks.type},'Scope'));
     if(!iscell(wanted)),wanted=num2cell(wanted);endif
     assert(numel(scopes)==numel(wanted),['hierarchy scope count: ' name]);
@@ -93,7 +104,7 @@ function cases = test_ob_event_codegen_hierarchy (directory = '', verify = false
           sprintf('hierarchy trace mismatch %s scope %d actual %s expected %s',name,k,mat2str(actual_trace(:)'),mat2str(trace(k,:))));
       endif
     endfor
-    cases(end+1)=struct('name',name,'model',model,'config',config,'options',options,'counters',counters);
+    cases(end+1)=struct('name',name,'model',model,'config',config,'options',settings,'counters',counters);
   endfunction
 endfunction
 
@@ -175,9 +186,12 @@ function text=counter_harness(item,result)
     % A plateau departure at the stop can be reported on the next advance
     % with the previous stop's timestamp. Compare the accepted checkpoint,
     % not a time-filtered final event log that includes future discoveries.
+    % C and Octave locate events with the same bisection arithmetic, so the
+    % last time must be identical: a tolerance would hide a record counted
+    % out of time order (event_hierarchy_staggered_departure).
     events=runtime.events;
     lines{end+1}=sprintf('  assert(model.event_count==%d);',numel(events));
-    if(!isempty(events)),lines{end+1}=sprintf('  assert(fabs(model.last_event_time-(%.17g))<2e-8);',events(end).time);endif
+    if(!isempty(events)),lines{end+1}=sprintf('  assert(model.last_event_time==%.17g);',events(end).time);endif
     lines=[lines {'  saved=model;assert(ob_model_outputs(&model)==OB_OK);', ...
                   '  assert(model.event_count==saved.event_count&&model.last_event_time==saved.last_event_time);'}];
   endfor

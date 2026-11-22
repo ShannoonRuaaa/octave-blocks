@@ -9,6 +9,11 @@ function [inputs, outputs, minimum] = ob_block_ports (block)
       inputs = 2;
     case "Switch"
       inputs = 3;
+    case "Transport Delay"
+      inputs = 1;
+    case "Limited Integrator"
+      params = ob_block_parameters (block);
+      inputs = 1 + ! strcmp (params.reset, 'none');
     case "Function"
       inputs = Inf;
       outputs = ob_function_output_count (block);
@@ -17,6 +22,7 @@ function [inputs, outputs, minimum] = ob_block_ports (block)
       inputs = sum (strcmp (types, "Inport"));
       outputs = sum (strcmp (types, "Outport"));
       if (! strcmp (ob_execution_mode(block.value), 'virtual')), inputs += 1; endif
+      if (ob_is_combined_mode (ob_execution_mode(block.value))), inputs += 1; endif
     otherwise
       error ("ob_block_ports: unknown type '%s'", block.type);
   endswitch

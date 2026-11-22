@@ -6,7 +6,7 @@ continuous controls require that option. The ordinary event-off path retains
 its supported sampled behavior. [CODEGEN.md](CODEGEN.md) describes public use,
 static-shape restrictions, return codes and metadata.
 
-The registered milestone checks passed on `codex/event-c-integration`: 21
+The registered milestone checks passed on `development/event-c-integration`: 21
 Octave suites, 25 BIST checks, 235 strict C99 cases, and the expanded Qt tests.
 All 219 numeric C models matched Octave with worst scaled error 0; sixteen
 API harnesses passed. Verification completed across the retained main run and
@@ -62,7 +62,11 @@ incoming regimes while raw source signals determine guards.
 
 An accepted continuous enable change is separate from an inherited sample.
 Zero-time reconciliation skips unrelated captures, commits and clock advances.
-An accepted trigger intentionally executes its body once, including inherited
+It does not execute an active sampled-control enabled body without flow
+(no continuous states, inner clocks or continuous-control descendants): such
+a body keeps its held outputs between its hits, across input and Step
+boundaries too, as `ob_runtime_eval` does. Bodies with flow are re-evaluated
+without committing a sample. An accepted trigger intentionally executes its body once, including inherited
 capture. Unchanged control signs do not rearm a zero plateau. Enabled inherited
 Euler intervals count active time across pauses; explicit clocks keep root
 phase. Newly active bodies require fresh guard/source-boundary discovery before
@@ -95,8 +99,8 @@ RK4 trajectory exact. Unrepresentable time progress and nonsettling outgoing
 modes fail explicitly. See [ZERO_CROSSINGS.md](ZERO_CROSSINGS.md) and
 [CONTINUOUS_CONTROLS.md](CONTINUOUS_CONTROLS.md) for equality/initialization rules.
 
-Adaptive C solver emission, general guard registration, combined/resettable
+Adaptive C solver emission for event exports, general guard registration, combined/resettable
 gate variants and other gaps remain open in
-[COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md). Retained MATLAB/REA probes do not
-establish live Simulink trajectory agreement; their exact limits are recorded
-in [REFERENCE_EVIDENCE.md](REFERENCE_EVIDENCE.md).
+[COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md). Recorded Simulink traces cover only the
+scenarios listed in [REFERENCE_EVIDENCE.md](REFERENCE_EVIDENCE.md), together with
+their limits.

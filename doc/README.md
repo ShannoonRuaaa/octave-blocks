@@ -12,6 +12,8 @@
 
 ## Developing and reviewing
 
+- [Licensing and solver provenance](LICENSING.md): GPL distribution and retained MIT notices.
+
 - [Package layout](PACKAGE_LAYOUT.md): where code belongs and why.
 - [Review guide](REVIEW_GUIDE.md), [validation](VALIDATION.md),
   [release packaging](RELEASING.md).

@@ -19,20 +19,21 @@ From this `octave-blocks` folder in PowerShell 7:
 ```powershell
 ./Launch-Blocks.ps1                  # Native editor
 ./Launch-Blocks.ps1 -SelfTest        # Octave, compiled C, then Qt graphics checks
-./tests/Test-Codegen.ps1                  # C generation/compilation/comparison only
+./tests/Test-Codegen.ps1             # C generation/compilation/comparison only
 ```
 
 Use `-OctaveHome 'C:\path\to\Octave-11.3.0'` when discovery cannot find the
-installation. `tests/Test-Codegen.ps1` also accepts `-Compiler` and
+installation. `Test-Codegen.ps1` also accepts `-Compiler` and
 `-OutputDirectory`. Its reported artifact folder contains generated sources,
 expected traces, executable output, and a manifest; retain it when reporting a
 failure. A script that reaches source generation has not yet proved C parity:
 the compiler, executables, API harnesses, and final comparison must also pass.
 
-For a focused numerical review, add this folder to Octave's path:
+For a focused numerical review, put the project and its tests on Octave's path:
 
 ```octave
 addpath (pwd ());
+ob_setup ('tests');
 test_ob_runtime ();
 test_ob_enabled_continuous ();
 test_ob_enabled_multirate ();

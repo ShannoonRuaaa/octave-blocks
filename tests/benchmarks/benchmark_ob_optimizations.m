@@ -9,8 +9,8 @@ function report = benchmark_ob_optimizations (source = pwd (), output = '', repe
     error ('benchmark_ob_optimizations: repetitions must be a positive integer');
   endif
   addpath (source);
-  if (exist(fullfile(source,'inst'),'dir'))
-    addpath(fullfile(source,'inst')); addpath(fullfile(source,'inst','examples'));
+  if (exist (fullfile (source, 'ob_setup.m'), 'file'))
+    ob_setup ();  % reorganized tree: src and examples; a flat tree is the folder itself
   endif
   legacy = ob_enabled_continuous_example ();
   continuous = legacy;

@@ -13,7 +13,7 @@ The layout follows GNU Octave's [package structure](https://docs.octave.org/late
 | `tools/` | Release packaging, image generation and editor diagnostics |
 | `ob_setup.m`, `Launch-Blocks.ps1` | Source-checkout setup and Windows launch shortcuts |
 
-Pure Octave code belongs in `inst/`. Octave reserves `src/` for native code
+Pure Octave code belongs in `inst/`. Octave reserves `inst/` for native code
 that must be built; this project currently has no native extension build to
 install. Runtime-generated C is written only to the requested output location.
 

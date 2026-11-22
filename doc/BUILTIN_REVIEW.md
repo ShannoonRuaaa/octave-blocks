@@ -66,4 +66,4 @@ its log is retained separately. No success is claimed for that interrupted run.
   and [DAE interfaces](https://docs.octave.org/latest/Differential_002dAlgebraic-Equations.html).
 - [SUNDIALS IDA](https://sundials.readthedocs.io/en/latest/ida/Introduction_link.html).
 - [Octave control package](https://gnu-octave.github.io/pkg-control/).
-- [OpenBLAS manual](https://www.openmathlib.org/OpenBLAS/docs/user_manual/).
+- [OpenBLAS manual](https://www.openmathlib.org/OpenBLAS/doc/user_manual/).

@@ -1,5 +1,7 @@
 function reference_ob_conditional (file)
   % Run only in MATLAB with Simulink. Build temporary behavioral references.
+  %   reference_ob_conditional ('simulink-conditional-reference.json')
+  % test_ob_simulink_conditional compares that file with Octave Blocks.
   modes = {'enabled','enabled','enabled','rising','falling','either'};
   states = {'held','reset','held','held','held','held'};
   outputs = {'held','held','reset','held','held','held'};
@@ -17,8 +19,11 @@ function reference_ob_conditional (file)
     set_param (name,'SolverType','Fixed-step','Solver','FixedStepDiscrete', ...
                     'FixedStep','1','StartTime','0','ReturnWorkspaceOutputs','on');
     add_block ('simulink/Sources/Digital Clock',[name '/Data'],'SampleTime','1');
+    % R2026b rejects Interpolate off with the default extrapolation after the
+    % final value; StopTime equals the last data time, so holding is neutral.
     add_block ('simulink/Sources/From Workspace',[name '/Control'], ...
-               'VariableName','control_data','Interpolate','off','SampleTime','1');
+               'VariableName','control_data','Interpolate','off', ...
+               'OutputAfterFinalValue','Holding final value','SampleTime','1');
     if strcmp(modes{k},'enabled')
       control = [0 1 1 0 0 1 1];
       add_block ('simulink/Ports & Subsystems/Enabled Subsystem',[name '/Child']);

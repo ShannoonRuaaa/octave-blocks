@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 (development)
+
+- Integrate advanced simulation into the Octave package layout.
+- Add cached compiled acceleration, flat adaptive C export, delay and
+  limited-state blocks, command APIs and recorded reference comparisons.
+- Distribute the combined project under GPL-3.0-or-later, with solver
+  attribution, generated-code notices and retained original MIT grants.
+- Add writable-cache fallback and actionable accelerator-load diagnostics.
+- Use neutral project branch names and current documentation references.
+
 ## 0.2.1 (development)
 
 - Adopt GNU Octave package layout and metadata for `pkg install` and `pkg load`.

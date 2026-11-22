@@ -2,7 +2,7 @@ function test_ob_zc_snapshot_bist ()
   cleanup = ob_test_setup ();
   [passed,total] = test (mfilename("fullpath"), "quiet");
   assert (total > 0 && passed == total);
-  fprintf ("test_ob_zc_snapshot_bist: %d/%d passed\n", passed, total);
+  fprintf ("test_ob_zc_snapshot_bist: %d/%d passed\n",passed,total);
 endfunction
 
 %!test
@@ -146,3 +146,31 @@ endfunction
 %!   fail('ob_zc_snapshot(model,[1 2],current)','finite real scalar');
 %! endfor
 %! fail('ob_zc_snapshot(model,zeros(0,2),{1,state})','control input');
+
+%!test
+%! % With a prepared plan, scalar guards take the scalar branch: the same
+%! % snapshot (values, regimes, descriptors) and the same errors as the
+%! % general branch, and the snapshot is reported simple.
+%! m.blocks = struct ('type', {'Constant','Saturation','Dead Zone','Constant','Constant','Switch','Scope'}, ...
+%!                    'value', {0.7,[-1 0.5],[-1 0.5],2,-2,0.5,[]}, 'name', {'a','b','c','d','e','f','g'}, ...
+%!                    'x', 0, 'y', 0);
+%! m.edges = [1 1 2 1; 1 1 3 1; 4 1 6 1; 1 1 6 2; 5 1 6 3; 6 1 7 1];
+%! prepared = ob_prepare_runtime_model (ob_compile_model (m));
+%! [order, edges] = ob_execution_order (prepared, true);
+%! for value = {0.7, -1, 0.5, 3, -4, 0}
+%!   current = {value{1}, 0, 0, 2, -2, 0, 0};
+%!   [fast, simple] = ob_zc_snapshot (prepared, edges, current);
+%!   [general, general_simple] = ob_zc_snapshot (rmfield (prepared, 'runtime_info'), edges, current);
+%!   assert (simple && ! general_simple);
+%!   assert (isequal (fieldnames (fast.descriptors), fieldnames (general.descriptors)));
+%!   assert (isequal (fast, general));
+%!   assert (isequal (cellfun ('class', fast.flow.modes, 'UniformOutput', false), ...
+%!                    cellfun ('class', general.flow.modes, 'UniformOutput', false)));
+%! endfor
+%! wide = m; wide.blocks(3).value = [-realmax realmax];
+%! prepared = ob_prepare_runtime_model (ob_compile_model (wide));
+%! current = {realmax, 0, 0, 2, -2, 0, 0};
+%! messages = {'', ''};
+%! try ob_zc_snapshot (prepared, edges, current); catch err, messages{1} = err.message; end_try_catch
+%! try ob_zc_snapshot (rmfield (prepared, 'runtime_info'), edges, current); catch err, messages{2} = err.message; end_try_catch
+%! assert (! isempty (messages{1}) && strcmp (messages{1}, messages{2}));

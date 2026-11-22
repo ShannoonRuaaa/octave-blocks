@@ -45,6 +45,13 @@ function ob_validate_model (model, complete = false, depth = 0)
       end_try_catch
     endif
     if (strcmp (block.type, 'Function')), ob_function_output_count (block); endif
+    if (any (strcmp (block.type, {'Transport Delay', 'Limited Integrator'})))
+      try
+        ob_block_parameters (block);
+      catch err
+        error ("ob_validate_model: block %d: %s", id, err.message);
+      end_try_catch
+    endif
     try
       [input_counts(id), output_counts(id), minimums(id)] = ob_block_ports (block);
     catch err

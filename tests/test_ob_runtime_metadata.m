@@ -1,6 +1,7 @@
 function test_ob_runtime_metadata ()
   test_path_cleanup = ob_test_setup ();
   % Input routes are canonical port order, independent of wire row order.
+  private_path = ob_test_private_path ();  % calls src/private functions directly
   model = ob_oscillator ();
   model.blocks(1).type = model.blocks(2).type = 'Constant';
   model.blocks(1).value = 2; model.blocks(2).value = 3;

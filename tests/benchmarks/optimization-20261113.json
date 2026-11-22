@@ -2,7 +2,7 @@
   "date": "2026-11-13",
   "octave_version": "11.3.0",
   "baseline_commit": "8aeec48",
-  "optimized_branch": "codex/performance-audit",
+  "optimized_branch": "development/performance-audit",
   "method": "Same-process interleaved ABBA/BAAB order over three rounds; functions cleared and source path asserted between versions. Runtime/graph/input: one warm-up before each timing. UI: initial warm-up for each version; fresh figure creation and initial draw excluded from each 12-click measurement. Six samples per version/case.",
   "version_labels": {
     "1": "baseline",

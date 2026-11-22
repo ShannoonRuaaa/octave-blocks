@@ -14,11 +14,12 @@ function options = ob_execution_options (model, check_body = true)
       options.(field{1}) = supplied.(field{1});
     endfor
   endif
-  if (! ischar (options.mode) || ! any (strcmp (options.mode, {'virtual','enabled','rising','falling','either'})))
-    error ('ob_execution_options: mode must be virtual, enabled, rising, falling, or either');
-  endif
+  options.mode = ob_execution_mode (model);
   if (! ischar (options.control) || ! any (strcmp (options.control, {'sampled','continuous'})))
     error ('ob_execution_options: control must be sampled or continuous');
+  endif
+  if (ob_is_resettable_mode(options.mode) && !strcmp(options.control,'sampled'))
+    error ('ob_execution_options: resettable subsystems currently require sampled reset');
   endif
   if (strcmp (options.mode, 'virtual'))
     % Conditional output contracts do not constrain a virtual interface.
@@ -28,13 +29,24 @@ function options = ob_execution_options (model, check_body = true)
     options.control = 'sampled';
     return;
   endif
-  for field = {'states','outputs'}
-    if (! ischar (options.(field{1})) || ! any (strcmp (options.(field{1}), {'held','reset'})))
-      error ('ob_execution_options: states and outputs must be held or reset');
+  if (! ischar (options.states) || ! any (strcmp (options.states, {'held','reset'})))
+    error ('ob_execution_options: states and outputs must be held or reset');
+  endif
+  % outputs is one policy for every numbered Outport, or a cell with one
+  % policy per Outport in port order (Simulink's per-Outport
+  % OutputWhenDisabled).  The value is kept as given so it round-trips.
+  if (iscell (options.outputs))
+    if (numel (options.outputs) != count ...
+        || ! all (cellfun (@(p) ischar (p) && any (strcmp (p, {'held','reset'})), options.outputs)))
+      error ('ob_execution_options: outputs must be held or reset, or a cell with one held/reset per numbered Outport');
     endif
-  endfor
+    options.outputs = reshape (options.outputs, 1, []);
+  elseif (! ischar (options.outputs) || ! any (strcmp (options.outputs, {'held','reset'})))
+    error ('ob_execution_options: states and outputs must be held or reset');
+  endif
   if (! any (strcmp (options.mode, {'virtual','enabled'})) ...
-      && (! strcmp (options.states, 'held') || ! strcmp (options.outputs, 'held')))
+      && ! ob_is_combined_mode (options.mode) ...
+      && (! strcmp (options.states, 'held') || ! all (strcmp (options.outputs, 'held'))))
     error ('ob_execution_options: triggered subsystems require held states and outputs');
   endif
   if (! iscell (options.initial_outputs) || numel (options.initial_outputs) != count)
@@ -49,18 +61,41 @@ function options = ob_execution_options (model, check_body = true)
     endif
     options.initial_outputs{port} = full (double (value));
   endfor
-  if (! isnumeric (options.initial_control) || ! isreal (options.initial_control) ...
-      || ! isscalar (options.initial_control) || ! isfinite (options.initial_control))
-    error ('ob_execution_options: initial_control must be a finite real scalar');
+  % initial_control is the prior trigger value (its sign matters), or
+  % 'compatibility': Simulink's default InitialTriggerSignalState, under
+  % which the first evaluation records the sample without triggering.
+  if (ischar (options.initial_control))
+    if (! strcmp (options.initial_control, 'compatibility'))
+      error ('ob_execution_options: initial_control must be a finite real scalar or ''compatibility''');
+    endif
+    if (ob_is_resettable_mode (options.mode))
+      error ('ob_execution_options: initial_control ''compatibility'' applies to trigger modes, not resettable subsystems');
+    endif
+  else
+    if (! isnumeric (options.initial_control) || ! isreal (options.initial_control) ...
+        || ! isscalar (options.initial_control) || ! isfinite (options.initial_control))
+      error ('ob_execution_options: initial_control must be a finite real scalar or ''compatibility''');
+    endif
+    options.initial_control = double (options.initial_control);
   endif
-  options.initial_control = double (options.initial_control);
   if (check_body && ! strcmp (options.mode, 'virtual'))
     require_body (model, strcmp (options.mode, 'enabled'));
+    if (ob_is_resettable_mode(options.mode)), require_virtual_descendants (model); endif
   endif
 endfunction
 
+function require_virtual_descendants (model)
+  for id = reshape(find(strcmp({model.blocks.type},'Subsystem')),1,[])
+    child = model.blocks(id).value;
+    if (!strcmp(ob_execution_mode(child),'virtual'))
+      error ('ob_execution_options: resettable bodies currently allow only virtual descendants');
+    endif
+    require_virtual_descendants(child);
+  endfor
+endfunction
+
 function require_body (model, continuous)
-  if (! continuous && any (strcmp ({model.blocks.type}, 'Integrator')))
+  if (! continuous && any (ismember ({model.blocks.type}, {'Integrator', 'Limited Integrator'})))
     error ('ob_execution_options: triggered bodies require discrete blocks; continuous Integrator is not supported');
   endif
   rates = ob_sample_times (model);

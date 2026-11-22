@@ -34,7 +34,7 @@ $octaveArtifacts = $artifactRoot.Replace('\', '/').Replace("'", "''")
 $codegenPreviousPath = $env:PATH
 try {
     $env:PATH = $binRoot + [IO.Path]::PathSeparator + (Split-Path -Parent $Compiler) + [IO.Path]::PathSeparator + $env:PATH
-    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); ob_setup(); addpath(fullfile('$octaveSource','tests')); test_ob_codegen('$octaveArtifacts');"
+    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); ob_setup('tests'); test_ob_codegen('$octaveArtifacts');"
     if ($LASTEXITCODE -ne 0) { throw 'C export preparation failed.' }
     $cases = Get-Content -LiteralPath (Join-Path $artifactRoot 'manifest.json') -Raw | ConvertFrom-Json
     foreach ($case in $cases) {
@@ -51,7 +51,7 @@ try {
             $output | Set-Content -LiteralPath (Join-Path $artifactRoot ($case.name + '.csv')) -Encoding utf8NoBOM
         } else { $output | Write-Output }
     }
-    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); ob_setup(); addpath(fullfile('$octaveSource','tests')); verify_ob_codegen('$octaveArtifacts');"
+    & $octaveExecutable --quiet --eval "addpath('$octaveSource'); ob_setup('tests'); verify_ob_codegen('$octaveArtifacts');"
     if ($LASTEXITCODE -ne 0) { throw 'Generated C differs from Octave.' }
     Write-Output "Code generation verification passed. Artifacts: $artifactRoot"
 } finally { $env:PATH = $codegenPreviousPath }

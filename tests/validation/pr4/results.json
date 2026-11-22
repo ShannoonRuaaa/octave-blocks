@@ -1,0 +1,169 @@
+{
+  "validated_revision": "7cc42c7206b1035ad1dcecfbf0b48de819aae9d1",
+  "baseline_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+  "environment": {
+    "octave": "GNU Octave (x86_64-w64-mingw32) version 11.3.0",
+    "powershell": "7.6.9",
+    "platform": "Windows x64"
+  },
+  "coverage": "20 stages passed across two source-frozen runs; not a single uninterrupted all-pass run",
+  "changed_source_files": [
+    "inst/ob_accelerate.m",
+    "tests/test_ob_accelerate.m"
+  ],
+  "affected_stages_rerun": [
+    "api",
+    "reference-benchmarks",
+    "package",
+    "accelerator"
+  ],
+  "baseline_failed_stages": [
+    "api",
+    "accelerator",
+    "package"
+  ],
+  "all_required_stages_passed": true,
+  "stages": [
+    {
+      "stage": "engine",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 98.5072403
+    },
+    {
+      "stage": "conditional",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 370.0046191
+    },
+    {
+      "stage": "systems",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 293.4733557
+    },
+    {
+      "stage": "audit",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 30.7589928
+    },
+    {
+      "stage": "embedded",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 13.2487974
+    },
+    {
+      "stage": "performance",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 68.0098571
+    },
+    {
+      "stage": "api",
+      "exit_code": 0,
+      "source_revision": "7cc42c7206b1035ad1dcecfbf0b48de819aae9d1",
+      "seconds": 92.8497611
+    },
+    {
+      "stage": "reference-conditional",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 183.2626021
+    },
+    {
+      "stage": "events",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 679.3935532
+    },
+    {
+      "stage": "accelerator",
+      "exit_code": 0,
+      "source_revision": "7cc42c7206b1035ad1dcecfbf0b48de819aae9d1",
+      "seconds": 210.6261734
+    },
+    {
+      "stage": "reference-benchmarks",
+      "exit_code": 0,
+      "source_revision": "7cc42c7206b1035ad1dcecfbf0b48de819aae9d1",
+      "seconds": 93.3962742
+    },
+    {
+      "stage": "reference-extended",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 392.7682952
+    },
+    {
+      "stage": "c-input",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 5.6263167
+    },
+    {
+      "stage": "c-codegen",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 240.3787229
+    },
+    {
+      "stage": "c-edges",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 12.6011943
+    },
+    {
+      "stage": "c-combined",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 244.2914134
+    },
+    {
+      "stage": "package",
+      "exit_code": 0,
+      "source_revision": "7cc42c7206b1035ad1dcecfbf0b48de819aae9d1",
+      "seconds": 17.3482054
+    },
+    {
+      "stage": "c-hierarchy",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 48.7816325
+    },
+    {
+      "stage": "c-event",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 205.3563178
+    },
+    {
+      "stage": "editor",
+      "exit_code": 0,
+      "source_revision": "84c458e37ba869b14206948e2589e70ca1308f8d",
+      "seconds": 38.7998979
+    }
+  ],
+  "known_differences": {
+    "extended_reference": {
+      "agree": 75,
+      "documented_differences": 3
+    },
+    "delay_integrator_reference": {
+      "agree": 22,
+      "documented_differences": 29
+    },
+    "benchmark_reference": {
+      "agree": 4,
+      "documented_differences": 5
+    },
+    "conditional_reference": {
+      "matched": 304,
+      "documented_differences": 0
+    }
+  },
+  "accelerator_cases": 74,
+  "accelerator_worst_scaled_error": 1.97e-16,
+  "performance_claims": "Not remeasured during validation."
+}

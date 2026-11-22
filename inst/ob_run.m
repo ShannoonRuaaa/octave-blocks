@@ -7,6 +7,24 @@ function result = ob_run (model, t, options = struct ())
     error ('ob_run: t must be a nonempty, strictly increasing numeric vector');
   endif
   t = double (t(:)');
+  if (! isequal (options.accelerate, false))
+    % Compiled C through a cached MEX build (ob_accelerate).  'auto' falls
+    % back to interpretation only when the model is outside the C subset, no
+    % compiler is available, or a Transport Delay history outgrows every
+    % compiled capacity tried; other runtime failures of the C model are
+    % errors (the interpreter would fail the same way).
+    try
+      result = ob_accelerate (model, t, options);
+      return;
+    catch err
+      if (! strcmp (options.accelerate, 'auto') ...
+          || ! any (strcmp (err.identifier, {'octave_blocks:accelerate_unsupported', ...
+                                             'octave_blocks:accelerate_unavailable', ...
+                                             'octave_blocks:accelerate_capacity'})))
+        rethrow (err);
+      endif
+    end_try_catch
+  endif
   runtime = ob_runtime_init (model, t(1), options);
   values = cell (numel (t), numel (runtime.model.blocks));
   values(1, :) = runtime.current;

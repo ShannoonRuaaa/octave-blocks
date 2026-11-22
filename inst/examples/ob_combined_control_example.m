@@ -1,0 +1,13 @@
+function model = ob_combined_control_example ()
+  % Data, Enable, Trigger are consecutive ports; disabled trigger edges are observed.
+  child = ob_subsystem_template ();
+  child.blocks(2).type = 'Unit Delay'; child.blocks(2).value = 0;
+  child.execution = struct ('mode','enabled_rising','initial_outputs',{{-1}});
+  model.blocks = struct ('type',{'Time','Inport','Inport','Subsystem','Scope'}, ...
+      'value',{[],1,2,child,[]}, ...
+      'name',{'Time','Enable','Trigger','Enabled and triggered delay','Output'}, ...
+      'x',{.12,.12,.12,.53,.87}, 'y',{.8,.5,.2,.5,.5});
+  model.edges = [1 1 4 1;2 1 4 2;3 1 4 3;4 1 5 1];
+  model.inputs = {ob_input_signal(0:6,[0;1;1;0;0;1;1]), ...
+                  ob_input_signal(0:6,[-1;1;-1;1;-1;1;-1])};
+endfunction

@@ -1,4 +1,10 @@
-# Optimization measurements
+# Benchmarks and measurements
+
+The [shared engine benchmark set](#shared-engine-benchmark-set-2026-11-21) at the end
+of this file is the current one. The sections before it record earlier
+measurements.
+
+## Optimization measurements (2026-11-13)
 
 `optimization-20261113.json` contains the recorded timing samples, analytical
 checksums, CPU times, integration steps and event counts used in
@@ -6,7 +12,7 @@ checksums, CPU times, integration steps and event counts used in
 version 2 is the optimized source. The baseline's benchmarked runtime, graph,
 input and editor files also match the published `2ae43f3` release. Use that public
 commit as the reproduction baseline; `8aeec48` identifies the original local
-measurement checkout. The optimized production files on `codex/optimized-release`
+measurement checkout. The optimized production files on `development/optimized-release`
 are identical to the measured development version.
 
 Three rounds alternate A/B/B/A and B/A/A/B, giving six samples for each version
@@ -56,3 +62,50 @@ and the printed sample precision. It shows an indexing improvement but no
 material total generation gain. The overlay isolates indexing from the event,
 input and UI changes; it does not benchmark the whole PR as one transformation.
 See [PR2_AUDIT.md](../../doc/PR2_AUDIT.md) for findings and measured scope.
+
+## Shared engine benchmark set (2026-11-21)
+
+[ob_benchmark_models.m](ob_benchmark_models.m) defines nine cases used by the
+interpreter benchmark, the accelerator benchmark and the recorded Simulink
+timings: `oscillator_rk4`, `oscillator_ode45`, `dde_rk4`, `dde_ode45`,
+`mackey_rk4`, `mackey_ode45` (its production term is the `.m` Function
+[ob_bench_mackey_term.m](ob_bench_mackey_term.m)), `control_zc_ode45`,
+`conditional_rk4` and `linear10_rk4`. Run from the repository root after
+`addpath (pwd ()); ob_setup ('tests');`, which puts this folder, `inst/` and
+`examples/` on the path.
+
+### Interpreter
+
+`benchmark_ob_engine (SOURCE)` times the nine cases for one source tree.
+`benchmark_ob_engine ({TREE1, TREE2, ...}, 'rounds', N, 'output', FILE)`
+interleaves any number of source trees in one Octave process: with two trees
+each round runs them A B B A (B A A B in even rounds), with three or more in
+the order 1 2 ... n n ... 2 1, clearing functions and rebuilding the
+path before every run. Use several rounds: on a shared machine single-round
+ratios moved by up to about 0.15 (`conditional_rk4` read 1.10 in one round and
+1.01 over three).
+
+Each run is fingerprinted. The fingerprint walks every numeric and logical
+value of `flat_values`, including conditional snapshots, together with a
+structure signature, the output times, the integration steps and the event
+times. Fields named in `'ignore_fields'` (default `runtime_info` and
+`options`, which are configuration) are left out. The report gives median wall
+times, ratios, the geometric-mean speedup and whether the versions were
+bit-identical.
+
+Final measurements are in [RUNTIME_PERFORMANCE.md](../../doc/RUNTIME_PERFORMANCE.md):
+2.74x geometric mean against the engine before the speed work (2.1–4.9x per
+case, 1.5x for `conditional_rk4`), 1.28x for the second pass over the first,
+bit-identical results.
+
+### Accelerator
+
+`benchmark_ob_accelerator (repeats, FILE)` compiles each case into a fresh
+temporary cache, reports export and compile time separately, interleaves
+interpreted and accelerated runs (A B B A) and takes the median of `repeats`
+warm accelerated calls. When `simulink-benchmark-reference.json` exists it
+adds Simulink's recorded `sim()` times and the largest difference from
+Simulink's outputs. Eight of the nine cases are accelerated
+(`control_zc_ode45`, ode45 with zero crossings, stays interpreted), 66–261
+times faster than the interpreter with identical results; see
+[CODEGEN.md](../../doc/CODEGEN.md#accelerated-simulation).

@@ -1,65 +1,230 @@
 # Validation report
 
-## GNU Octave package layout — 2026-11-22
+## Advanced package integration — 2026-11-22
 
-The root now contains project entry points and package metadata. Public
-functions install from `inst/`; shared implementation lives in
-`inst/private/`, examples in `inst/examples/`, and documentation in `doc/`.
-The compiler's multiple-output Function helper is a subfunction of its
-only production caller. `DESCRIPTION`, `COPYING`, `INDEX` and `NEWS`
-enable native Octave package installation and categorized discovery.
+All twenty required stages are covered by successful runs on the integrated
+Octave package. Portable [evidence](../tests/validation/pr4/README.md) includes
+machine-readable results, final source hashes, both runs' manifests and logs.
 
-Fresh checks on GNU Octave 11.3.0 on Windows:
+The initial full run on `84c458e` passed seventeen stages. Three failed at
+MEX compilation because Windows' linker split a spaced scratch path. The
+only code changes in `7cc42c7` fix the compiler's relative scratch paths,
+restore its directory/environment and add a spaced-path regression. API,
+accelerator, package and shared benchmark stages were rerun and passed.
+Source hashes stayed unchanged within each run and all other code hashes
+match between revisions. This was two-run coverage, not one uninterrupted
+all-pass gate; original failures are retained in the evidence.
 
-- Isolated package installation, loading, categorized description, example
-  discovery, oscillator simulation, C export and unloading passed. The
-  user package list was not changed. Normal loading exposes neither the
-  test suites nor the shared private exporter functions.
-- Source-checkout codegen metadata/adjacency, MATLAB numeric reference and
-  subsystem regressions passed.
-- Multiple-output Function tests, nine graph-order cases and twelve guard
-  snapshot cases passed. A multi-output model exported, compiled with strict
-  C99 warnings as errors, and executed successfully after helper grouping.
-- Seven compiled event-edge cases passed; six numerical models matched
-  Octave with worst scaled error 0, including overflow and rollback checks.
-- Qt retained graphics and editor event-export checks passed; two exact
-  compiled editor exports (16 channels) matched with scaled error 0.
-- Local documentation links and PowerShell runner syntax checks passed.
+- Accelerator: 74 cases, worst scaled error 1.97e-16, including callbacks,
+  unsupported-mode fallback, cache reuse, spaced paths, capacity retries
+  and failures. The final cleanup emits harmless missing-path warnings for
+  temporary loaded-cache directories removed during the test.
+- Installed package: isolated install/load, API wrappers, simulation,
+  acceleration, GPL notices in adaptive C, strict C99 compilation/execution
+  and unloading passed. No user package registry was changed.
+- C gates: codegen 222 compiled cases/209 compared models, worst scaled
+  error 3.33e-16; combined 175; event 94/89; edges 7/6; hierarchy 17/13.
+  Event/combined comparisons had worst scaled error 0. Input lookup and
+  numeric formatting oracles passed as well.
+- Qt editor, advanced block dialogs and exact event exports passed.
+- API: 69 cases and 158 recorded reference checks. Conditional references:
+  304 matches, worst absolute error 1.25011e-13. Extended references:
+  75 agree and 3 known differences. Delay/Integrator: 22 agree and 29 known
+  differences. Shared benchmarks: 4 agree, 5 known differences, with compiled
+  runs working for the eight supported models.
+- Engine, systems, performance regression, metadata audit and embedded
+  regression stages passed. Historical timing claims were not remeasured.
 
-The first isolated install failed because Windows' system tar could not
-resolve Octave's Unix-style path. Using Octave's bundled `usr/bin` tools
-resolved that issue; this environment also required desktop permissions for
-the MSYS runtime. Package testing used a private prefix under
-`tests/.artifacts/package-review/`.
+The combined distribution is GPL-3.0-or-later with original MIT notices
+retained. See [solver provenance and generated-code terms](LICENSING.md).
 
-The complete application gate was not rerun for this organization change.
+Sections are dated and kept as recorded, newest first. Limits stated in older
+sections may since have been lifted; current scope and gaps are in
+[COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md).
 
-## Test-folder consolidation — 2026-11-22
+## Final gate — 2026-11-22
 
-Suites, PowerShell runners, codegen fixtures, embedded regression checks,
-reference producers/data and performance benchmarks now live under `tests/`.
-`tests/Run-Tests.ps1` owns the full gate; `Launch-Blocks.ps1 -SelfTest`
-delegates to it. Compiled output and logs default to ignored
-`tests/.artifacts/`; Octave suites redirect scratch files to its `scratch/`
-folder temporarily and restore the original path and environment on exit.
+This gate ran on the final code of the interpreter speed work, the
+accelerator, flat `ode45` and Transport Delay/Limited Integrator C export,
+the conditional Outport and initial-trigger work, and the extended Simulink
+references. Environment: GNU Octave 11.3.0 on Windows with its bundled GCC.
+PowerShell 7 was not available, so the `Launch-Blocks.ps1 -SelfTest` steps
+were replicated in bash: Octave suites in `octave-cli`, and for each C gate
+Octave preparation, gcc compile, run, then Octave verification. MATLAB was
+not run by the tests.
 
-Focused verification for this path-only change, GNU Octave 11.3.0 on Windows:
+References: on the evening of 2026-11-21 (local time) the 13 MATLAB
+producers other than `reference_ob_simulink_benchmarks.m` were rerun in one MATLAB R2026b Update 1
+session; every regenerated JSON was identical to the checked-in file except
+wall-clock timing fields. `simulink-benchmark-reference.json` is kept from its
+own producer run, because its timings need a quiet machine. See
+[REFERENCE_EVIDENCE.md](REFERENCE_EVIDENCE.md#live-simulink-references).
 
-- Extracted embedded cases: 9 graph-order, 4 edge and 12 snapshot checks passed.
-- Editor core, MATLAB numeric reference, runtime metadata, dmperm ordering,
-  codegen metadata/adjacency, subsystems, multiple outputs and performance
-  graph/metadata suites passed.
-- Relocated C input gate: 222,775 lookup checks and 4,123 formatting cases passed.
-- Relocated event-edge gate: seven compiled cases, six compared models, worst
-  scaled error 0; overflow, rollback and retry checks passed.
-- Relocated Qt gate: retained graphics and event export checks passed; two
-  editor-generated C models (16 channels) matched Octave with scaled error 0.
-- Runner syntax and local documentation links passed. No test/benchmark
-  runners remain in the project root and no embedded tests remain in the
-  production root/private files.
+Simulink comparisons:
 
-The full numerical/C application gate was not rerun for the relocation.
-Older dated sections below describe the original paths and runs.
+| Suite | Result |
+| --- | --- |
+| `test_ob_simulink_conditional` | 304 cases matched (worst 1.25e-13), 0 documented differences |
+| `test_ob_simulink_extended` | 78 cases: 75 agree, 3 documented differences (deterministic Rate Transition transfer; Rate Transition with data integrity off under ode4 and ode45) |
+| `test_ob_simulink_delay_integrator` | 22 agree, 29 documented differences |
+| `test_ob_simulink_api_reference` | 158 checks |
+| `test_ob_simulink_benchmarks` | 4 agree, 5 documented differences (delay interpolation, chaos, ode4 Step), interpreted and accelerated |
+| `test_ob_delay_matlab` | Passed against MATLAB `dde23` |
+
+Other Octave suites, each of which printed its pass message (see the note on
+job exit codes below):
+
+- Engine and editor core: `test_ob_run`, `test_ob_editor_core`,
+  `test_ob_solvers`, `test_ob_subsystems`, `test_ob_inputs`,
+  `test_ob_multirate`, `test_ob_controls`, `test_ob_runtime`,
+  `test_ob_runtime_metadata`.
+- Conditional, algebraic and event suites: `test_ob_conditional`, `test_ob_enabled_continuous`,
+  `test_ob_enabled_multirate`, `test_ob_linear_systems`,
+  `test_ob_matlab_numeric`, `test_ob_multioutput`, `test_ob_combined_controls`,
+  `test_ob_nested_reset` (38 cases), `test_ob_algebraic`,
+  `test_ob_zero_crossings`, `test_ob_continuous_controls` (rk4, ode45, ode15s).
+  `test_ob_zero_crossings` now also covers continuous controls that reach zero
+  exactly at a stop: one record at the stop, merged arrival/departure, touch
+  records, and time-ordered records when a departure at the stop and a later
+  crossing are found by one search.
+- Performance: `test_ob_performance_graph`, `test_ob_performance_metadata`,
+  `test_ob_performance_events` and `test_ob_runtime_fast_paths` (golden
+  fingerprints from the engine before the speed work; packed solver stages
+  against the general cell path; the prepared plan against the general paths;
+  the evaluation program against a plan without it, with identical errors).
+- Code generation audit: `test_ob_codegen_metadata`,
+  `test_ob_codegen_adjacency`, `test_ob_builtin_controls`,
+  `test_ob_transfer_builtin`,
+  `test_ob_advanced_simulink`, `test_ob_c_event_inventory`.
+- Blocks and API: `test_ob_delay_integrator` (65 cases), `test_ob_simulink_api`
+  (69 cases).
+- Accelerator: `test_ob_accelerate`, 72 cases. 54 models are compared field by
+  field with interpreted runs (eight benchmark cases, 14 further flat rk4, 9
+  ode45, 17 typed rk4, 5 with user Functions and a delay feedback model that
+  needs a capacity retry); worst scaled error 2.0e-16, 0 for all rk4 models.
+
+BIST files, all passed: `ob_execution_order.m`, `ob_edges.m`,
+`ob_block_parameters.m`, and with the private folder on the path
+`private/ob_zc_snapshot.m`, `private/ob_transport_delay.m`,
+`private/ob_ode_settings.m` and `private/ob_dormand_prince.m` (bit-identical
+to Octave 11.3 `ode45`, including a monitor stop).
+
+C gates, all compiled with `-std=c99 -O2 -Wall -Wextra -Werror`:
+
+| Gate | Compiled cases | Compared models | Worst scaled error |
+| --- | ---: | ---: | --- |
+| codegen | 222 | 209 | 3.3e-16 (10 ode45 models at tolerance 1e-9; the 199 others 0) |
+| combined | 175 | 175 | 0 |
+| combined advanced | 26 | 26 | 0 |
+| event | 94 | 89 (769 channels) | 0 |
+| event edges | 7 | 6 (30 channels) | 0 |
+| event hierarchy | 17 | 13 (96 channels) | 0 |
+
+The codegen gate includes 34 Transport Delay/Limited Integrator models (30 rk4,
+4 ode45), Transport Delay overflow and in-place rollback harnesses, and ode45
+step-failure and rollback tests. The Qt editor suites (`Test-Editor.ps1`,
+including `test_ob_editor_advanced`) and the C input-lookup gate were run
+separately and passed.
+
+Job exit codes: the gate's `summary.txt` records exit status 1 for three of
+its 18 jobs. The engine/editor-core job and the code-generation-audit job
+printed a pass for every suite in their command lists and then stopped on a
+call to a function that is not in those lists and needs arguments (the
+fixture `test_ob_multi_function` and the generator `test_ob_c_event_math`).
+The codegen C job exited after 9 seconds; its log, rewritten at 00:30 after
+the summary (00:26), records the full pass given in the table above, and the
+audit job's log was likewise rewritten after the summary. `test_ob_dmperm_order`,
+in the audit job's list, prints nothing, so the log does not confirm it
+directly (the suites listed before and after it printed their passes).
+
+Performance on the final code:
+
+- Interpreter (`benchmarks/benchmark_ob_engine`, interleaved, bit-identical
+  results): 2.74x geometric mean against the engine before the speed work,
+  2.1–4.9x per case except `conditional_rk4` (1.5x); the second pass added
+  1.28x over the first. See [RUNTIME_PERFORMANCE.md](RUNTIME_PERFORMANCE.md).
+- Accelerator (`benchmarks/benchmark_ob_accelerator`): 8 of the 9 benchmark
+  cases are accelerated (`control_zc_ode45`, ode45 with zero crossings, stays
+  interpreted), 66–261 times faster than the interpreter, scaled error 0
+  against interpreted runs. See [CODEGEN.md](CODEGEN.md#accelerated-simulation).
+- Against Simulink 26.2 (`simulink-benchmark-reference.json`): warm `sim()`
+  0.10–0.14 s, Fast Restart 0.026–0.046 s. The interpreter is roughly 25–165
+  times slower than warm `sim()` (32–165 in this gate's run, 25–142 in
+  [RUNTIME_PERFORMANCE.md](RUNTIME_PERFORMANCE.md) run D; Mackey-Glass is
+  the slowest case). Warm accelerated calls take 0.14–0.30 times
+  Simulink's warm `sim()` time, except Mackey-Glass, whose `.m` Function is
+  called back into Octave (about 2.2 times).
+
+Timings come from a shared machine; only the interleaved ratios are
+meaningful.
+
+## Live Simulink parity — 2026-11-21
+
+Simulink 26.2 (MATLAB R2026b Update 1) is installed and licensed. These
+Octave tests compare against references recorded in MATLAB by the checked-in
+`reference_ob_*.m` producers. All of those producers were rerun in a single
+MATLAB session to create the checked-in JSON. The tests themselves do not run
+MATLAB; see [REFERENCE_EVIDENCE.md](REFERENCE_EVIDENCE.md#live-simulink-references-2026-11-21).
+
+- `test_ob_simulink_conditional()`: the recorded conditional, combined, nested-reset and probe traces, sample by sample. 186 cases match (worst 5.7e-14), plus 6 documented compatibility-mode differences.
+- `test_ob_simulink_delay_integrator()`: 51 Transport Delay and Integrator models. 22 agree; 29 show an asserted, documented difference.
+- `test_ob_simulink_api_reference()`: the command API against recorded Simulink behaviour, in 154 checks.
+- `test_ob_delay_matlab()`: delay differential equations against MATLAB `dde23`.
+
+The C export checks include 40 Simulink-probe C cases, compared with the
+Simulink traces, and an API-built Switch/Gain model (`ob_simulink_codegen_case`).
+Full gate for this change: 35 Octave suites, 5 BIST files and the 3 Qt editor
+suites passed. Six C gates ran 388 strict C99 compilation/execution cases
+(`-std=c99 -O2 -Wall -Wextra -Werror`), with worst scaled error 0 for every
+compared model:
+
+| Gate | Compiled cases | Compared models |
+| --- | --- | --- |
+| codegen | 168 | 158 |
+| combined | 123 | 123 |
+| combined advanced | 26 | 26 |
+| event | 49 | 44 (398 channels) |
+| event edges | 7 | 6 (30 channels) |
+| event hierarchy | 15 | 12 (84 channels) |
+
+The C input lookup gate passed 115,368 checks. PowerShell 7 was not
+available, so the `Test-*.ps1` steps were replicated in bash: Octave
+preparation, gcc compile, run, then Octave verification. The Qt editor's own
+export-compile step was not run in this pass.
+
+## Combined enable and trigger controls — 2026-11-17
+
+The registered checks passed using separate numerical/C and desktop-enabled
+Qt runs against unchanged hashes of 158 source and test files:
+
+- 27 Octave suites and 25 BIST checks.
+- 269 strict C99 compilation/execution cases: 247 numerical models, seventeen
+  API harnesses and five helper executables. Worst scaled numerical error: 0.
+- The new combined-control subset comprises 27 C models and 172 numerical
+  channels, covering trigger directions, held/reset policies, separate
+  continuous guards, matrix data and a nested clocked ancestor.
+- The runtime subset passed with RK4, ode45 and ode15s, including continuous
+  analytical traces, sparse/dense requests, lazy reset, rollback and checkpoint
+  continuation.
+- Desktop-enabled `Test-Editor.ps1` passed, including both exact Qt-exported C
+  models. A separate combined-block Qt probe passed selection on every block
+  part, three input ports and model save/load round-trip.
+
+The restricted `Launch-Blocks.ps1 -SelfTest` run passed all numerical/C stages
+but its final Qt child remained idle before test startup. That verified test
+child was stopped; the supervisor correctly recorded failure. The complete
+editor stage was run separately with desktop access and passed with exit 0.
+This is **not an uninterrupted single-process full-gate pass**.
+Afterward, only trailing empty lines were removed from the new C test runner
+and fixture file; their 27-case C gate was rerun successfully. Production
+source files remained unchanged.
+
+Evidence is retained under `.validation-artifacts/combined-controls-20261117/`:
+`full-gate.log`, `full-gate-result.json` (restricted Qt failure),
+`editor-full.log`, `combined-editor.log`, `full-gate-source-hashes.json` and
+`validation-result.json` (combined stage results). MATLAB environment evidence
+and the independent reference harness limits are described in
+[COMBINED_CONTROLS.md](COMBINED_CONTROLS.md). No live Simulink parity is claimed.
 
 ## Expanded built-in/library review — 2026-11-16
 
@@ -116,7 +281,7 @@ See [PR2_AUDIT.md](PR2_AUDIT.md) for disputed findings, measurements and limits.
 
 ## Event-enabled C milestone — 2026-11-14
 
-The complete registered check set passed on `codex/event-c-integration` through
+The complete registered check set passed on `development/event-c-integration` through
 the public exporter. No production changes followed these checks.
 
 | Check | Result |
@@ -141,7 +306,7 @@ verification, not a new native mouse/dialog inspection.
 
 `Launch-Blocks.ps1 -SelfTest` ran through all numerical/C stages and Qt callbacks;
 its execution handle became unavailable before a unified exit status or the
-final Qt-exported C comparison was retained. The complete final `tests/Test-Editor.ps1`
+final Qt-exported C comparison was retained. The complete final `Test-Editor.ps1`
 stage and explicit BIST were then rerun successfully with exit 0. The completed
 checks establish the registered set; no uninterrupted full-command exit is
 claimed for that first run. Local logs:
@@ -180,7 +345,7 @@ The local full-gate/BIST logs are in
 See [OPTIMIZATION_AUDIT.md](OPTIMIZATION_AUDIT.md) for measured results and
 [benchmarks/README.md](../tests/benchmarks/README.md) for reproducible timing comparisons.
 
-The isolated publication branch `codex/optimized-release`, based on `2ae43f3`
+The isolated publication branch `development/optimized-release`, based on `2ae43f3`
 without the experimental C event-runtime changes, passed a fresh complete
 `Launch-Blocks.ps1 -SelfTest` run with exit 0. This independently repeated all
 21 suites, 25 BIST checks, 167 C cases and the expanded Qt editor checks; the
@@ -239,8 +404,8 @@ Each suite below passed in this run.
 | Primitive guard localization, event history, solver cases and rollback | `test_ob_zero_crossings` |
 | Continuous enable/trigger timing, plateaus and clock isolation | `test_ob_continuous_controls` |
 
-`tests/Test-Codegen.ps1` generated, compiled, executed and compared the supported C
-models. `tests/Test-Editor.ps1` exercised actual Qt callbacks, retained graphics,
+`Test-Codegen.ps1` generated, compiled, executed and compared the supported C
+models. `Test-Editor.ps1` exercised actual Qt callbacks, retained graphics,
 selection ownership, drag/undo behavior and Run, including the continuous-control
 example. The fixtures named `test_ob_multi_function.m` and
 `test_ob_inner_clock_c_cases.m` are consumed by other suites; they are not
@@ -270,7 +435,7 @@ For supplemental checks, put the installed Octave/GCC bin directory on PATH and
 run these commands from the repository folder:
 
 ```powershell
-octave-cli --quiet --eval "addpath(pwd()); test_ob_c_event_inventory(); test_ob_event_codegen_cases(); test_ob_c_event_math('validation-out');"
+octave-cli --quiet --eval "addpath(pwd()); ob_setup('tests'); test_ob_c_event_inventory(); test_ob_event_codegen_cases(); test_ob_c_event_math('validation-out');"
 gcc -std=c99 -O2 -Wall -Wextra -Werror validation-out/event_math.c -o validation-out/event_math.exe
 ./validation-out/event_math.exe
 gcc -std=c99 -O2 -Wall -Wextra -Werror validation-out/event_math_empty.c -o validation-out/event_math_empty.exe
@@ -294,7 +459,7 @@ temporary directory. They are not included in the repository:
 
 - Event-enabled and continuous-control C model export remain unsupported and
   explicitly rejected before replacing an existing output file.
-  `tests/Test-EventCodegen.ps1` is an experimental future integration runner; its
+  `Test-EventCodegen.ps1` is an experimental future integration runner; its
   model exports and two event API harnesses have not passed compilation or
   execution. The 43 analytical fixtures run in Octave.
 - Generated models use the supported static, real-double RK4 subset. Adaptive
