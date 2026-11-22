@@ -591,11 +591,22 @@ function compile (file, binary, text, flags)
   temporary = fullfile (folder, sprintf ('%s_%d_%d', base, getpid (), floor (rand () * 1e9)));
   write_file (file, text);
   previous = getenv ('CFLAGS'); previous_ld = getenv ('LDFLAGS');
+  previous_directory = pwd ();
+  temporary_variables = {'TMPDIR','TMP','TEMP'};
+  previous_temporary = cellfun(@getenv,temporary_variables,'uniformoutput',false);
   unwind_protect
     setenv ('CFLAGS', flags);
     if (! ispc ()), setenv ('LDFLAGS', [previous_ld ' -pthread']); endif
     try
-      [output, status] = mkoctfile ('--mex', '-o', [temporary '.' mexext()], file);
+      if (ispc ())
+        cd (folder);
+        for variable = temporary_variables, setenv(variable{1},'.'); endfor
+        [unused,source_name,source_extension] = fileparts(file);
+        [unused,binary_name] = fileparts(temporary);
+        [output, status] = mkoctfile ('--mex', '-o', [binary_name '.' mexext()], [source_name source_extension]);
+      else
+        [output, status] = mkoctfile ('--mex', '-o', [temporary '.' mexext()], file);
+      endif
     catch err
       unavailable ('mkoctfile failed: %s', err.message);
     end_try_catch
@@ -609,6 +620,10 @@ function compile (file, binary, text, flags)
       endif
     endif
   unwind_protect_cleanup
+    cd (previous_directory);
+    for index = 1:numel(temporary_variables)
+      setenv(temporary_variables{index},previous_temporary{index});
+    endfor
     setenv ('CFLAGS', previous);
     if (! ispc ()), setenv ('LDFLAGS', previous_ld); endif
     for extension = {['.' mexext()], '.o'}

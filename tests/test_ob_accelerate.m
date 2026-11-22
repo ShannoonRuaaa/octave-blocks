@@ -23,6 +23,21 @@ function test_ob_accelerate ()
     assert_error (@() ob_solver_options (struct ('accelerate', 2)), 'accelerate must be');
     cases += 1;
 
+    % MEX tools must also work inside project directories containing spaces.
+    spaced = fullfile(cache,'cache with spaces');
+    before_directory = pwd();
+    before_tmp = getenv('TMPDIR');
+    unwind_protect
+      setenv('OB_ACCELERATOR_CACHE',spaced);
+      [spaced_result,unused] = ob_accelerate(ob_example(),[0 .1 .2]);
+      assert(ob_scope_data(spaced_result,3),[0;.2;.4],1e-12);
+      assert(strcmp(pwd(),before_directory));
+      assert(strcmp(getenv('TMPDIR'),before_tmp));
+    unwind_protect_cleanup
+      setenv('OB_ACCELERATOR_CACHE',cache);
+    end_unwind_protect
+    cases += 1;
+
     % A default cache blocked by a file falls back; an explicit bad path fails.
     blocker = fullfile(functions,'cache-blocker');
     fid = fopen(blocker,'w'); assert(fid>=0); fclose(fid);
