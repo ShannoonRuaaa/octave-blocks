@@ -18,6 +18,8 @@
 - Add `ob_linearize`, `ob_findop`, `ob_bode` and `ob_stepinfo`.
 - Map the new blocks in the command API and support `SaveFormat`
   `'Dataset'` (Dataset-like `yout` and `logsout`).
+- Make the Qt editor test stage fail fast with an explanation instead of
+  hanging in session 0 or behind Octave's first-run welcome wizard.
 
 ## 0.2.1 (development)
 

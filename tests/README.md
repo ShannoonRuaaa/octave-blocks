@@ -45,3 +45,13 @@ manifest, per-stage stdout/stderr, source hashes and exit codes under
 `.artifacts/gate-*/`. Only a complete default run covers the full stage set;
 focused retries have their own manifests. Concurrent checks do not produce
 performance claims. The editor stage runs after other checks have finished.
+
+The editor stage (`Test-Editor.ps1`) opens the Octave Qt GUI, so it needs a
+signed-in desktop session. It fails at once with an explanation when started
+in session 0 (over SSH or as a service), where the GUI would wait forever.
+After a fresh Octave installation, open the Octave GUI once (the
+GNU Octave (GUI) Start menu entry, or `octave-gui.exe --gui`) and finish its
+"Welcome to GNU Octave" wizard, which saves `%APPDATA%\octave\octave-gui.ini`.
+Until that file exists the stage stops before launching Octave with that
+instruction; if the English wizard still opens during the stage, the runner
+closes Octave and fails the same way instead of waiting for a click.
