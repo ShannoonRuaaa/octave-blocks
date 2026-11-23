@@ -9,6 +9,11 @@
   [multirate scheduling](MULTIRATE.md), [multiple outputs](MULTIOUTPUT.md).
 - [Events](ZERO_CROSSINGS.md), [algebraic systems](ALGEBRAIC.md),
   [C export](CODEGEN.md).
+- [Advanced builders](ADVANCED_EXTENSIONS.md): PID, linear systems, the 0.3.0
+  Simulink library builders and the
+  [linearization and analysis functions](ADVANCED_EXTENSIONS.md#linearization-and-analysis).
+- [Simulink-style command API](SIMULINK_API.md), including
+  [Dataset output](SIMULINK_API.md#dataset-output).
 
 ## Developing and reviewing
 

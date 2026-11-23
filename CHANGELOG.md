@@ -9,6 +9,15 @@
   attribution, generated-code notices and retained original MIT grants.
 - Add writable-cache fallback and actionable accelerator-load diagnostics.
 - Use neutral project branch names and current documentation references.
+- Add Simulink library builders (Backlash, Quantizer, MinMax, Saturation and
+  Dead Zone Dynamic, Sign, Coulomb & Viscous Friction, Relational and
+  Logical Operators, Mux, Demux, Multiport Switch, Pulse Generator, Chirp
+  Signal, Integrator Second-Order, Rate Transition modes, first-order
+  filters) with recorded Simulink 26.2 comparisons, C export and
+  accelerator checks.
+- Add `ob_linearize`, `ob_findop`, `ob_bode` and `ob_stepinfo`.
+- Map the new blocks in the command API and support `SaveFormat`
+  `'Dataset'` (Dataset-like `yout` and `logsout`).
 
 ## 0.2.1 (development)
 

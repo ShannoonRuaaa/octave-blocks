@@ -272,7 +272,31 @@ as `ob_state_space` and `ob_transfer_function`. Their virtual diagrams work in
 the editor and C exporter; try `ob_linear_system_example`. See
 [LINEAR_SYSTEMS.md](LINEAR_SYSTEMS.md) for equations and initial-state conventions.
 
-Add `tests/` to the Octave path, then run `test_ob_run; test_ob_editor_core; test_ob_solvers; test_ob_subsystems; test_ob_inputs; test_ob_multirate; test_ob_controls; test_ob_runtime; test_ob_runtime_metadata; test_ob_conditional; test_ob_enabled_continuous; test_ob_enabled_multirate; test_ob_linear_systems; test_ob_matlab_numeric; test_ob_multioutput; test_ob_algebraic; test_ob_zero_crossings; test_ob_continuous_controls` in
+Version 0.3.0 adds builders for common Simulink library blocks: `ob_backlash`,
+`ob_quantizer`, `ob_minmax`, `ob_saturation_dynamic`, `ob_dead_zone_dynamic`,
+`ob_sign`, `ob_coulomb_viscous_friction`, `ob_relational_operator`,
+`ob_logical_operator`, `ob_mux`, `ob_demux`, `ob_multiport_switch`,
+`ob_pulse_generator`, `ob_chirp`, `ob_second_order_integrator`,
+`ob_rate_transition` and `ob_first_order_filter`. Each returns a virtual
+subsystem model for the `value` of a Subsystem block, built from primitives
+that export to C. For example, a sign-driven friction force on a sine:
+
+```octave
+m.blocks = struct ('type', {'Time', 'Function', 'Subsystem', 'Scope'}, ...
+                   'value', {[], [], ob_coulomb_viscous_friction(2, 0.5), []}, ...
+                   'name', {'t', 'sin', 'Friction', 'F'}, ...
+                   'x', {0.1, 0.3, 0.6, 0.9}, 'y', {0.5, 0.5, 0.5, 0.5});
+m.edges = [1 1 2 1; 2 1 3 1; 3 1 4 1];
+result = ob_run (m, 0:0.05:10, struct ('zero_crossings', true));
+```
+
+The same blocks are available by their Simulink library paths in the
+[command API](SIMULINK_API.md#library-blocks). `ob_linearize`, `ob_findop`,
+`ob_bode` and `ob_stepinfo` linearize models, find operating points and
+measure responses; see
+[ADVANCED_EXTENSIONS.md](ADVANCED_EXTENSIONS.md#linearization-and-analysis).
+
+Add `tests/` to the Octave path, then run `test_ob_run; test_ob_editor_core; test_ob_solvers; test_ob_subsystems; test_ob_inputs; test_ob_multirate; test_ob_controls; test_ob_runtime; test_ob_runtime_metadata; test_ob_conditional; test_ob_enabled_continuous; test_ob_enabled_multirate; test_ob_linear_systems; test_ob_matlab_numeric; test_ob_multioutput; test_ob_algebraic; test_ob_zero_crossings; test_ob_continuous_controls; test_ob_nonlinear_builders; test_ob_routing_builders; test_ob_analysis` in
 Octave to check execution, editing rules, persistence, adaptive integration,
 hierarchy, signal ports, external sampled inputs, multirate scheduling,
 nonlinear control blocks, resumable execution, conditional subsystems, and

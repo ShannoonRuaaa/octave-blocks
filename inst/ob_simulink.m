@@ -15,6 +15,14 @@ function varargout = ob_simulink (command, varargin)
   %     set_param ('demo', 'StopTime', '5');
   %     out = sim ('demo');  plot (out.tout, out.yout);
   %
+  %   With set_param (name, 'SaveFormat', 'Dataset'), out.yout (root
+  %   Outports) and out.logsout (Scopes) are Dataset-like structs:
+  %     out.yout.numElements, out.yout.getElementNames ()
+  %     e = out.yout.getElement (1);    % or getElement ('name'), get (1)
+  %     plot (e.Values.Time, e.Values.Data);
+  %   Each element has Name, PropagatedName, BlockPath, PortType, PortIndex
+  %   and Values (Name, Time, Data, IsTimeFirst, Length).
+  %
   %   Systems live in a session registry keyed by name.  See SIMULINK_API.md
   %   for the supported library blocks, parameters and differences.
   persistent systems;
@@ -118,6 +126,18 @@ function varargout = ob_simulink (command, varargin)
       [varargout{2}, varargout{3}] = run_settings (systems(index).params, varargout{1});
     case 'list'
       varargout{1} = {systems.name};
+    case 'dataset'
+      % Rebuild a Dataset-like struct (with its access functions) from one
+      % whose handles were removed, e.g. to save it in a MAT file.
+      ds = varargin{1};
+      if (! isstruct (ds) || ! isscalar (ds) || ! all (isfield (ds, {'Name', 'Elements'})))
+        error ('ob_simulink: dataset needs a struct with Name and Elements fields');
+      endif
+      varargout{1} = dataset_struct (ds.Name, ds.Elements);
+    case 'dataset_element'
+      % Target of a Dataset's getElement/get handles: a public entry point,
+      % so the handles still resolve after clear functions or save/load.
+      varargout{1} = dataset_lookup (varargin{:});
     otherwise
       error ('ob_simulink: unknown command ''%s''', command);
   endswitch
@@ -146,8 +166,9 @@ endfunction
 
 function params = default_params ()
   % Simulink configuration defaults; AbsTol, MaxStep and FixedStep 'auto'.
-  % SaveFormat defaults to 'Array' because Simulink's default 'Dataset'
-  % (Simulink.SimulationData objects) has no Octave equivalent.
+  % SaveFormat defaults to 'Array', as in Octave Blocks 0.2, although
+  % Simulink defaults to 'Dataset'; 'Dataset' gives Dataset-like structs
+  % (dataset_struct) because Simulink.SimulationData objects do not exist.
   params = struct ('StartTime', '0.0', 'StopTime', '10.0', 'Solver', 'VariableStepAuto', ...
                    'FixedStep', 'auto', 'RelTol', '1e-3', 'AbsTol', 'auto', ...
                    'MaxStep', 'auto', 'ZeroCrossControl', 'UseLocalSettings', ...
@@ -418,6 +439,53 @@ function meta = library_block (source)
       kind = 'Relay';
       params = P('OnSwitchValue', 'eps', 'OffSwitchValue', 'eps', 'OnOutputValue', '1', ...
                  'OffOutputValue', '0', 'SampleTime', '-1');
+    % ---- 0.3.0 builders.  Only the parameters the builders honour are
+    % listed; data-type, icon and ZeroCross options are left out (the model's
+    % ZeroCrossControl governs zero crossings), except Sign's ZeroCross.
+    case {'simulink/Discontinuities/Backlash', 'built-in/Backlash'}
+      kind = 'Backlash'; params = P('BacklashWidth', '1', 'InitialOutput', '0', 'SampleTime', '-1');
+    case {'simulink/Discontinuities/Quantizer', 'built-in/Quantizer'}
+      kind = 'Quantizer'; params = P('QuantizationInterval', '0.5', 'SampleTime', '-1');
+    case {'simulink/Math Operations/MinMax', 'built-in/MinMax'}
+      kind = 'MinMax'; params = P('Function', 'min', 'Inputs', '1', 'SampleTime', '-1');
+    case 'simulink/Discontinuities/Saturation Dynamic'
+      % Masked subsystem; its only dialog parameters are data-type ones.
+      kind = 'SaturationDynamic'; block_type = 'SubSystem'; mask_type = 'Saturation Dynamic'; params = struct ();
+    case 'simulink/Discontinuities/Dead Zone Dynamic'
+      kind = 'DeadZoneDynamic'; block_type = 'SubSystem'; mask_type = 'Dead Zone Dynamic'; params = struct ();
+    case {'simulink/Math Operations/Sign', 'built-in/Signum'}
+      kind = 'Signum'; params = P('ZeroCross', 'on', 'SampleTime', '-1');
+    case 'simulink/Discontinuities/Coulomb & Viscous Friction'
+      kind = 'CoulombViscousFriction'; block_type = 'SubSystem'; mask_type = 'Coulombic and Viscous Friction';
+      params = P('offset', '[1 3 2 0]', 'gain', '1');
+    case {'simulink/Logic and Bit Operations/Relational Operator', ...
+          'simulink/Commonly Used Blocks/Relational Operator', 'built-in/RelationalOperator'}
+      kind = 'RelationalOperator'; params = P('Operator', '<=', 'SampleTime', '-1');
+    case {'simulink/Logic and Bit Operations/Logical Operator', ...
+          'simulink/Commonly Used Blocks/Logical Operator', 'built-in/Logic'}
+      kind = 'Logic'; params = P('Operator', 'AND', 'Inputs', '2', 'SampleTime', '-1');
+    case {'simulink/Signal Routing/Multiport Switch', 'built-in/MultiPortSwitch'}
+      kind = 'MultiPortSwitch';
+      params = P('DataPortOrder', 'One-based contiguous', 'Inputs', '3', 'DataPortForDefault', 'Last data port', ...
+                 'DiagnosticForDefault', 'Error', 'SampleTime', '-1');
+    case {'simulink/Sources/Pulse Generator', 'built-in/DiscretePulseGenerator'}
+      % SampleTime applies to 'Sample based' pulses only, as in Simulink.
+      kind = 'DiscretePulseGenerator';
+      params = P('PulseType', 'Time based', 'TimeSource', 'Use simulation time', 'Amplitude', '1', ...
+                 'Period', '10', 'PulseWidth', '5', 'PhaseDelay', '0', 'SampleTime', '1');
+    case 'simulink/Sources/Chirp Signal'
+      kind = 'Chirp'; block_type = 'SubSystem'; mask_type = 'chirp'; params = P('f1', '0.1', 'T', '100', 'f2', '1');
+    case {'simulink/Signal Routing/Mux', 'simulink/Commonly Used Blocks/Mux', 'built-in/Mux'}
+      kind = 'Mux'; params = P('Inputs', '2', 'DisplayOption', 'bar');
+    case {'simulink/Signal Routing/Demux', 'simulink/Commonly Used Blocks/Demux', 'built-in/Demux'}
+      kind = 'Demux'; params = P('Outputs', '2', 'DisplayOption', 'bar');
+    case {'simulink/Continuous/Integrator, Second-Order', 'built-in/SecondOrderIntegrator'}
+      % The other options (limits, wrapping, external reset, external
+      % initial conditions, one output) are rejected unless at these values.
+      kind = 'SecondOrderIntegrator';
+      params = P('ICSourceX', 'internal', 'ICX', '0.0', 'LimitX', 'off', 'WrapX', 'off', ...
+                 'ICSourceDXDT', 'internal', 'ICDXDT', '0.0', 'LimitDXDT', 'off', ...
+                 'ExternalReset', 'none', 'ShowOutput', 'both');
     otherwise
       if (any (strcmp (path, unsupported_library_paths ())))
         error ('add_block: library block ''%s'' is not supported by Octave Blocks', source);
@@ -454,31 +522,37 @@ function params = builtin_defaults (path, params)
       params.InputValues = '[-4:5]'; params.Table = ' rand(1,10)-0.5';
     case 'built-in/RateLimiter'
       params.SampleTimeMode = 'continuous';
+    case 'built-in/RelationalOperator'
+      params.Operator = '>=';
+    case 'built-in/DiscretePulseGenerator'
+      params.PulseType = 'Sample based'; params.Period = '2'; params.PulseWidth = '1';
+    case 'built-in/Mux'
+      params.Inputs = '4'; params.DisplayOption = 'none';
+    case 'built-in/Demux'
+      params.Outputs = '4';
   endswitch
 endfunction
 
 function paths = unsupported_library_paths ()
   % Simulink R2026b library blocks that Octave Blocks cannot realize.
   paths = {'simulink/Sources/Signal Builder', 'simulink/Sources/Signal Editor', ...
-           'simulink/Sources/Pulse Generator', 'simulink/Sources/From Workspace', ...
+           'simulink/Sources/From Workspace', ...
            'simulink/Sources/Repeating Sequence', 'simulink/Sources/Signal Generator', ...
-           'simulink/Sources/Random Number', 'simulink/Sources/Chirp Signal', ...
+           'simulink/Sources/Random Number', ...
            'simulink/Sources/Digital Clock', 'simulink/Sinks/To File', 'simulink/Sinks/Stop Simulation', ...
            'simulink/Sinks/Floating Scope', 'simulink/Sinks/XY Graph', ...
-           'simulink/Signal Routing/Mux', 'simulink/Signal Routing/Demux', ...
            'simulink/Signal Routing/Bus Creator', 'simulink/Signal Routing/Bus Selector', ...
-           'simulink/Signal Routing/Multiport Switch', 'simulink/Signal Routing/Merge', ...
+           'simulink/Signal Routing/Merge', ...
            'simulink/Signal Routing/Selector', 'simulink/Signal Routing/Goto', 'simulink/Signal Routing/From', ...
-           'simulink/Commonly Used Blocks/Mux', 'simulink/Commonly Used Blocks/Demux', ...
            'simulink/Commonly Used Blocks/Bus Creator', 'simulink/Commonly Used Blocks/Bus Selector', ...
            'simulink/Commonly Used Blocks/Delay', 'simulink/Commonly Used Blocks/Data Type Conversion', ...
-           'simulink/Commonly Used Blocks/Logical Operator', 'simulink/Commonly Used Blocks/Relational Operator', ...
            'simulink/Discrete/Delay', 'simulink/Discrete/Memory', 'simulink/Discrete/Zero-Order Hold', ...
            'simulink/Discrete/Discrete Filter', 'simulink/Discrete/Discrete Zero-Pole', ...
+           'simulink/Discrete/Transfer Fcn First Order', 'simulink/Discrete/Transfer Fcn Lead or Lag', ...
+           'simulink/Discrete/Transfer Fcn Real Zero', ...
            'simulink/Continuous/Derivative', 'simulink/Continuous/Variable Transport Delay', ...
-           'simulink/Continuous/PID Controller (2DOF)', 'simulink/Discontinuities/Backlash', ...
-           'simulink/Discontinuities/Quantizer', 'simulink/Discontinuities/Hit Crossing', ...
-           'simulink/Math Operations/MinMax', 'simulink/Math Operations/Sign', ...
+           'simulink/Continuous/PID Controller (2DOF)', 'simulink/Continuous/Integrator, Second-Order Limited', ...
+           'simulink/Discontinuities/Hit Crossing', ...
            'simulink/Math Operations/Bias', 'simulink/Math Operations/Unary Minus', ...
            'simulink/Math Operations/Rounding Function', 'simulink/Math Operations/Polynomial', ...
            'simulink/Lookup Tables/2-D Lookup Table', 'simulink/Lookup Tables/n-D Lookup Table', ...
@@ -716,9 +790,131 @@ function [type, value, extra] = realize (meta, name)
       [period, offset] = discrete_rate (E('SampleTime'));
       type = 'Subsystem';
       value = ob_relay (E('OnSwitchValue'), E('OffSwitchValue'), E('OnOutputValue'), E('OffOutputValue'), period, offset);
+    % ---- 0.3.0 builders (see SIMULINK_API.md for the mapping and limits).
+    case 'Backlash'
+      [period, offset] = discrete_rate (E('SampleTime'));
+      type = 'Subsystem'; value = ob_backlash (E('BacklashWidth'), E('InitialOutput'), period, offset);
+    case 'Quantizer'
+      [period, offset] = discrete_rate (E('SampleTime'));
+      type = 'Subsystem'; value = ob_quantizer (E('QuantizationInterval'), period, offset);
+    case 'MinMax'
+      inherited_rate (E('SampleTime'), 'MinMax');
+      count = E('Inputs');
+      if (! any (strcmpi (p.Function, {'min', 'max'})))
+        error ('ob_simulink: MinMax Function must be min or max');
+      endif
+      type = 'Subsystem';
+      if (isequal (count, 1))
+        % Simulink's default: reduce the elements of one input (Octave only).
+        value = reduction_subsystem (lower (p.Function));
+      else
+        value = ob_minmax (p.Function, count);
+      endif
+    case 'SaturationDynamic', type = 'Subsystem'; value = ob_saturation_dynamic ();
+    case 'DeadZoneDynamic', type = 'Subsystem'; value = ob_dead_zone_dynamic ();
+    case 'Signum'
+      inherited_rate (E('SampleTime'), 'Sign');
+      if (is_true (p.ZeroCross)), type = 'Subsystem'; value = ob_sign ();
+      else type = 'Function'; value = []; extra.name = 'sign';     % no zero-crossing guard
+      endif
+    case 'CoulombViscousFriction'
+      type = 'Subsystem'; value = ob_coulomb_viscous_friction (E('offset'), E('gain'));
+    case 'RelationalOperator'
+      inherited_rate (E('SampleTime'), 'Relational Operator');
+      type = 'Subsystem'; value = ob_relational_operator (p.Operator);
+    case 'Logic'
+      inherited_rate (E('SampleTime'), 'Logical Operator');
+      type = 'Subsystem';
+      % With NOT, Simulink keeps Inputs (default 2) but shows one port.
+      if (strcmpi (strtrim (p.Operator), 'NOT')), value = ob_logical_operator ('NOT');
+      else value = ob_logical_operator (p.Operator, E('Inputs')); endif
+    case 'MultiPortSwitch'
+      inherited_rate (E('SampleTime'), 'Multiport Switch');
+      if (! any (strcmpi (p.DiagnosticForDefault, {'None', 'Warning', 'Error'})))
+        error ('ob_simulink: Multiport Switch DiagnosticForDefault must be None, Warning or Error');
+      endif
+      type = 'Subsystem'; value = ob_multiport_switch (E('Inputs'), p.DataPortOrder, p.DataPortForDefault);
+    case 'DiscretePulseGenerator'
+      if (! strcmpi (p.TimeSource, 'Use simulation time'))
+        error ('ob_simulink: Pulse Generator TimeSource must be ''Use simulation time''');
+      endif
+      amplitude = E('Amplitude'); period = E('Period'); width = E('PulseWidth'); delay = E('PhaseDelay');
+      switch (lower (p.PulseType))
+        case 'time based'
+          value = ob_pulse_generator (amplitude, period, width, delay);
+        case 'sample based'
+          % Period, PulseWidth and PhaseDelay count samples of SampleTime;
+          % the held output equals the time-based pulse with those edges.
+          ts = E('SampleTime');
+          if (! isnumeric (ts) || ! isscalar (ts) || ! isreal (ts) || ! (ts > 0) || ! isfinite (ts))
+            error ('ob_simulink: a sample-based Pulse Generator needs a SampleTime T > 0');
+          endif
+          sample_count (period, 'Period'); sample_count (width, 'PulseWidth'); sample_count (delay, 'PhaseDelay');
+          if (! (period > 0)), error ('ob_simulink: sample-based Pulse Generator Period must be positive'); endif
+          % Simulink refuses PulseWidth 0 and PulseWidth > Period; with
+          % PulseWidth = Period the output stays at Amplitude (recorded in
+          % scenarios.followup), realized as a pulse that falls half a
+          % sample before the next rise, which no sample hit sees.
+          if (! (width >= 1))
+            error ('ob_simulink: sample-based Pulse Generator PulseWidth (%g) must be a positive number of samples', ...
+                   width);
+          elseif (width > period)
+            error (['ob_simulink: sample-based Pulse Generator PulseWidth (%g samples) must be less than ' ...
+                    'or equal to Period (%g samples)'], width, period);
+          endif
+          duty = 100 * min (width, period - 0.5) / period;
+          value = ob_pulse_generator (amplitude, period * ts, duty, delay * ts);
+          % Sampled and held at [Ts 0], so the block has Simulink's discrete
+          % rate: it counts for FixedStep 'auto' and inherited (-1) blocks
+          % downstream run at Ts.  The edges fall on sample hits.
+          outport = find (strcmp ({value.blocks.type}, 'Outport'), 1);
+          value = ob_hold_builder_output (value, outport, zeros (size (amplitude)), [ts 0]);
+        otherwise
+          error ('ob_simulink: Pulse Generator PulseType must be ''Time based'' or ''Sample based''');
+      endswitch
+      type = 'Subsystem';
+    case 'Chirp', type = 'Subsystem'; value = ob_chirp (E('f1'), E('T'), E('f2'));
+    case 'Mux', type = 'Subsystem'; value = ob_mux (E('Inputs'));
+    case 'Demux', type = 'Subsystem'; value = ob_demux (E('Outputs'));
+    case 'SecondOrderIntegrator'
+      fixed = {'ICSourceX', 'internal'; 'ICSourceDXDT', 'internal'; 'LimitX', 'off'; 'LimitDXDT', 'off'; ...
+               'WrapX', 'off'; 'ExternalReset', 'none'; 'ShowOutput', 'both'};
+      for k = 1:rows (fixed)
+        if (! strcmpi (p.(fixed{k, 1}), fixed{k, 2}))
+          error (['ob_simulink: Integrator, Second-Order supports only %s = ''%s''; ' ...
+                  'set the initial conditions with ICX and ICDXDT'], fixed{k, 1}, fixed{k, 2});
+        endif
+      endfor
+      type = 'Subsystem'; value = ob_second_order_integrator (E('ICX'), E('ICDXDT'));
     otherwise
       error ('ob_simulink: block %s has unsupported BlockType %s', name, meta.BlockType);
   endswitch
+endfunction
+
+function inherited_rate (value, label)
+  % The 0.3.0 builders without a sample-time argument run at the rate of
+  % their inputs: only Simulink's inherited -1 (or continuous 0, the same
+  % thing for these algebraic blocks) is accepted.
+  if (! any (cellfun (@(v) isequal (value, v), {-1, 0, [-1 0], [0 0]})))
+    error ('ob_simulink: %s SampleTime must be -1 (inherited) or 0; a discrete sample time is not supported', label);
+  endif
+endfunction
+
+function sample_count (value, label)
+  if (! isnumeric (value) || ! isscalar (value) || ! isreal (value) || ! isfinite (value) || value != fix (value))
+    error ('ob_simulink: sample-based Pulse Generator %s must be an integer number of samples', label);
+  endif
+endfunction
+
+function model = reduction_subsystem (operation)
+  % MinMax with Inputs = 1: the minimum or maximum over every element of
+  % one input (Simulink's CollapseMode 'All dimensions').  The Function
+  % blocks 'vec' and 'min'/'max' run in Octave but are not exported by
+  % ob_codegen, which has no C reduction.
+  model = empty_model ();
+  model.blocks = [leaf('Inport', 1, 'u', 0.1, 0.5) leaf('Function', [], 'vec', 0.35, 0.5) ...
+                  leaf('Function', [], operation, 0.6, 0.5) leaf('Outport', 1, 'y', 0.9, 0.5)];
+  model.edges = [1 1 2 1; 2 1 3 1; 3 1 4 1];
 endfunction
 
 function format = save_format (text)
@@ -1522,7 +1718,42 @@ function meta = set_block_param (meta, name, value, label = '')
              meta.BlockType, label, field, meta.Params.(field));
     endif
     meta.Params.(field) = {'held', 'reset'}{match};
+  else
+    meta.Params.(field) = canonical_enum (meta_kind (meta), field, meta.Params.(field));
   endif
+endfunction
+
+function value = canonical_enum (kind, field, value)
+  % Enumerated parameters of the 0.3.0 blocks are case-insensitive and
+  % stored with Simulink's own spelling (recorded in
+  % simulink-api-reference.json, scenarios.followup.enum): MinMax 'MAX' is
+  % stored as 'max', Logical Operator 'nxor' as 'NXOR'.  Other values are
+  % kept as typed and rejected when the block is realized.
+  on_off = {'on', 'off'};
+  switch (kind)
+    case 'MinMax', table = struct ('Function', {{'min', 'max'}});
+    case 'Logic', table = struct ('Operator', {{'AND', 'OR', 'NAND', 'NOR', 'XOR', 'NXOR', 'NOT'}});
+    case 'RelationalOperator'
+      table = struct ('Operator', {{'==', '~=', '<', '<=', '>=', '>', 'isInf', 'isNaN', 'isFinite'}});
+    case 'DiscretePulseGenerator'
+      table = struct ('PulseType', {{'Time based', 'Sample based'}}, ...
+                      'TimeSource', {{'Use simulation time', 'Use external signal'}});
+    case 'MultiPortSwitch'
+      table = struct ('DataPortOrder', {{'One-based contiguous', 'Zero-based contiguous', 'Specify indices'}}, ...
+                      'DataPortForDefault', {{'Last data port', 'Additional data port'}}, ...
+                      'DiagnosticForDefault', {{'None', 'Warning', 'Error'}});
+    case 'Signum', table = struct ('ZeroCross', {on_off});
+    case {'Mux', 'Demux'}, table = struct ('DisplayOption', {{'none', 'signals', 'bar'}});
+    case 'SecondOrderIntegrator'
+      table = struct ('ICSourceX', {{'internal', 'external'}}, 'ICSourceDXDT', {{'internal', 'external'}}, ...
+                      'LimitX', {on_off}, 'WrapX', {on_off}, 'LimitDXDT', {on_off}, ...
+                      'ExternalReset', {{'none', 'rising', 'falling', 'either', 'level'}}, ...
+                      'ShowOutput', {{'both', 'x', 'dxdt'}});
+    otherwise, return;
+  endswitch
+  if (! isfield (table, field) || ! ischar (value)), return; endif
+  match = find (strcmpi (table.(field), strtrim (value)), 1);
+  if (! isempty (match)), value = table.(field){match}; endif
 endfunction
 
 function systems = set_param (systems, path, varargin)
@@ -1833,11 +2064,8 @@ function [config, options] = run_settings (params, model)
   % Accelerator and Rapid Accelerator run the compiled C accelerator
   % (ob_accelerate); models outside its subset fall back to interpretation.
   if (! strcmp (simulation_mode (params.SimulationMode), 'normal')), options.accelerate = 'auto'; endif
-  if (strcmp (params.SaveFormat, 'Dataset'))
-    error (['ob_simulink: SaveFormat ''Dataset'' (Simulink''s default) is not supported; ' ...
-            'use Array, Structure or StructureWithTime']);
-  elseif (! any (strcmp (params.SaveFormat, {'Array', 'Structure', 'StructureWithTime'})))
-    error ('ob_simulink: SaveFormat must be Array, Structure or StructureWithTime');
+  if (! any (strcmp (params.SaveFormat, {'Array', 'Structure', 'StructureWithTime', 'Dataset'})))
+    error ('ob_simulink: SaveFormat must be Array, Structure, StructureWithTime or Dataset');
   endif
   if (! any (strcmpi (params.ReturnWorkspaceOutputs, {'on', 'off'})))
     error ('ob_simulink: ReturnWorkspaceOutputs must be on or off');
@@ -1930,7 +2158,13 @@ function varargout = simulate (systems, count, name, varargin)
   [config, options] = run_settings (params, model);
   if (isempty (times)), times = ob_time_grid (config(1), config(2), config(3)); endif
   execution = tic ();
-  [result, accelerated, note] = run_model (model, times, options, params.SimulationMode);
+  routing = routing_blocks (model, [], name);
+  try
+    [result, accelerated, note] = run_model (model, times, options, params.SimulationMode);
+  catch err
+    routing_failure (err, routing);
+  end_try_catch
+  routing_shape_check (routing, result);
   execution_time = toc (execution);
   out = struct ('tout', result.t(:));
   variables = {'tout'};
@@ -1944,24 +2178,45 @@ function varargout = simulate (systems, count, name, varargin)
     signals{k} = stack (result.values(:, ports(k)));
     labels{k} = [name '/' names{ports(k)}];
   endfor
-  out.yout = output_format (signals, labels, result.t(:), params.SaveFormat);
+  dataset = strcmp (params.SaveFormat, 'Dataset');
+  if (dataset)
+    % Root Outports log like Simulink's yout elements: the element and its
+    % timeseries are named after the signal line (Octave Blocks lines have
+    % no names, so ''), BlockPath is the Outport and PortType 'inport'.
+    elements = dataset_element_list ();
+    for k = 1:numel (ports)
+      elements(k) = dataset_signal ('', labels{k}, 'inport', 1, result.t(:), signals{k});
+    endfor
+    out.yout = dataset_struct ('yout', elements);
+  else
+    out.yout = output_format (signals, labels, result.t(:), params.SaveFormat);
+  endif
   if (! isempty (ports)), variables{end+1} = 'yout'; endif
   % To Workspace variables, and logsout entries for Scope blocks (an
-  % Octave Blocks extension), anywhere in the virtual hierarchy.
+  % Octave Blocks extension), anywhere in the virtual hierarchy.  With
+  % SaveFormat 'Dataset', logsout is a Dataset with one element per Scope.
   out.logsout = struct ();
+  logged = dataset_element_list ();
   for item = result.signal_map
     if (isempty (item.outputs)), continue; endif
-    [block, label, variable, format] = block_at (systems(index).model, item.path);
+    [block, label, variable, format, shown] = block_at (systems(index).model, item.path);
     if (isempty (block)), continue; endif
     data = stack (result.flat_values(:, item.outputs(1)));
-    entry = workspace_entry (data, result.t(:), [name '/' label], format);
     if (! isempty (variable))
-      out.(variable) = entry; variables{end+1} = variable;
-    else
-      out.logsout.(valid_name (label)) = entry;
-      if (! any (strcmp (variables, 'logsout'))), variables{end+1} = 'logsout'; endif
+      out.(variable) = workspace_entry (data, result.t(:), [name '/' label], format);
+      variables{end+1} = variable;
+      continue;
     endif
+    if (dataset)
+      % Simulink's Scope logging layout (BlockPath the Scope, PortType
+      % 'inport', PortIndex 1), named after the Scope, as lines have no names.
+      logged(end+1) = dataset_signal (shown, [name '/' label], 'inport', 1, result.t(:), data);
+    else
+      out.logsout.(valid_name (label)) = workspace_entry (data, result.t(:), [name '/' label], format);
+    endif
+    if (! any (strcmp (variables, 'logsout'))), variables{end+1} = 'logsout'; endif
   endfor
+  if (dataset), out.logsout = dataset_struct ('logsout', logged); endif
   out.who = sort (variables)';
   out.ErrorMessage = '';
   out.SimulationMetadata = metadata (name, params, model, config, options, result, started, ...
@@ -1978,6 +2233,83 @@ function varargout = simulate (systems, count, name, varargin)
     varargout = {out.tout, [], out.yout};
     varargout = varargout(1:max (1, count));
   endif
+endfunction
+
+function found = routing_blocks (diagram, prefix, label)
+  % API Mux and Demux blocks in the virtual hierarchy (their flattened
+  % signals are in ob_run's signal_map), with the output shapes their
+  % declared Inputs/Outputs imply.  Simulink infers Mux and Demux widths;
+  % the builders fix them, so a scalar or row vector where a column of
+  % another width is expected must be reported instead of broadcast.
+  found = struct ('path', {}, 'label', {}, 'kind', {}, 'expected', {});
+  names = display_names (diagram);
+  for id = 1:numel (diagram.blocks)
+    block = diagram.blocks(id);
+    if (! strcmp (block.type, 'Subsystem')), continue; endif
+    meta = block_meta (block);
+    kind = '';
+    if (! isempty (meta)), kind = meta_kind (meta); endif
+    here = [label '/' names{id}];
+    if (any (strcmp (kind, {'Mux', 'Demux'})))
+      inner = block.value.blocks;
+      gains = find (strcmp ({inner.type}, 'Gain'));
+      if (strcmp (kind, 'Mux'))
+        expected = {[rows(inner(gains(1)).value) 1]};
+      else
+        expected = arrayfun (@(g) [rows(inner(g).value) 1], gains, 'UniformOutput', false);
+      endif
+      found(end+1) = struct ('path', [prefix id], 'label', here, 'kind', kind, 'expected', {expected});
+    elseif ((isempty (meta) || strcmp (kind, 'SubSystem')) && strcmp (ob_execution_mode (block.value), 'virtual'))
+      found = [found routing_blocks(block.value, [prefix id], here)];
+    endif
+  endfor
+endfunction
+
+function routing_shape_check (found, result)
+  if (isempty (found) || ! isfield (result, 'signal_map') || isempty (result.flat_values)), return; endif
+  map = result.signal_map;
+  for item = found
+    match = find (cellfun (@(p) isequal (p, item.path), {map.path}), 1);
+    if (isempty (match)), continue; endif
+    outputs = map(match).outputs;
+    for k = 1:min (numel (outputs), numel (item.expected))
+      value = result.flat_values(1, outputs(k));
+      if (iscell (value)), value = value{1}; endif
+      want = item.expected{k};
+      if (isequal (size (value), want)), continue; endif
+      if (strcmp (item.kind, 'Mux'))
+        error ('ob_simulink:MuxWidth', ...
+               ['ob_simulink: Mux ''%s'' output is %s where a %d-by-1 vector is expected: each input must be ' ...
+                'a scalar or a column vector of the width declared in Inputs.  Simulink infers the widths; ' ...
+                'Octave Blocks does not, so a count (Inputs ''2'') takes scalar inputs and vector inputs need ' ...
+                'their widths, e.g. Inputs ''[2 1]'' with Constant ''[1;2]'''], ...
+               item.label, size_text (value), want(1));
+      else
+        error ('ob_simulink:DemuxWidth', ...
+               ['ob_simulink: Demux ''%s'' output %d is %s where %s is expected: the input must be a ' ...
+                'column vector of %d elements.  Simulink infers the input width; Octave Blocks takes it ' ...
+                'from Outputs (a count N splits an N-element column; give widths, e.g. ''[2 1]'', otherwise)'], ...
+               item.label, k, size_text (value), size_text (zeros (want)), sum (cellfun (@(w) w(1), item.expected)));
+      endif
+    endfor
+  endfor
+endfunction
+
+function routing_failure (err, found)
+  % A dimension error in a model with Mux/Demux blocks most often comes
+  % from an input of an undeclared width; say so next to the engine's text.
+  if (isempty (found) || isempty (regexp (err.message, 'nonconformant|dimension|state shape', 'once')))
+    rethrow (err);
+  endif
+  error ('ob_simulink:RoutingWidth', ...
+         ['%s\n(ob_simulink: this model has Mux/Demux blocks (%s), whose inputs must be scalars or column ' ...
+          'vectors of the widths declared in Inputs/Outputs; Simulink infers the widths, Octave Blocks ' ...
+          'does not, and a row vector such as Constant ''[1 2]'' must be written as a column ''[1;2]'')'], ...
+         err.message, strjoin ({found.label}, ', '));
+endfunction
+
+function text = size_text (value)
+  text = sprintf ('%dx', size (value)); text(end) = [];
 endfunction
 
 function [result, accelerated, note] = run_model (model, times, options, mode)
@@ -2053,6 +2385,61 @@ function entry = workspace_entry (data, t, label, format)
   entry = struct ('time', time, 'signals', signals, 'blockName', label);
 endfunction
 
+function elements = dataset_element_list ()
+  elements = struct ('Name', {}, 'PropagatedName', {}, 'BlockPath', {}, 'PortType', {}, 'PortIndex', {}, ...
+                     'Values', {});
+endfunction
+
+function element = dataset_signal (name, block_path, port_type, port_index, t, data)
+  % A Simulink.SimulationData.Signal-like struct whose Values field is a
+  % timeseries-like struct.  Data keeps Simulink's layout: N-by-1 for a
+  % scalar, N-by-n for a vector, r-by-c-by-N (time last) for a matrix.
+  values = struct ('Name', name, 'Time', t, 'Data', data, 'IsTimeFirst', ndims (data) < 3, ...
+                   'Length', numel (t));
+  element = struct ('Name', name, 'PropagatedName', '', 'BlockPath', block_path, 'PortType', port_type, ...
+                    'PortIndex', port_index, 'Values', values);
+endfunction
+
+function ds = dataset_struct (name, elements)
+  % Simulink.SimulationData.Dataset-like struct (see SIMULINK_API.md):
+  % Name, numElements, Elements (the element structs) and the access
+  % functions getElement (by index or name), get (the same) and
+  % getElementNames, called as ds.getElement (k).  The handles call the
+  % public ob_simulink ('dataset_element', ...), so they survive clear
+  % functions and Octave's text/binary save and load.  MAT files cannot
+  % hold function handles: save rmfield (ds, {'getElement', 'get',
+  % 'getElementNames'}) and rebuild it with ob_simulink ('dataset', s).
+  names = reshape ({elements.Name}, [], 1);
+  ds = struct ('Name', name, 'numElements', numel (elements));
+  ds.Elements = elements;
+  ds.getElement = @(key) ob_simulink ('dataset_element', name, elements, key);
+  ds.get = ds.getElement;
+  ds.getElementNames = @() names;
+endfunction
+
+function value = dataset_lookup (name, elements, key)
+  % Simulink's getElement: an index, or a name giving the element, a
+  % Dataset of every match when names repeat, or [] (with Simulink's
+  % warning) when nothing matches.
+  count = numel (elements);
+  if (ischar (key) && (rows (key) == 1 || isempty (key)))
+    match = find (strcmp ({elements.Name}, key));
+    if (isempty (match))
+      warning ('ob_simulink:DatasetElementNotFound', 'Did not find any Dataset element using ''%s''.', key);
+      value = [];
+    elseif (isscalar (match))
+      value = elements(match);
+    else
+      value = dataset_struct (name, elements(match));
+    endif
+  elseif (isnumeric (key) && isscalar (key) && isreal (key) && key == fix (key) && key >= 1 && key <= count)
+    value = elements(key);
+  else
+    error ('ob_simulink:DatasetIndex', ...
+           'To access an element by index, use a scalar numeric integer from 1 to %d.', count);
+  endif
+endfunction
+
 function dims = sample_dimensions (data)
   % Size of one logged sample: rows hold samples, a third dimension stacks matrices.
   if (ndims (data) == 3), dims = [rows(data) columns(data)];
@@ -2101,10 +2488,11 @@ function data = stack (values)
   endif
 endfunction
 
-function [block, label, variable, format] = block_at (model, path)
+function [block, label, variable, format, shown] = block_at (model, path)
   % Logged sink at a flattened PATH: To Workspace (VARIABLE and its
   % SaveFormat) or Scope.  Display and Terminator log nothing, like Simulink.
-  block = []; label = ''; variable = ''; format = 'Structure With Time';
+  % SHOWN is the sink's own display name.
+  block = []; label = ''; variable = ''; format = 'Structure With Time'; shown = '';
   diagram = model; names = {};
   for k = 1:numel (path)
     if (path(k) > numel (diagram.blocks)), block = []; return; endif

@@ -103,10 +103,19 @@ The comparisons and their results (final gate, 2026-11-22):
   ode45.
 - **Delay and integrator:** 22 cases agree, and 29 documented differences are
   asserted on both sides ([ADVANCED_EXTENSIONS.md](ADVANCED_EXTENSIONS.md#comparison-with-simulink)).
-- **Command API:** 158 checks, covering library paths, BlockType/MaskType,
+- **Command API:** 199 checks, covering library paths, BlockType/MaskType,
   Ports, parameter names and defaults (including the `built-in/<BlockType>`
   defaults), Outport and Enable parameter probes, error, solver-name and
-  sim-output probes, and scenario outputs.
+  sim-output probes, and scenario outputs; since 0.3.0 also the new library
+  blocks' defaults and ode4 traces, the `Dataset` layout, access
+  functions and messages, and (scenario `followup`) the sample-based pulse
+  rate seen by an inherited Unit Delay, sample-based `PulseWidth` limits, a
+  Mux fed a row vector and the stored spelling of enumerated values.
+- **0.3.0 builders and analysis:** `reference_ob_nonlinear_builders.m` (44
+  cases), `reference_ob_routing_builders.m` (71 cases and 15 library
+  blocks) and `reference_ob_analysis.m` (linmod/trim results, step and sine
+  traces; Control System Toolbox and Simulink Control Design were not
+  installed, so MATLAB bode/margin/stepinfo/linearize/findop are absent).
 - **Benchmarks:** `test_ob_simulink_benchmarks` finds 4 of the 9 cases in
   agreement and 5 documented differences, in interpreted and in accelerated
   runs: Simulink's linear Transport Delay history interpolation (two

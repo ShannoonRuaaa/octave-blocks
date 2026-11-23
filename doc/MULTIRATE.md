@@ -85,6 +85,23 @@ For example, Time → Rate Transition with period 0.25 emits 0, 0.25, 0.5, ... a
 its hits. Time → Unit Delay with the same period emits its initial condition,
 0, 0.25, ... instead.
 
+`ob_rate_transition(IN_RATE, OUT_RATE, IC, DET, INTEGRITY)` (0.3.0) builds
+Simulink's Integrity/Deterministic semantics as a subsystem between explicit
+rates:
+
+- slow-to-fast deterministic is a Unit Delay at the input rate;
+- integrity-only returns the last slow sample strictly before each output
+  hit (this needs a common base period of both rates);
+- the other cases are holds at the output rate.
+
+IC is used only by the two delaying modes, and the output is 0 before the
+first output hit, as Simulink logs it. Deterministic transfer with offsets
+or non-integer rate ratios raises Simulink's errors; discrete-to-continuous
+and inherited (−1) output rates are rejected. 29 recorded Simulink 26.2 cases
+agree (`tests/test_ob_routing_builders.m`). The native Rate Transition block
+and the command API's `Signal Attributes/Rate Transition` keep the
+sample-and-hold behaviour described above.
+
 ## Continuous integration and input jumps
 
 The continuous solver splits integration at scheduled sample hits, Step
