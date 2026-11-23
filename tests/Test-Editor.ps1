@@ -17,6 +17,20 @@ if (-not $OctaveHome) {
 }
 $executable = Join-Path $OctaveHome 'mingw64\bin\octave-gui.exe'
 if (-not (Test-Path -LiteralPath $executable)) { throw "Octave GUI runtime not found: $executable" }
+if ([Diagnostics.Process]::GetCurrentProcess().SessionId -eq 0) {
+    throw ('The Qt editor stage needs a signed-in desktop session, but it was started in session 0 ' +
+        '(for example over SSH or as a service), where the Octave GUI waits forever. ' +
+        'Run it from a terminal on the desktop or an interactive (/IT) scheduled task.')
+}
+# A fresh Octave installation opens its first-run "Welcome to GNU Octave" wizard
+# before running --eval and waits for clicks; finishing it writes octave-gui.ini.
+$firstRunRemedy = "Start the Octave GUI once (the GNU Octave (GUI) Start menu entry, or & '$executable' --gui), " +
+    'finish the wizard so it saves its settings file, then rerun this stage.'
+$guiSettings = Join-Path $env:APPDATA 'octave\octave-gui.ini'
+if (-not (Test-Path -LiteralPath $guiSettings)) {
+    throw ("Octave has no GUI settings file ($guiSettings), so it would open its first-run " +
+        '"Welcome to GNU Octave" wizard and wait instead of running the editor tests. ' + $firstRunRemedy)
+}
 $artifactDirectory = Join-Path (Join-Path $PSScriptRoot '.artifacts') ('octave-blocks-editor-' + [guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($artifactDirectory) | Out-Null
 $logFile = Join-Path $artifactDirectory 'editor.log'
@@ -46,6 +60,15 @@ $start.WindowStyle = 'Hidden'
 $start.WorkingDirectory = $repositoryRoot
 foreach ($argument in @('--gui', '--quiet', '--eval', $expression)) { $start.ArgumentList.Add($argument) }
 $child = [Diagnostics.Process]::Start($start)
+# Fallback for a settings file that exists but still leads to the (English) wizard.
+while (-not $child.WaitForExit(1000)) {
+    $child.Refresh()
+    if ($child.MainWindowTitle -like 'Welcome to GNU Octave*') {
+        Stop-Process -Id $child.Id -Force -ErrorAction SilentlyContinue
+        throw ('Octave opened its first-run "Welcome to GNU Octave" wizard instead of running the editor tests. ' +
+            $firstRunRemedy)
+    }
+}
 $child.WaitForExit()
 if (Test-Path -LiteralPath $logFile) { Get-Content -LiteralPath $logFile }
 if ($child.ExitCode -ne 0) { throw "Qt editor verification failed (exit $($child.ExitCode)). Log: $logFile" }

@@ -16,5 +16,14 @@ Subsystem and signal builders
  ob_pid_controller ob_zero_pole ob_discrete_state_space
  ob_discrete_transfer_function ob_c2d_state_space ob_lookup_table_1d
  ob_rate_limiter ob_relay ob_atomic_feedthrough
+ ob_first_order_filter ob_second_order_integrator ob_rate_transition
+Nonlinear and logic builders
+ ob_backlash ob_quantizer ob_minmax ob_saturation_dynamic
+ ob_dead_zone_dynamic ob_sign ob_coulomb_viscous_friction
+ ob_relational_operator ob_logical_operator
+Signal routing and source builders
+ ob_mux ob_demux ob_multiport_switch ob_pulse_generator ob_chirp
+Analysis
+ ob_linearize ob_findop ob_bode ob_stepinfo
 C export
  ob_codegen

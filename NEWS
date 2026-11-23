@@ -11,5 +11,45 @@ DESCRIPTION, COPYING and INDEX for package installation and discovery.
 Examples are installed separately from the public API in inst/examples/.
 Tests and benchmarks remain in tests/ and are not added by pkg load.
 
+New Simulink library builders, built from native primitives so that
+ob_run, zero crossings, strict C99 ob_codegen and ob_accelerate all work,
+with Simulink's defaults, validateattributes-style 'ob_<name>:' errors,
+and regression suites checked against recorded Simulink 26.2 traces:
+
+ ** Nonlinear and logic: ob_backlash, ob_quantizer, ob_minmax,
+    ob_saturation_dynamic, ob_dead_zone_dynamic, ob_sign,
+    ob_coulomb_viscous_friction, ob_relational_operator and
+    ob_logical_operator (n inputs from two-input chains, NXOR, vectors).
+    Relational and Logical Operators output double 0/1.
+
+ ** Routing and sources: ob_mux and ob_demux (any number of inputs, declared
+    widths), ob_multiport_switch (control truncated toward zero, as
+    Simulink records it), ob_pulse_generator and ob_chirp.
+
+ ** Continuous and multirate: ob_second_order_integrator,
+    ob_first_order_filter, and ob_rate_transition, which builds Simulink's
+    Integrity/Deterministic Rate Transition modes between explicit rates.
+
+New analysis functions ob_linearize (linmod), ob_findop (trim), ob_bode
+(frequency response, margin/allmargin) and ob_stepinfo (stepinfo), checked
+against Simulink 26.2 linmod/trim and Simulink traces.
+
+The Simulink-style command API maps the new blocks by their Simulink R2026b
+library paths and built-in/<BlockType> names (Backlash, Quantizer, MinMax,
+Saturation Dynamic, Sign, Dead Zone Dynamic, Coulomb & Viscous Friction,
+Relational and Logical Operator, Multiport Switch, Pulse Generator,
+including sample-based pulses, Chirp Signal, Mux, Demux and
+Integrator, Second-Order), and sim() accepts SaveFormat 'Dataset': yout and
+the Scope logsout become Dataset-like structs with numElements,
+getElement, get and getElementNames, recorded against Simulink 26.2. The
+model default stays 'Array'. The handles survive Octave's binary/text
+save and load; for MAT files, remove them and rebuild the Dataset with
+ob_simulink ('dataset', s). A Mux or Demux signal whose shape differs
+from the declared width stops sim with an error that names the block.
+
+Not added: Zero-Order Hold (use a native Rate Transition), Moving Average,
+Bus Creator/Selector (use ob_mux/ob_demux), sample-time reports and model
+diagnostics.
+
 See CHANGELOG.md for earlier preview release notes and doc/README.md
 for the documentation index.

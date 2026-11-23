@@ -33,6 +33,28 @@ function test_ob_simulink_api ()
   assert (out.who, {'tout'; 'yout'});
   cases += 2;
 
+  % Explicit input/output rates activate the Rate Transition transfer modes
+  % through the command API; the inherited-rate default remains a hold.
+  new_system ('rtmode');
+  add_block ('simulink/Sources/Clock', 'rtmode/Clock');
+  add_block ('simulink/Signal Attributes/Rate Transition', 'rtmode/Producer', ...
+             'OutPortSampleTime', '0.75');
+  add_block ('simulink/Signal Attributes/Rate Transition', 'rtmode/Transfer', ...
+             'OctaveInputSampleTime', '0.75', 'OutPortSampleTime', '0.25', ...
+             'InitialCondition', '5', 'Integrity', 'on', 'Deterministic', 'on');
+  add_block ('simulink/Sinks/Out1', 'rtmode/Out1');
+  add_line ('rtmode', 'Clock/1', 'Producer/1');
+  add_line ('rtmode', 'Producer/1', 'Transfer/1');
+  add_line ('rtmode', 'Transfer/1', 'Out1/1');
+  set_param ('rtmode', 'StopTime', '3', 'Solver', 'ode4', 'FixedStep', '0.25');
+  want = [5 5 5 0 0 0 0.75 0.75 0.75 1.5 1.5 1.5 2.25];
+  assert (sim ('rtmode').yout(:)', want);
+  set_param ('rtmode/Transfer', 'Integrity', 'off');
+  assert (sim ('rtmode').yout(:)', [0 0 0 0.75 0.75 0.75 1.5 1.5 1.5 2.25 2.25 2.25 3]);
+  set_param ('rtmode/Transfer', 'Deterministic', 'off');
+  assert (sim ('rtmode').yout(:)', [0 0 0 0.75 0.75 0.75 1.5 1.5 1.5 2.25 2.25 2.25 3]);
+  cases += 3;
+
   % Signed sums, element-wise products, gains and a To Workspace log.
   new_system ('ops');
   for k = 1:3
@@ -70,8 +92,71 @@ function test_ob_simulink_api ()
   set_param ('ops', 'SaveFormat', 'Structure');
   out = sim ('ops', [0 1]);
   assert (isempty (out.yout.time) && isequal (size (out.yout.signals.values), [51 2]));
-  assert_error (@() set_param ('ops', 'SaveFormat', 'Dataset'), 'Dataset');
+  assert_error (@() set_param ('ops', 'SaveFormat', 'Timeseries'), 'Dataset');
   assert (strcmp (get_param ('ops', 'SaveFormat'), 'Structure'));
+  % SaveFormat 'Dataset': Dataset-like structs with Simulink's element
+  % access; elements are named after (unnamed) lines, so ''.
+  out = sim ('ops', [0 1], 'SaveFormat', 'Dataset');
+  assert ({out.yout.Name, out.yout.numElements}, {'yout', 1});
+  assert (out.yout.getElementNames (), {''});
+  e = out.yout.getElement (1);
+  assert ({e.Name, e.BlockPath, e.PortType, e.PortIndex}, {'', 'ops/Out1', 'inport', 1});
+  assert (e.Values.Time, out.tout);
+  assert (e.Values.Data(end, :), [2/3 4/3], 1e-15);
+  assert ({e.Values.IsTimeFirst, e.Values.Length}, {true, 51});
+  assert (out.yout.get (1), e);
+  assert (out.yout.Elements(1), e);
+  assert_error (@() out.yout.getElement (2), 'from 1 to 1');
+  assert_error (@() out.yout.getElement (0.5), 'scalar numeric integer');
+  warning ('off', 'ob_simulink:DatasetElementNotFound', 'local');
+  assert (isempty (out.yout.getElement ('Out1')));
+  assert (out.sumlog.signals.values(end, :), [-4 -8]);           % To Workspace is unchanged
+  assert (out.who, {'sumlog'; 'tout'; 'yout'});
+  % Scopes log into a Dataset logsout; matrices keep time last.
+  new_system ('dset');
+  add_block ('simulink/Sources/Clock', 'dset/Clock');
+  add_block ('simulink/Sources/Constant', 'dset/M', 'Value', '[1 2; 3 4]');
+  add_block ('simulink/Math Operations/Product', 'dset/P');
+  add_block ('simulink/Sinks/Scope', 'dset/Scope');
+  add_block ('simulink/Ports & Subsystems/Subsystem', 'dset/Sub');
+  add_block ('simulink/Sinks/Scope', 'dset/Sub/Scope');
+  add_line ('dset/Sub', 'In1/1', 'Scope/1');
+  add_block ('simulink/Sinks/Out1', 'dset/Out1');
+  add_line ('dset', 'Clock/1', 'P/1'); add_line ('dset', 'M/1', 'P/2');
+  add_line ('dset', 'P/1', 'Scope/1'); add_line ('dset', 'Clock/1', 'Sub/1'); add_line ('dset', 'P/1', 'Out1/1');
+  set_param ('dset', 'SaveFormat', 'Dataset', 'StopTime', '1', 'Solver', 'ode4', 'FixedStep', '0.5');
+  out = sim ('dset');
+  assert (out.who, {'logsout'; 'tout'; 'yout'});
+  y = out.yout.getElement (1).Values;
+  assert (size (y.Data), [2 2 3]);
+  assert (y.Data(:, :, 3), [1 2; 3 4]);
+  assert (y.IsTimeFirst, false);
+  assert ({out.logsout.Name, out.logsout.numElements}, {'logsout', 2});
+  both = out.logsout.getElement ('Scope');             % a repeated name: a Dataset of both
+  assert (both.numElements, 2);
+  assert ({both.getElement(1).BlockPath, both.getElement(2).BlockPath}, {'dset/Scope', 'dset/Sub/Scope'});
+  assert (both.getElement (2).Values.Data, [0; 0.5; 1]);
+  assert ({both.getElement(2).PortType, both.getElement(2).PortIndex}, {'inport', 1});
+  % The access handles call the public ob_simulink, so a Dataset survives
+  % Octave's binary save/load; for a MAT file the handles are removed and
+  % ob_simulink ('dataset', s) rebuilds them.
+  assert (! isempty (strfind (func2str (out.yout.getElement), 'ob_simulink')));
+  file = [tempname() '.bin'];
+  save ('-binary', file, 'out'); saved = load (file); delete (file);
+  assert (saved.out.yout.getElement (1).Values.Data, y.Data);
+  assert (saved.out.logsout.get (2).BlockPath, 'dset/Sub/Scope');
+  plain = rmfield (out.logsout, {'getElement', 'get', 'getElementNames'});
+  file = [tempname() '.mat'];
+  save ('-v7', file, 'plain'); saved = load (file); delete (file);
+  rebuilt = ob_simulink ('dataset', saved.plain);
+  assert (rebuilt.numElements, 2);
+  assert (rebuilt.getElement (2).Values.Data, [0; 0.5; 1]);
+  assert (rebuilt.getElementNames (), {'Scope'; 'Scope'});
+  assert_error (@() ob_simulink ('dataset', 1), 'Name and Elements');
+  set_param ('dset', 'SaveFormat', 'Array');
+  out = sim ('dset');
+  assert (iscell (out.yout) && isfield (out.logsout, 'Scope'));   % 0.2 layouts unchanged
+  close_system ('dset', 0);
   set_param ('ops/Log', 'SaveFormat', 'Array');
   out = sim ('ops', [0 1]);
   assert (out.sumlog, repmat ([-4 -8], 51, 1));
@@ -822,6 +907,158 @@ function test_ob_simulink_api ()
   bdclose ('old_model');
   confirm_recursive_rmdir (false, 'local'); rmdir (folder, 's');
   cases += 1;
+
+  % 0.3.0 library blocks: Simulink names, defaults and the builders behind
+  % them (test_ob_simulink_api_reference compares with recorded Simulink).
+  new_system ('nb');
+  add_block ('simulink/Sources/Clock', 'nb/t');
+  add_block ('simulink/Math Operations/Gain', 'nb/u', 'Gain', '-1');     % u = -t ... then shifted
+  add_block ('simulink/Sources/Constant', 'nb/c', 'Value', '1.5');
+  add_block ('simulink/Math Operations/Add', 'nb/s');                    % s = 1.5 - t
+  add_line ('nb', 't/1', 'u/1'); add_line ('nb', 'u/1', 's/1'); add_line ('nb', 'c/1', 's/2');
+  blocks = {'simulink/Math Operations/Sign', 'Sign', 1, {}; ...
+            'simulink/Discontinuities/Quantizer', 'Q', 1, {}; ...
+            'simulink/Logic and Bit Operations/Relational Operator', 'Rel', 2, {}; ...
+            'simulink/Commonly Used Blocks/Logical Operator', 'Or', 2, {}; ...
+            'simulink/Math Operations/MinMax', 'Max', 2, {'Inputs', '2'}; ...
+            'simulink/Discontinuities/Coulomb & Viscous Friction', 'F', 1, {}};
+  for k = 1:rows (blocks)
+    add_block (blocks{k, 1}, ['nb/' blocks{k, 2}], blocks{k, 4}{:});
+    add_block ('simulink/Sinks/Out1', sprintf ('nb/y%d', k));
+    add_line ('nb', [blocks{k, 2} '/1'], sprintf ('y%d/1', k));
+    for port = 1:blocks{k, 3}
+      source = 's/1'; if (port == 2), source = 't/1'; endif
+      add_line ('nb', source, sprintf ('%s/%d', blocks{k, 2}, port));
+    endfor
+  endfor
+  assert ({get_param('nb/Sign', 'BlockType'), get_param('nb/Q', 'QuantizationInterval'), ...
+           get_param('nb/Rel', 'Operator'), get_param('nb/Or', 'Operator'), get_param('nb/Max', 'Function'), ...
+           get_param('nb/F', 'MaskType'), get_param('nb/F', 'offset')}, ...
+          {'Signum', '0.5', '<=', 'AND', 'min', 'Coulombic and Viscous Friction', '[1 3 2 0]'});
+  set_param ('nb/Or', 'Operator', 'OR');
+  set_param ('nb/Max', 'Function', 'max');
+  set_param ('nb/F', 'offset', '2', 'gain', '0.5');
+  set_param ('nb', 'StopTime', '3', 'Solver', 'ode4', 'FixedStep', '0.25');
+  out = sim ('nb');
+  t = out.tout; s = 1.5 - t;
+  assert (out.yout(:, 1), sign (s));
+  assert (out.yout(:, 2), 0.5 * round (s / 0.5), 1e-15);
+  assert (out.yout(:, 3), double (s <= t));
+  assert (out.yout(:, 4), double (s != 0 | t != 0));
+  assert (out.yout(:, 5), max (s, t), 1e-15);
+  assert (out.yout(:, 6), 0.5 * s + 2 * sign (s), 1e-15);
+  assert (get_param ('nb/Max', 'Ports'), [2 1 0 0 0 0 0 0 0 0]);
+  % Sign with ZeroCross 'off' is the guard-free Function 'sign'.
+  set_param ('nb/Sign', 'ZeroCross', 'off');
+  model = ob_simulink ('get_model', 'nb');
+  assert (any (strcmp ({model.blocks.type}, 'Function') & strcmp ({model.blocks.name}, 'sign')));
+  assert (sim ('nb').yout(:, 1), sign (s));
+  % MinMax Inputs = 1 reduces every element of one input (Octave-only
+  % Function blocks; documented as not exportable to C).
+  add_block ('simulink/Sources/Constant', 'nb/V', 'Value', '[3 -1; 7 2]');
+  add_block ('simulink/Math Operations/MinMax', 'nb/Min');
+  assert ({get_param('nb/Min', 'Inputs'), get_param('nb/Min', 'Function')}, {'1', 'min'});   % Simulink's defaults
+  add_block ('simulink/Sinks/Out1', 'nb/y7');
+  add_line ('nb', 'V/1', 'Min/1'); add_line ('nb', 'Min/1', 'y7/1');
+  assert (sim ('nb').yout(:, 7), -ones (13, 1));
+  % Invalid settings: the builders' messages, systems left unchanged.
+  assert_error (@() set_param ('nb/Q', 'QuantizationInterval', '-1'), 'ob_quantizer');
+  assert (get_param ('nb/Q', 'QuantizationInterval'), '0.5');
+  assert_error (@() set_param ('nb/Rel', 'Operator', 'isNaN'), 'ob_relational_operator');
+  assert_error (@() set_param ('nb/Or', 'Operator', 'MAYBE'), 'ob_logical_operator');
+  assert_error (@() set_param ('nb/Max', 'Function', 'mean'), 'min or max');
+  assert_error (@() set_param ('nb/Sign', 'SampleTime', '0.1'), 'discrete sample time is not supported');
+  assert_error (@() set_param ('nb/Rel', 'OutDataTypeStr', 'double'), 'does not have a parameter named');
+  close_system ('nb', 0);
+
+  new_system ('rb');
+  add_block ('simulink/Sources/Pulse Generator', 'rb/P');
+  assert ({get_param('rb/P', 'BlockType'), get_param('rb/P', 'Period'), get_param('rb/P', 'PulseType')}, ...
+          {'DiscretePulseGenerator', '10', 'Time based'});
+  add_block ('built-in/DiscretePulseGenerator', 'rb/PS', 'Period', '4', 'PulseWidth', '1', 'PhaseDelay', '1', ...
+             'SampleTime', '0.5');
+  add_block ('simulink/Sources/Clock', 'rb/t');
+  add_block ('simulink/Signal Routing/Multiport Switch', 'rb/MS', 'DataPortOrder', 'Zero-based contiguous', ...
+             'Inputs', '2', 'DataPortForDefault', 'Additional data port');
+  for k = 1:3, add_block ('simulink/Sources/Constant', sprintf ('rb/D%d', k), 'Value', num2str (k)); endfor
+  add_block ('simulink/Sources/Constant', 'rb/One', 'Value', '1');
+  add_block ('simulink/Continuous/Integrator, Second-Order', 'rb/I2', 'ICDXDT', '2');
+  add_block ('simulink/Signal Routing/Mux', 'rb/Mux', 'Inputs', '3');
+  add_block ('simulink/Signal Routing/Demux', 'rb/Demux', 'Outputs', '[2 1]');
+  add_block ('simulink/Sources/Chirp Signal', 'rb/C', 'f1', '0', 'T', '1', 'f2', '1');
+  for k = 1:7, add_block ('simulink/Sinks/Out1', sprintf ('rb/y%d', k)); endfor
+  lines = {'PS/1', 'y1/1'; 't/1', 'MS/1'; 'D1/1', 'MS/2'; 'D2/1', 'MS/3'; 'D3/1', 'MS/4'; 'MS/1', 'y2/1'; ...
+           'One/1', 'I2/1'; 'I2/1', 'Mux/1'; 'I2/2', 'Mux/2'; 't/1', 'Mux/3'; 'Mux/1', 'Demux/1'; ...
+           'Demux/1', 'y3/1'; 'Demux/2', 'y4/1'; 'C/1', 'y5/1'; 'P/1', 'y6/1'; 'I2/2', 'y7/1'};
+  for k = 1:rows (lines), add_line ('rb', lines{k, 1}, lines{k, 2}); endfor
+  assert (get_param ('rb/MS', 'Ports'), [4 1 0 0 0 0 0 0 0 0]);
+  assert (get_param ('rb/Demux', 'Ports'), [1 2 0 0 0 0 0 0 0 0]);
+  set_param ('rb', 'StopTime', '4', 'Solver', 'ode4', 'FixedStep', '0.25');
+  out = sim ('rb', 'SaveFormat', 'StructureWithTime');
+  t = out.tout; v = @(k) out.yout.signals(k).values;
+  % Sample-based: 0.5 s samples, on for sample 1 of every 4 after a delay of 1.
+  assert (v(1), double (mod (floor (t / 0.5 + 1e-9) - 1, 4) == 0 & t >= 0.5));
+  % Zero-based ports 0..1; control 2 and beyond selects the additional port.
+  assert (v(2), 1 + (fix (t) >= 1) + (fix (t) >= 2));
+  assert (v(3), [2 * t + t.^2 / 2, 2 + t], 1e-12);
+  assert (v(4), t, 1e-12);
+  assert (v(5), sin (pi * t.^2), 1e-12);
+  assert (v(6), double (mod (t, 10) < 0.5));
+  assert (v(7), 2 + t, 1e-12);
+  assert_error (@() set_param ('rb/I2', 'LimitX', 'on'), 'supports only LimitX');
+  assert_error (@() set_param ('rb/PS', 'PulseWidth', '1.5'), 'integer number of samples');
+  assert_error (@() set_param ('rb/P', 'TimeSource', 'Use external signal'), 'TimeSource');
+  assert_error (@() set_param ('rb/Mux', 'Inputs', '-1'), 'ob_mux');
+  assert_error (@() set_param ('rb/MS', 'DiagnosticForDefault', 'Panic'), 'DiagnosticForDefault');
+  % Sample-based pulse widths are counted in samples.
+  assert_error (@() set_param ('rb/PS', 'PulseWidth', '0'), 'positive number of samples');
+  assert_error (@() set_param ('rb/PS', 'PulseWidth', '5'), 'less than or equal to Period (4 samples)');
+  % Enumerated values are case-insensitive and stored with Simulink's spelling.
+  set_param ('rb/MS', 'DiagnosticForDefault', 'warning', 'DataPortOrder', 'zero-based CONTIGUOUS');
+  assert ({get_param('rb/MS', 'DiagnosticForDefault'), get_param('rb/MS', 'DataPortOrder')}, ...
+          {'Warning', 'Zero-based contiguous'});
+  set_param ('rb/P', 'PulseType', 'time based');
+  assert (get_param ('rb/P', 'PulseType'), 'Time based');
+  close_system ('rb', 0);
+  % A sample-based pulse keeps its rate: FixedStep 'auto' takes it, and an
+  % inherited Unit Delay downstream delays by one pulse sample.
+  new_system ('pr');
+  add_block ('built-in/DiscretePulseGenerator', 'pr/P', 'SampleTime', '0.5');
+  add_block ('simulink/Discrete/Unit Delay', 'pr/UD');
+  add_block ('simulink/Sinks/Out1', 'pr/y1'); add_block ('simulink/Sinks/Out1', 'pr/y2');
+  add_line ('pr', 'P/1', 'y1/1'); add_line ('pr', 'P/1', 'UD/1'); add_line ('pr', 'UD/1', 'y2/1');
+  set_param ('pr', 'StopTime', '3', 'SaveFormat', 'Array');
+  out = sim ('pr');
+  assert (out.tout, (0:0.5:3)', 1e-12);
+  assert (out.yout, double ([mod(0:6, 2) == 0; 0 mod(0:5, 2) == 0]'));
+  close_system ('pr', 0);
+  % Mux and Demux widths are declared, not inferred: wrong shapes are
+  % reported instead of broadcast.
+  new_system ('mw');
+  add_block ('simulink/Sources/Constant', 'mw/A', 'Value', '[1 2]');
+  add_block ('simulink/Sources/Constant', 'mw/B', 'Value', '3');
+  add_block ('simulink/Signal Routing/Mux', 'mw/M');
+  add_block ('simulink/Signal Routing/Demux', 'mw/D');
+  for k = 1:3, add_block ('simulink/Sinks/Out1', sprintf ('mw/y%d', k)); endfor
+  add_line ('mw', 'A/1', 'M/1'); add_line ('mw', 'B/1', 'M/2'); add_line ('mw', 'M/1', 'y1/1');
+  add_line ('mw', 'B/1', 'D/1'); add_line ('mw', 'D/1', 'y2/1'); add_line ('mw', 'D/2', 'y3/1');
+  set_param ('mw', 'StopTime', '1');
+  assert_error (@() sim ('mw'), 'Mux ''mw/M'' output is 2x2 where a 2-by-1 vector is expected');
+  set_param ('mw/A', 'Value', '1');
+  assert_error (@() sim ('mw'), 'Demux ''mw/D'' output 1 is 1x2 where 1x1 is expected');
+  set_param ('mw/B', 'Value', '[3 4]');
+  assert_error (@() sim ('mw'), 'Mux/Demux blocks (mw/M, mw/D)');
+  set_param ('mw/B', 'Value', '[3;4]'); set_param ('mw/M', 'Inputs', '[1 2]'); set_param ('mw/D', 'Outputs', '[1 1]');
+  out = sim ('mw');
+  assert (out.yout(end, :), [1 3 4 3 4]);
+  close_system ('mw', 0);
+  new_system ('un');
+  for path = {'simulink/Continuous/Integrator, Second-Order Limited', 'simulink/Signal Routing/Bus Creator', ...
+              'simulink/Discrete/Zero-Order Hold', 'simulink/Discrete/Transfer Fcn First Order'}
+    assert_error (@() add_block (path{1}, 'un/B'), 'not supported by Octave Blocks');
+  endfor
+  close_system ('un', 0);
+  cases += 3;
 
   % Explicit failures leave systems unchanged.
   assert_error (@() add_block ('simulink/Sources/Signal Builder', 'mix/S'), 'not supported');

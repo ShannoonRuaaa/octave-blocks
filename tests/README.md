@@ -33,9 +33,25 @@ in production files; their wrapper functions check that every case passed.
 `test_ob_multi_function`, `test_ob_inner_clock_c_cases` and several codegen
 case files are fixtures, not standalone test commands.
 
+Set the environment variable `OB_SKIP_ACCELERATOR` to any non-empty value to
+skip the accelerated comparisons in `test_ob_routing_builders` (for machines
+where compiled MEX files cannot load, such as under Windows Smart App
+Control). The suite prints each skipped case and counts fewer checks; a full
+gate run must leave the variable unset.
+
 The stage runner accepts `-Workers 1` through `-Workers 4` (default 2) and
 optional `-Stages engine,api` for focused retries. Each run keeps a fresh
 manifest, per-stage stdout/stderr, source hashes and exit codes under
 `.artifacts/gate-*/`. Only a complete default run covers the full stage set;
 focused retries have their own manifests. Concurrent checks do not produce
 performance claims. The editor stage runs after other checks have finished.
+
+The editor stage (`Test-Editor.ps1`) opens the Octave Qt GUI, so it needs a
+signed-in desktop session. It fails at once with an explanation when started
+in session 0 (over SSH or as a service), where the GUI would wait forever.
+After a fresh Octave installation, open the Octave GUI once (the
+GNU Octave (GUI) Start menu entry, or `octave-gui.exe --gui`) and finish its
+"Welcome to GNU Octave" wizard, which saves `%APPDATA%\octave\octave-gui.ini`.
+Until that file exists the stage stops before launching Octave with that
+instruction; if the English wizard still opens during the stage, the runner
+closes Octave and fails the same way instead of waiting for a click.

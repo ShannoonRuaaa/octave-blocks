@@ -70,7 +70,9 @@ and the [documentation index](doc/README.md).
 | C export | Static real-double C99 subset with RK4 and flat-model adaptive ode45, supported events and transactional APIs |
 | Acceleration | Cached compiled MEX simulation for supported flat and conditional models; explicit fallback outside the subset |
 | Additional blocks | PID and discrete-system builders, lookup tables, Transport Delay and Limited Integrator within the documented subsets |
-| Programmatic modeling | Simulink-style construction, parameter and simulation commands with recorded reference comparisons |
+| Library builders | Backlash, Quantizer, MinMax, Saturation/Dead Zone Dynamic, Sign, Coulomb & Viscous Friction, Relational and Logical Operators, Mux/Demux, Multiport Switch, Pulse Generator, Chirp, second-order integrator and Rate Transition modes, built from exportable primitives |
+| Analysis | `ob_linearize` (linmod), `ob_findop` (trim), `ob_bode` (frequency response and margins) and `ob_stepinfo` |
+| Programmatic modeling | Simulink-style construction, parameter and simulation commands (including `Dataset`-style outputs) with recorded reference comparisons |
 
 This is an experimental independent project. Simulink `.slx`/`.mdl` file
 interchange and full Simulink compatibility are unfinished. Arbitrary `.m`

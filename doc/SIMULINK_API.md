@@ -59,14 +59,17 @@ object) with:
   column per signal element, like Simulink's Array format (ports carrying
   matrices fall back to a cell per port); `'Structure'` and
   `'StructureWithTime'` give Simulink's `yout.time` and
-  `yout.signals(k).values/dimensions/label/blockName` layout. `yout` is `[]`
-  when the model has no root Out1.
+  `yout.signals(k).values/dimensions/label/blockName` layout; `'Dataset'`
+  gives a Dataset-like struct (see [Dataset output](#dataset-output)). `yout`
+  is `[]` (an empty Dataset with `'Dataset'`) when the model has no root Out1.
 - one field per **To Workspace** variable, in the block's `SaveFormat`:
   `'Structure With Time'` (the Octave Blocks default; Simulink's layout
   `time`, `signals.values/dimensions/label`, `blockName`), `'Structure'`
   (empty `time`) or `'Array'` (values only).
 - `logsout` entries for Scope blocks, an Octave Blocks extension in the same
-  layout. Display and Terminator log nothing, like Simulink.
+  layout; with `SaveFormat` `'Dataset'`, `logsout` is a Dataset-like struct
+  with one element per Scope. Display and Terminator log nothing, like
+  Simulink.
 - `who`: the sorted names of the logged variables (`tout`, `yout` when there
   are root Out1 ports, To Workspace variables, and `logsout` when a Scope
   was logged), like `SimulationOutput.who`.
@@ -84,6 +87,73 @@ object) with:
   states, whatever solver was chosen; otherwise it is the chosen solver,
   with `FixedStepAuto` reported as `ode4` and `VariableStepAuto` as `ode45`.
 - `result`, the full `ob_run` result.
+
+### Dataset output
+
+With `set_param(name, 'SaveFormat', 'Dataset')` (or `sim(name, 'SaveFormat',
+'Dataset')`), `out.yout` and `out.logsout` follow
+`Simulink.SimulationData.Dataset`. Octave Blocks has no classdef objects for
+them, so they are structs whose fields give the same access syntax:
+
+```octave
+set_param ('loop', 'SaveFormat', 'Dataset');
+out = sim ('loop');
+out.yout.numElements              % number of elements (a field, not a method)
+out.yout.getElementNames ()       % names, one per element (column cell)
+e = out.yout.getElement (1);      % by index; also getElement ('name'), get (1)
+plot (e.Values.Time, e.Values.Data);
+```
+
+| Field | Content |
+| --- | --- |
+| `Name` | `'yout'` or `'logsout'`, like the Dataset's `Name` |
+| `numElements` | element count |
+| `Elements` | struct array of the elements (Octave Blocks only; Simulink keeps them internal) |
+| `getElement(k)`, `get(k)` | element `k`; an index outside 1..`numElements` errors with Simulink's message ("To access an element by index, use a scalar numeric integer from 1 to N.") |
+| `getElement('name')` | the element with that name; a Dataset of every match when names repeat; `[]` with Simulink's warning ("Did not find any Dataset element using 'name'.", identifier `ob_simulink:DatasetElementNotFound`) when none matches |
+| `getElementNames()` | column cell of element names |
+
+Each element is a `Simulink.SimulationData.Signal`-like struct with `Name`,
+`PropagatedName`, `BlockPath`, `PortType`, `PortIndex` and `Values`, and
+`Values` a `timeseries`-like struct with `Name`, `Time` (column), `Data`,
+`IsTimeFirst` and `Length`. `BlockPath` is the block's path as text (Simulink
+returns a `BlockPath` object whose `getBlock(1)` is that text). `Data` has
+Simulink's layout: N-by-1 for a scalar, N-by-n for a vector (row or column),
+and r-by-c-by-N (time last, `IsTimeFirst` false) for a matrix.
+
+- `yout` elements are the root Out1 ports in port order: `BlockPath` is the
+  Out1 path (`'loop/y'`), `PortType` `'inport'`, `PortIndex` 1, and `Name`
+  (and `Values.Name`) the name of the line, which is always `''` because
+  Octave Blocks lines have no names, as Simulink reports for unnamed lines.
+  As in Simulink, `getElement('y')` does not find an Out1 by its block name.
+- `logsout` elements are the Scopes anywhere in the virtual hierarchy, with
+  the layout Simulink uses for a logging Scope: `BlockPath` is the Scope path
+  (`'loop/Sub/Scope'`), `PortType` `'inport'`, `PortIndex` 1. Since lines
+  have no names, `Name` is the Scope's own name, so `getElement('Scope')`
+  finds it (Simulink names the element after the signal line, `''` when it
+  is unnamed, and puts Scope logging in a separate `ScopeData` variable).
+- To Workspace blocks keep their own `SaveFormat` (Timeseries is still not
+  available).
+
+The layout, access functions and messages were recorded in Simulink 26.2 by
+`reference_ob_simulink_api.m` (scenario `dataset`) and are checked by
+`test_ob_simulink_api_reference`. The function handles capture the elements
+when `sim` returns, so editing `Elements` afterwards does not change what
+`getElement` returns. Indexing with braces (`out.yout{1}`) and the function
+forms `numElements(ds)` or `getElement(ds, k)` are not available.
+
+The `getElement` and `get` handles call the public
+`ob_simulink ('dataset_element', ...)`, so a Dataset keeps working after
+`clear functions` and after Octave's `-binary` or `-text` `save` and `load`.
+MAT files (`-v7`, `-v6`) cannot hold function handles: remove them before
+saving and rebuild them after loading with `ob_simulink ('dataset', s)`:
+
+```matlab
+plain = rmfield (out.yout, {'getElement', 'get', 'getElementNames'});
+save ('-v7', 'run.mat', 'plain');
+s = load ('run.mat');
+yout = ob_simulink ('dataset', s.plain);   % Name and Elements -> full Dataset
+```
 
 As in Simulink, the legacy `[t, x, y] = sim(...)` form needs
 `ReturnWorkspaceOutputs` `'off'` (as a model parameter or in the options
@@ -104,7 +174,7 @@ runs.
 | `FixedStep` | Output interval and RK4 step. `auto` is the fundamental sample time (GCD of every explicit discrete period and offset, including those inside library-built blocks) for a model without continuous states, and otherwise (stop − start)/50 bounded by `MaxStep`. The Rate Limiter's Octave-only `OctaveSampleTime` does not count, because Simulink's Rate Limiter has no discrete rate of its own. |
 | `RelTol`, `AbsTol`, `MaxStep` | Adaptive solver tolerances (`AbsTol` `auto` → 1e-6). |
 | `ZeroCrossControl` | `EnableAll` turns on event localization; `UseLocalSettings` (the default) and `DisableAll` run without it. |
-| `SaveFormat` | `Array` (default), `Structure` or `StructureWithTime` for `yout`. `Dataset`, Simulink's default, is rejected. |
+| `SaveFormat` | `Array` (default), `Structure`, `StructureWithTime` or `Dataset` for `yout` (and, with `Dataset`, `logsout`). Simulink defaults to `Dataset`; the Octave Blocks default stays `Array`, as in 0.2. |
 | `ReturnWorkspaceOutputs` | `on` (default) or `off`, which enables the legacy `[t, x, y] = sim(...)` outputs. |
 | `SimulationMode` | `normal` (default) interprets the model. `accelerator` and `rapid-accelerator` run it as compiled C through `ob_accelerate` (`ob_run` option `accelerate`; see [CODEGEN.md](CODEGEN.md)); a model outside the accelerator's subset, or a missing compiler, runs interpreted instead and `SimulationMetadata.ExecutionInfo.WarningDiagnostics` says why. Values are case-insensitive and stored in lower case, as in Simulink. Also a `sim` name/value option. |
 
@@ -114,11 +184,18 @@ runs.
 `built-in/<BlockType>` for every BlockType listed. Runs of whitespace,
 including the newlines inside Simulink library names, compare as one space.
 Any other path errors like Simulink ("There is no block named ..."); a few
-known Simulink blocks that cannot be realized (Signal Builder, Mux, Pulse
-Generator, ...) report that they are not supported instead. `get_param`
+known Simulink blocks that cannot be realized (Signal Builder, Bus Creator,
+Zero-Order Hold, Integrator, Second-Order Limited, ...) report that they are
+not supported instead. `get_param`
 returns the BlockType and MaskType Simulink reports, and parameter names and
 defaults are Simulink's (checked by `test_ob_simulink_api_reference`).
-Parameter names are case-insensitive.
+Parameter names are case-insensitive. The enumerated parameters of the
+0.3.0 blocks (MinMax `Function`, Logical and Relational `Operator`, Pulse
+Generator `PulseType`/`TimeSource`, Multiport Switch `DataPortOrder`,
+`DataPortForDefault` and `DiagnosticForDefault`, Sign `ZeroCross`, Mux and
+Demux `DisplayOption`, and the `Integrator, Second-Order` options) are also
+case-insensitive and stored with Simulink's spelling (`'MAX'` reads back as
+`'max'`, `'nxor'` as `'NXOR'`, as recorded in Simulink 26.2).
 
 | Library paths | BlockType | Parameters (default) | Octave Blocks realization |
 | --- | --- | --- | --- |
@@ -135,7 +212,7 @@ Parameter names are case-insensitive.
 | `Continuous/Integrator`, `Commonly Used Blocks/Integrator`; `Continuous/Integrator Limited` | Integrator | `InitialCondition`, `LimitOutput`, `UpperSaturationLimit`, `LowerSaturationLimit`, `ExternalReset` (`none`, `rising`, `falling`, `either`, `level`, `level hold`) | Integrator, or Limited Integrator with limits/reset port |
 | `Continuous/Transport Delay` | TransportDelay | `DelayTime`, `InitialOutput` | Transport Delay |
 | `Discrete/Unit Delay`; `Discrete/Discrete-Time Integrator`, `Commonly Used Blocks/Discrete-Time Integrator` | UnitDelay; DiscreteIntegrator | `InitialCondition`, `SampleTime` (−1) | Unit Delay, forward-Euler Discrete Integrator |
-| `Signal Attributes/Rate Transition` | RateTransition | `OutPortSampleTime`, `InitialCondition` | Rate Transition |
+| `Signal Attributes/Rate Transition` | RateTransition | `OutPortSampleTime`, `InitialCondition`, `Integrity` (`on`), `Deterministic` (`on`), `OctaveInputSampleTime` (−1; Octave extension) | Native hold by default; with explicit input/output rates, `ob_rate_transition` modes |
 | `Discontinuities/Saturation`, `Commonly Used Blocks/Saturation`; `Discontinuities/Dead Zone` | Saturate; DeadZone | `UpperLimit`/`LowerLimit`; `LowerValue`/`UpperValue` | Native blocks |
 | `Signal Routing/Switch`, `Commonly Used Blocks/Switch` (`u2 > Threshold`); `built-in/Switch` (`u2 >= Threshold`) | Switch | `Criteria` (`u2 >= Threshold`, `u2 > Threshold`, `u2 ~= 0`), `Threshold` (0) | Native Switch for `>=`; the other criteria negate the control (`u2 > T` is `!(−u2 >= −T)`, `u2 ~= 0` is `!(−|u2| >= 0)`) and swap the data inputs of a native Switch, so they export to C |
 | `Continuous/Transfer Fcn`, `State-Space`, `Zero-Pole` | TransferFcn, StateSpace, ZeroPole | Simulink coefficient and matrix parameters | `ob_transfer_function`, `ob_state_space`, `ob_zero_pole` |
@@ -149,6 +226,19 @@ Parameter names are case-insensitive.
 | `Sources/In1`, `Ports & Subsystems/In1`, `Commonly Used Blocks/In1`; `Sinks/Out1`, `Ports & Subsystems/Out1`, `Commonly Used Blocks/Out1` | Inport; Outport | `Port` (automatic when omitted); Outport `OutputWhenDisabled` (`held`; also `reset`) and `InitialOutput` (`[]`, meaning 0) | Inport, Outport; inside a conditional subsystem the Outport parameters set its `execution.outputs` (per port) and `initial_outputs` |
 | `Ports & Subsystems/Subsystem`, `Commonly Used Blocks/Subsystem`, `Enabled Subsystem`, `Triggered Subsystem`, `Enabled and Triggered Subsystem`, `Resettable Subsystem` | SubSystem | — | Editable subsystem with In1 → Out1 and its control block; `built-in/SubSystem` starts empty, like Simulink |
 | `Ports & Subsystems/Enable`, `Ports & Subsystems/Trigger`, `Ports & Subsystems/Resettable Subsystem/Reset` | EnablePort, TriggerPort, ResetPort | `StatesWhenEnabling` (`held`; also `reset`), `TriggerType`, `InitialTriggerSignalState` (`compatibility (no trigger on first evaluation)`; also `zero`, `positive`, `negative`), `ResetTriggerType` | Set the parent subsystem's execution mode; `StatesWhenEnabling` sets its `states`, `InitialTriggerSignalState` its `initial_control` (`'compatibility'`, 0, 1, −1) |
+| `Discontinuities/Backlash` | Backlash | `BacklashWidth` (1), `InitialOutput` (0), `SampleTime` (−1; also T or [T offset]) | `ob_backlash` |
+| `Discontinuities/Quantizer` | Quantizer | `QuantizationInterval` (0.5), `SampleTime` (−1; also T or [T offset]) | `ob_quantizer` |
+| `Math Operations/MinMax` | MinMax | `Function` (`min`; also `max`), `Inputs` (1), `SampleTime` (−1) | `ob_minmax` for 2 or more inputs; `Inputs` 1 (Simulink's default) reduces every element of one input with `vec` and `min`/`max` Function blocks, which run in Octave but are not exported to C |
+| `Discontinuities/Saturation Dynamic`; `Discontinuities/Dead Zone Dynamic` | SubSystem, MaskType `Saturation Dynamic`; `Dead Zone Dynamic` | — (ports `up`, `u`, `lo`) | `ob_saturation_dynamic`; `ob_dead_zone_dynamic` |
+| `Math Operations/Sign` | Signum | `ZeroCross` (`on`), `SampleTime` (−1) | `ob_sign` (Switches with zero-crossing guards); `ZeroCross` `off` gives a guard-free Function `sign` |
+| `Discontinuities/Coulomb & Viscous Friction` | SubSystem, MaskType `Coulombic and Viscous Friction` | `offset` (`[1 3 2 0]`), `gain` (1) | `ob_coulomb_viscous_friction` |
+| `Logic and Bit Operations/Relational Operator`, `Commonly Used Blocks/Relational Operator` | RelationalOperator | `Operator` (`<=`; also `==`, `~=`, `<`, `>=`, `>`), `SampleTime` (−1) | `ob_relational_operator` (double 0/1 output) |
+| `Logic and Bit Operations/Logical Operator`, `Commonly Used Blocks/Logical Operator` | Logic | `Operator` (`AND`; also `OR`, `NAND`, `NOR`, `XOR`, `NXOR`, `NOT`), `Inputs` (2; ignored for `NOT`, which has one port as in Simulink), `SampleTime` (−1) | `ob_logical_operator` (double 0/1 output) |
+| `Signal Routing/Multiport Switch` | MultiPortSwitch | `Inputs` (3), `DataPortOrder` (`One-based contiguous`; also `Zero-based contiguous`), `DataPortForDefault` (`Last data port`; also `Additional data port`), `DiagnosticForDefault` (`Error`; accepted, always behaves as `None`), `SampleTime` (−1) | `ob_multiport_switch` (control truncated toward zero, as Simulink does) |
+| `Sources/Pulse Generator` | DiscretePulseGenerator | `PulseType` (`Time based`; also `Sample based`), `TimeSource` (`Use simulation time` only), `Amplitude` (1), `Period` (10), `PulseWidth` (5, percent; samples when sample based), `PhaseDelay` (0), `SampleTime` (1, used when sample based) | `ob_pulse_generator`; a sample-based pulse is the time-based pulse with edges at `Period*SampleTime`, `PulseWidth*SampleTime` and `PhaseDelay*SampleTime`, sampled and held at `[SampleTime 0]` by a native Rate Transition, so it has Simulink's discrete rate for `FixedStep` `auto` and for inherited blocks downstream; `PulseWidth` is 1 to `Period` samples (`Period` holds `Amplitude`), as in Simulink |
+| `Sources/Chirp Signal` | SubSystem, MaskType `chirp` | `f1` (0.1), `T` (100), `f2` (1) | `ob_chirp` |
+| `Signal Routing/Mux`, `Commonly Used Blocks/Mux`; `Signal Routing/Demux`, `Commonly Used Blocks/Demux` | Mux; Demux | `Inputs` (2) / `Outputs` (2): a count of scalar signals or a vector of widths; `DisplayOption` (`bar`, cosmetic) | `ob_mux`, `ob_demux` (column vectors; widths must be declared because signal widths are not propagated). A count takes scalars. When a signal does not have the declared shape, `sim` stops with an `ob_simulink:MuxWidth` or `ob_simulink:DemuxWidth` error naming the block (Simulink would infer the width). It also adds the same hint to dimension errors raised in models with Mux or Demux blocks |
+| `Continuous/Integrator, Second-Order` | SecondOrderIntegrator | `ICX` (0.0), `ICDXDT` (0.0); `ICSourceX`/`ICSourceDXDT` (`internal`), `LimitX`/`LimitDXDT` (`off`), `WrapX` (`off`), `ExternalReset` (`none`) and `ShowOutput` (`both`) only at these values | `ob_second_order_integrator` (outputs x and dx/dt) |
 
 All library paths start with `simulink/`. Simulink has no
 `simulink/Ports & Subsystems/Reset` block: the Reset block comes from inside
@@ -156,7 +246,10 @@ the Resettable Subsystem or as `built-in/ResetPort`. `built-in/<BlockType>`
 blocks use Simulink's BlockType defaults, which can differ from the library
 block's (for example `built-in/UnitDelay` has `SampleTime` 1, `built-in/Step`
 has −1, `built-in/TransferFcn` has Denominator `[1 2 1]`, `built-in/ToWorkspace`
-writes `simulink_output` as an Array). All are recorded by
+writes `simulink_output` as an Array, `built-in/RelationalOperator` uses
+`>=`, `built-in/Mux` and `built-in/Demux` have 4 ports, and
+`built-in/DiscretePulseGenerator` is a sample-based pulse with `Period` 2
+and `PulseWidth` 1). All are recorded by
 `reference_ob_simulink_api.m` and checked by `test_ob_simulink_api_reference`.
 The exception is `built-in/Lookup_n-D`: Simulink's BlockType default is a
 multi-dimensional table with three inputs, and only the 1-D configuration is
@@ -228,17 +321,22 @@ as an explicit exception in `test_ob_simulink_api_reference`.
   and `external` are rejected. The "Invalid setting" message for
   `StatesWhenEnabling` names the Enable block, where Simulink gives its
   full path.
-- `sim` returns a struct, not a `Simulink.SimulationOutput`; `yout` is never
-  a `Simulink.SimulationData.Dataset` and To Workspace never logs a
-  `timeseries`. Simulink's defaults (`SaveFormat` `Dataset`, To Workspace
-  `SaveFormat` `Timeseries`) are therefore replaced by `Array` and
-  `Structure With Time`, and setting `Dataset` or `Timeseries` errors.
-  Every logged signal is sampled on `tout`; Simulink logs each Dataset
-  signal at its own rate (one sample for a constant, a 0.2 s Unit Delay at
-  0.2 s). `sim` rejects `OutputOption`/`OutputTimes`; pass an output-time
+- `sim` returns a struct, not a `Simulink.SimulationOutput`; with
+  `SaveFormat` `Dataset`, `yout` and `logsout` are Dataset-like structs
+  (fields and function handles, see [Dataset output](#dataset-output)), not
+  `Simulink.SimulationData.Dataset` objects, and To Workspace never logs a
+  `timeseries`. The model default stays `Array` (Simulink's is `Dataset`)
+  and To Workspace defaults to `Structure With Time` (Simulink's is
+  `Timeseries`, which errors). Every logged signal is sampled on `tout`;
+  Simulink logs each Dataset signal at its own rate (one sample, at the
+  start time, for a constant; a 0.2 s Unit Delay at 0.2 s). With `Array`,
+  matrix-valued Out1 ports give a cell of per-port arrays, where Simulink
+  stops with an error. `sim` rejects `OutputOption`/`OutputTimes`; pass an output-time
   vector instead.
 - Scope blocks are logged into `logsout` (Simulink logs a Scope only when
-  its `DataLogging` is on), so `who` also lists `logsout`.
+  its `DataLogging` is on, into `ScopeData`), so `who` also lists `logsout`.
+  Line names, signal logging (`DataLogging` on ports) and
+  `SignalLoggingName` are not available.
 - `SimulationMetadata` is a struct; its `Solver` field (absent in Simulink,
   which keeps the solver in `ModelInfo.SolverInfo.Solver`) names the Octave
   Blocks solver that ran.
@@ -256,8 +354,9 @@ as an explicit exception in `test_ob_simulink_api_reference`.
 **Blocks and parameters**
 
 - Only the blocks and parameters above are recognized; anything else is an
-  error that names the supported parameters. There is no Mux/Demux, bus,
-  Stateflow, model reference or variant support, and no Signal Builder
+  error that names the supported parameters. There is no bus,
+  Stateflow, model reference or variant support (Mux and Demux need
+  declared widths), and no Signal Builder
   (which Simulink still adds, as a deprecated masked subsystem). Unsupported Simulink
   parameters include Gain/Sum/Product data types,
   function-call triggers, Constant/Sine `SampleTime` and a discrete Step
@@ -299,6 +398,30 @@ as an explicit exception in `test_ob_simulink_api_reference`.
 - Inherited (−1) sample times run on the output grid (`FixedStep`); this
   matches Simulink with fixed-step solvers but was not compared under
   variable-step solvers.
+- 0.3.0 blocks: Relational and Logical Operators output double 0/1 (Simulink
+  outputs `boolean`; `OutDataTypeStr` and the other data-type parameters are
+  not listed); Relational `isInf`, `isNaN` and `isFinite` are not available;
+  MinMax `Inputs` 1 (Simulink's default) runs in Octave, also in the
+  accelerator modes, but `ob_codegen` cannot export it (`unsupported
+  Function 'vec'`); Logical Operator `Inputs` 1 is rejected for every
+  operator except `NOT` (no single-input reduction); Backlash
+  `BacklashWidth` is a scalar and a vector signal needs an `InitialOutput`
+  of its shape; Backlash with an inherited rate updates on the output grid;
+  MinMax, Sign, Relational and Logical Operator and Multiport Switch accept
+  only an inherited (−1) or continuous (0) `SampleTime`; Multiport Switch
+  `DiagnosticForDefault` `Error`/`Warning` behave as `None` (Simulink stops
+  or warns when the control leaves the data port range), a NaN control is
+  rejected, and `Specify indices` and `Inputs` 1 are not supported; Pulse
+  Generator `TimeSource` must be simulation time and its edges are exact in
+  downstream integrators only with `ZeroCrossControl` `EnableAll`; Mux and
+  Demux need declared widths (`Inputs` −1 is rejected) and column-vector
+  signals: a Mux with a count fed Constant `[1 2]` stops with
+  `ob_simulink:MuxWidth` where Simulink outputs `[1 2 3]` (recorded,
+  scenario `followup`); write `[1;2]` and declare `Inputs` `[2 1]`; `Integrator, Second-Order` covers only its default options, and
+  `Integrator, Second-Order Limited` is not supported. Rate Transition uses
+  the native hold by default. Set its `OctaveInputSampleTime` and
+  `OutPortSampleTime` explicitly to use the Integrity/Deterministic modes
+  described in [MULTIRATE.md](MULTIRATE.md#rate-transition).
 
 **Solvers and numerics**
 
@@ -354,4 +477,13 @@ MaskType, `Ports`, parameter names and default values, the
 products agree (to 1e-9 or better, solver tolerance for adaptive runs; the
 PID loop, which differs by the documented Step sampling, to 2e-3). Each
 difference listed above that the reference covers is checked to remain the
-documented Octave Blocks behaviour.
+documented Octave Blocks behaviour. Since 0.3.0 the record also holds the
+library and `built-in/<BlockType>` defaults of the nineteen new library
+paths, ode4 traces of every new block driven through the API (scenarios
+`newnonlinear` and `newrouting`, matched to 1e-12, the sample-based pulse at
+Simulink's own 1 s logging times), and the `Dataset` layout, access
+functions, warning and error text (scenario `dataset`). Scenario `followup`
+records the sample-based pulse feeding an inherited Unit Delay (with default
+solver settings `tout` is 0:1:10 and the delay is one 1 s sample; also ode4
+at 0.2 s), the sample-based `PulseWidth` limits, a Mux with a count fed a row
+vector, and how `set_param` stores enumerated values typed in another case.

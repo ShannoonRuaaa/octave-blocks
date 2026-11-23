@@ -529,6 +529,14 @@ function test_ob_codegen (directory, conditional_references_only = false)
     add_case (item.name, item.model, item.config, item.options, 1e-9);
   endfor
 
+  % 0.3.0 Simulink library builders (flat RK4 path).  Their own suites
+  % (test_ob_nonlinear_builders, test_ob_routing_builders) also compile
+  % them with and without zero crossings; these cases keep them in the
+  % shared C gate.
+  for item = builder_cases (B)
+    add_case (item.name, item.model, item.config);
+  endfor
+
   % Unsupported exports must not replace an existing source file.
   protected = fullfile (directory, 'protected.c'); write_text (protected, 'keep me');
   assert_error (@() ob_codegen (ob_function_example (), protected), 'unsupported Function');
@@ -1037,6 +1045,79 @@ function cases = ode45_cases (B)
 
   function add (name, model, config, options)
     cases(end+1) = struct ('name', name, 'model', model, 'config', config, 'options', options);
+  endfunction
+endfunction
+
+function cases = builder_cases (B)
+  % One model per 0.3.0 builder, each driven by Time/sin/cos sources and
+  % feeding an Integrator where the output is integrable, so the exported
+  % state trajectory is compared as well as the algebraic outputs.
+  cases = struct ('name', {}, 'model', {}, 'config', {});
+  S = @(model) B('Subsystem', model, 'DUT');
+  sources = [B('Time', [], 't') B('Function', [], 'sin') B('Function', [], 'cos')];
+  wired = [1 1 2 1; 1 1 3 1];
+  unary = {'sign', ob_sign(), 0; 'quantizer', ob_quantizer(0.1), 0; 'backlash_sampled', ob_backlash(1, 0, 0.25), 0; ...
+           'coulomb_friction', ob_coulomb_viscous_friction(), zeros(1, 4); 'backlash_inherited', ob_backlash(0.5, 0.2), 0};
+  for k = 1:rows (unary)
+    m.blocks = [sources S(unary{k, 2}) B('Integrator', unary{k, 3}, 'x') B('Scope', [], 'y')];
+    m.edges = [wired; 2 1 4 1; 4 1 5 1; 5 1 6 1];
+    add (['builder_' unary{k, 1}], m, [0 4 0.05]);
+  endfor
+  binary = {'minmax_max', ob_minmax('max', 2); 'relational_greater', ob_relational_operator('>'); ...
+            'logical_nand', ob_logical_operator('NAND', 2)};
+  for k = 1:rows (binary)
+    m.blocks = [sources S(binary{k, 2}) B('Integrator', 0, 'x') B('Scope', [], 'y')];
+    m.edges = [wired; 2 1 4 1; 3 1 4 2; 4 1 5 1; 5 1 6 1];
+    add (['builder_' binary{k, 1}], m, [0 4 0.05]);
+  endfor
+  % Three inputs: Logical XOR3, Saturation and Dead Zone Dynamic (up, u, lo).
+  triple = {'logical_xor3', ob_logical_operator('XOR', 3), [2 3 1]; ...
+            'saturation_dynamic', ob_saturation_dynamic(), [7 2 8]; ...
+            'dead_zone_dynamic', ob_dead_zone_dynamic(), [7 2 8]};
+  for k = 1:rows (triple)
+    m.blocks = [sources S(triple{k, 2}) B('Integrator', 0, 'x') B('Scope', [], 'y') ...
+                B('Constant', 0.5, 'up') B('Constant', -0.25, 'lo')];
+    ports = triple{k, 3};
+    m.edges = [wired; ports(1) 1 4 1; ports(2) 1 4 2; ports(3) 1 4 3; 4 1 5 1; 5 1 6 1];
+    add (['builder_' triple{k, 1}], m, [0 4 0.05]);
+  endfor
+  % Mux -> Demux round trip, the Multiport Switch on a clock control.
+  m.blocks = [sources B('Subsystem', ob_mux(2), 'Mux') B('Subsystem', ob_demux(2), 'Demux') ...
+              B('Integrator', 0, 'x') B('Scope', [], 'y')];
+  m.edges = [wired; 2 1 4 1; 3 1 4 2; 4 1 5 1; 5 2 6 1; 6 1 7 1];
+  add ('builder_mux_demux', m, [0 3 0.05]);
+  m.blocks = [sources S(ob_multiport_switch(2, 'Zero-based contiguous', 'Additional data port')) ...
+              B('Integrator', 0, 'x') B('Scope', [], 'y') B('Constant', 7, 'default')];
+  m.edges = [wired; 1 1 4 1; 2 1 4 2; 3 1 4 3; 7 1 4 4; 4 1 5 1; 5 1 6 1];
+  add ('builder_multiport_switch', m, [0 3 0.05]);
+  % Sources: Pulse Generator and Chirp into Integrators.
+  for item = {'pulse_generator', ob_pulse_generator(2, 1, 30, 0.1); 'chirp', ob_chirp(0.1, 5, 1)}'
+    m = struct ();
+    m.blocks = [S(item{2}) B('Integrator', 0, 'x') B('Scope', [], 'y')];
+    m.edges = [1 1 2 1; 2 1 3 1];
+    add (['builder_' item{1}], m, [0 3 0.05]);
+  endfor
+  % Integrator, Second-Order (two outputs), the first-order filter, and a
+  % slow-to-fast deterministic Rate Transition behind a 0.75 s hold.
+  m = struct ();
+  m.blocks = [B('Function', [], 'cos') B('Time', [], 't') S(ob_second_order_integrator(1, 0)) ...
+              B('Scope', [], 'x') B('Scope', [], 'v')];
+  m.edges = [2 1 1 1; 1 1 3 1; 3 1 4 1; 3 2 5 1];
+  add ('builder_second_order_integrator', m, [0 4 0.05]);
+  m = struct ();
+  m.blocks = [B('Time', [], 't') B('Function', [], 'sin') S(ob_first_order_filter('lowpass', 0.5, 2)) ...
+              B('Scope', [], 'y')];
+  m.edges = [1 1 2 1; 2 1 3 1; 3 1 4 1];
+  add ('builder_first_order_filter', m, [0 4 0.05]);
+  m = struct ();
+  m.blocks = [B('Time', [], 't') B('Rate Transition', 0, 'slow') S(ob_rate_transition(0.75, 0.25, 5)) ...
+              B('Scope', [], 'y')];
+  m.edges = [1 1 2 1; 2 1 3 1; 3 1 4 1];
+  m.sample_times = [0 0; 0.75 0; 0 0; 0 0];
+  add ('builder_rate_transition', m, [0 3 0.25]);
+
+  function add (name, model, config)
+    cases(end+1) = struct ('name', name, 'model', model, 'config', config);
   endfunction
 endfunction
 

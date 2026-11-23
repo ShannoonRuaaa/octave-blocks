@@ -1,5 +1,57 @@
 # Validation report
 
+## 0.3.0 command API review follow-ups — 2026-11-22
+
+Same tree and tools as the entry below. A review of the integration found
+three important issues and four minor ones, all in the command API, and all
+are fixed:
+
+- a sample-based Pulse Generator is now held at its `[SampleTime 0]` rate
+- Mux and Demux signals whose shape differs from the declared width are reported
+- Dataset handles resolve through the public `ob_simulink`
+- enumerated values are stored with Simulink's spelling
+- sample-based `PulseWidth` errors are given in samples
+- the MinMax/Logical `Inputs` 1 wording in the docs is corrected
+
+`reference_ob_simulink_api.m` was run again in MATLAB R2026b / Simulink 26.2
+(no other MATLAB running, caches redirected). It adds the scenario
+`followup`, and every earlier entry is identical. `test_ob_simulink_api`
+(72 cases, with new checks) and `test_ob_simulink_api_reference` (199
+checks, up from 193) pass. The sample-based pulse also ran in accelerator
+mode with output identical to normal mode, and its C export compiled
+standalone with strict C99 flags.
+
+## 0.3.0 builders, analysis and Dataset output — 2026-11-22
+
+Uncommitted working tree on top of `f93be06`, GNU Octave 11.3.0 on Windows
+with its bundled GCC; PowerShell 7 was not available, so the stages below
+were run directly in `octave-cli` and bash (no full `Run-Tests.ps1` run).
+
+- New suites: `test_ob_nonlinear_builders` (44 Simulink cases, 19 strict C99
+  builds and 19 accelerated runs), `test_ob_routing_builders` (119 checks,
+  71 recorded cases, 13 C/accelerated cases) and `test_ob_analysis` (9
+  groups; Simulink linmod/trim, step and sine traces; four C exports) passed.
+  They are registered in `Run-Tests.ps1` (`builders` stage; `systems` for
+  `test_ob_analysis`).
+- API: `test_ob_simulink_api` 72 cases; `test_ob_simulink_api_reference`
+  193 checks against `simulink-api-reference.json`, re-recorded by
+  `reference_ob_simulink_api.m` in MATLAB R2026b Update 1 / Simulink 26.2
+  (every previously recorded entry was identical; added: nineteen library
+  paths, eleven `built-in/<BlockType>` paths, the `newnonlinear`,
+  `newrouting` and `dataset` scenarios).
+- C gate (bash replication of `Test-Codegen.ps1`): 240 cases compiled with
+  `-std=c99 -O2 -Wall -Wextra -Werror`, 227 compared models including 18 new
+  builder cases, worst scaled error 3.33e-16.
+- Installed package: a tarball of the working tree without `tests/`,
+  `tools/` and `.git` installed, loaded and described (`pkg describe
+  -verbose`) under a temporary prefix; `which`/`help` found every new public
+  function in the installed tree and no private helper or test; a builder
+  model, `ob_bode` and a `Dataset` API run worked; unload removed them.
+- Unchanged suites rerun because they use the command API:
+  `test_ob_simulink_delay_integrator` (22 agree, 29 documented),
+  `test_ob_simulink_conditional` (304 matched), `test_ob_simulink_extended`
+  (75 agree, 3 known), `test_ob_continuous_controls` and `test_ob_accelerate`.
+
 ## Advanced package integration — 2026-11-22
 
 All twenty required stages are covered by successful runs on the integrated

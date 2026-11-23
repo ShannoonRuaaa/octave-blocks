@@ -14,6 +14,107 @@ models with fixed parameters.
 | `ob_rate_limiter`, `ob_relay` | Scalar sampled slew limiting and sampled hysteresis, respectively. Both hold their outputs between clock ticks. The limiter uses its initial value and one period of allowance at the first hit; the relay starts off. |
 | `ob_atomic_feedthrough` | Logical matrix indexed by numbered input and output ports. Nested controls are treated conservatively. This is structural analysis only; atomic scheduling is unchanged. |
 
+## Simulink library builders (0.3.0)
+
+These builders reproduce Simulink library blocks from native primitives
+(Gain, two-input Sum, Switch, Dead Zone, Unit Delay, Rate Transition,
+Constant, Time, Integrator and C-mapped Function blocks), so every model
+built from them runs with all solvers, zero crossings, strict C99
+`ob_codegen` and `ob_accelerate`. Defaults are Simulink's. Each is checked
+against recorded Simulink 26.2 traces (`tests/reference/reference_ob_nonlinear_builders.m`,
+`reference_ob_routing_builders.m`) and through the
+[command API](SIMULINK_API.md#library-blocks), which maps the library blocks
+to them.
+
+| API | Simulink block | Supported behavior and limits |
+| --- | --- | --- |
+| `ob_backlash(width, y0, Ts, offset)` | Backlash | Play of total `width` (scalar) centred on the output; `Ts > 0` clocks and holds the output. A vector signal needs a `y0` of its shape. With an inherited rate the state updates on the output grid. |
+| `ob_quantizer(q, Ts, offset)` | Quantizer | `q*round(u/q)` with a true division (half-way quotients round away from zero as in Simulink); `q` scalar or array; optional held sample time (the hold starts at `zeros(size(q))`). |
+| `ob_minmax(func, n)` | MinMax | Element-wise `min`/`max` of `n >= 2` inputs with scalar expansion. `n = 1` (Simulink's element reduction) is an error; the command API realizes it with Octave-only `vec`/`min` Functions. |
+| `ob_saturation_dynamic()`, `ob_dead_zone_dynamic()` | Saturation Dynamic, Dead Zone Dynamic | Bounds as signals on ports `up`, `u`, `lo`, Simulink's priority when the bounds cross, scalar bounds expand; the dead zone never outputs −0. |
+| `ob_sign()` | Sign | +1/0/−1 levels shaped like the input, with zero-crossing guards. |
+| `ob_coulomb_viscous_friction(offset, gain)` | Coulomb & Viscous Friction | `gain.*u + offset.*sign(u)`, defaults `[1 3 2 0]` and 1, element-wise vectors. |
+| `ob_relational_operator(op)` | Relational Operator | `==`, `~=` (`!=`), `<`, `<=` (default), `>=`, `>`; double 0/1 output; no `isInf`/`isNaN`/`isFinite`; a difference that overflows stops the run. |
+| `ob_logical_operator(op, n)` | Logical Operator | `AND`, `OR`, `NAND`, `NOR`, `XOR`, `NXOR` over `n` inputs and `NOT`; nonzero is true; double 0/1 output; no zero-crossing guards, like Simulink's Logic block; no single-input reduction. |
+| `ob_mux(n, widths)`, `ob_demux(n, width)` | Mux, Demux | Column vectors from `n` inputs of declared widths (a chain of two-input Sums), and Simulink's uneven split back; widths are not propagated, so non-scalar parts must be declared. |
+| `ob_multiport_switch(n, order, default)` | Multiport Switch | One- or zero-based data ports, control truncated toward zero, last or additional default port; `DiagnosticForDefault` `Error` is not modelled (always `None`); NaN controls are rejected. |
+| `ob_pulse_generator(amp, period, width, delay)` | Pulse Generator | Time-based pulse on simulation time with few-ulp edge tolerance; use `zero_crossings = true` for exact edges in downstream integrators. Sample-based pulses are mapped by the command API. |
+| `ob_chirp(f1, T, f2)` | Chirp Signal | Linear swept sine `sin(2*pi*(f1*t + (f2-f1)/(2*T)*t^2))`, vector parameters with scalar expansion. |
+| `ob_second_order_integrator(x0, dxdt0)` | Integrator, Second-Order | Two Integrators; outputs x and dx/dt; only the default options (no limits, wrapping, reset or external initial conditions). |
+| `ob_rate_transition(in, out, ic, det, integrity)` | Rate Transition (modes) | Simulink's Integrity/Deterministic semantics between explicit rates (see [MULTIRATE.md](MULTIRATE.md#rate-transition)). |
+| `ob_first_order_filter(kind, tau, gain, Ts, method, x0, offset)` | (wrapper) | Continuous or ZOH/Tustin-discretized first-order low-pass, high-pass or lead-lag filter; `x0` is the lag state. Not a Simulink block. |
+
+Not provided: Zero-Order Hold (use a native Rate Transition), Moving
+Average, and Bus Creator/Selector (use `ob_mux`/`ob_demux`, which carry no
+element names).
+
+## Linearization and analysis
+
+Four analysis functions (0.3.0) work on ordinary models and simulation
+results. They are not blocks and are not in the command API library.
+
+| Function | MATLAB/Simulink counterpart | Purpose |
+| --- | --- | --- |
+| `ob_linearize` | `linmod(sys, x, u, para)` | State-space linearization about an operating point |
+| `ob_findop` | `trim(sys, x0, u0, y0, ix, iu, iy)` | Steady-state operating point |
+| `ob_bode` | `bode(sys, w)`, `margin`, `allmargin` | Frequency response and stability margins |
+| `ob_stepinfo` | `stepinfo(y, t, yfinal, yinit, ...)` | Step-response characteristics of sampled data |
+
+```octave
+sys = ob_linearize (model);                     % about the initial states, u = 0, t = 0
+op = ob_findop (model, [], 0.5, [], [], 1, []); % hold input 1 at 0.5, solve dx/dt = 0
+sys = ob_linearize (model, op.x, op.u);
+resp = ob_bode (sys);                           % resp.Gm, resp.Pm, resp.Wcg, resp.Wcp
+result = ob_run (model, 0:0.01:10);
+info = ob_stepinfo (ob_scope_data (result, 3), result.t);
+```
+
+- **States** are the elements of every continuous Integrator in depth-first
+  block order (Simulink orders states differently; `state_names`,
+  `state_paths` and `state_index` identify each row). **Inputs** are the
+  root Inports in port order; a port's shape comes from its `model.inputs`
+  dataset or from a cell `U0 = {u1, u2, ...}`, and is scalar otherwise.
+  **Outputs** are the root Outports only, in port order.
+- The model is compiled once and each perturbation is one evaluation of the
+  compiled graph, so a linearization costs 2(n + m) + 1 evaluations. Each
+  element is perturbed by `Perturbation*(1 + |x|)` with central differences
+  (default 1e-5, linmod's level).
+- Supported states: continuous Integrators, and Limited Integrators strictly
+  inside their limits without a reset port. Unit Delay, Discrete
+  Integrator, Transport Delay, Rate Transition and conditional-subsystem
+  states raise `ob_linearize:unsupported` with the block path.
+- Discontinuities are judged at the operating point, like linmod's
+  numerical `'v5'` method: a Saturation beyond its limit has zero gain,
+  where Simulink's default linmod keeps unity gain (recorded B = 1).
+- `ob_findop` follows trim's arguments and defaults (states and inputs free
+  unless listed in IX/IU; outputs in IY must equal Y0), but its
+  specifications are hard constraints rather than trim's "as close as
+  possible" targets, and trim's DX0/IDX derivative targets are not
+  supported. `converged` reports `max|r| <= AbsTol + RelTol*max|[x; u]|`.
+- `ob_bode` returns `w`, `H`, `mag` (absolute), `mag_db`, `phase` (degrees)
+  and `Gm`, `Pm`, `Wcg` (phase crossover), `Wcp` (gain crossover) as MATLAB
+  `margin` names them, plus allmargin's fields in `margins`. The phase is
+  unwrapped from the low-frequency asymptote: k poles at s = 0 give −90k
+  degrees and the gain sign plus the other poles and zeros are wrapped into
+  (−180, 180], so 1/s² starts at −180, −1/(s+1) at +180, 1/(s−1) at −180 and
+  (1−s)/(s+1)² at 0. `Gm` is the margin closest to 0 dB and `Pm` the one of
+  least magnitude. Continuous time only; no delay margin or stability flag;
+  MIMO margins are NaN.
+- `ob_stepinfo` uses MATLAB's definitions with `yinit` defaulting to 0
+  (RiseTime, TransientTime, SettlingTime, SettlingMin/Max, Overshoot,
+  Undershoot, Peak, PeakTime, SteadyState); crossings are interpolated
+  linearly and levels never reached give NaN.
+
+`tests/test_ob_analysis.m` compares with Simulink 26.2 `linmod`/`trim`
+results and Simulink step and sine traces recorded by
+`tests/reference/reference_ob_analysis.m`, and exports a model built from
+each function's result with strict C99 `ob_codegen`. MATLAB `bode`,
+`margin`, `stepinfo`, `linearize` and `findop` were not installed when the
+reference was recorded, so `ob_bode`'s phase-branch convention for negative
+gains, RHP poles and non-minimum-phase zeros is documented rather than
+machine-checked; the producer records those functions when they are
+available.
+
 ## Transport Delay and Limited Integrator
 
 These are primitive blocks, with editor buttons (**Transport Delay**,
