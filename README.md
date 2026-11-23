@@ -45,7 +45,7 @@ See the [user guide](doc/USER_GUIDE.md) for input data and subsystem editing.
 
 ## Install as an Octave package
 
-For a packaged release, use Octave’s package manager:
+For a packaged release, use Octave's package manager:
 
 ```octave
 pkg install '/path/to/octave-blocks-0.3.0.tar.gz';
@@ -57,6 +57,19 @@ The package archive is produced by `tools/Package-Release.ps1`; older preview
 ZIPs use the source-checkout instructions above. Browse the installed API
 with `pkg describe -verbose octave-blocks`. See [package layout](doc/PACKAGE_LAYOUT.md)
 and the [documentation index](doc/README.md).
+
+The Simulink-style [command API](doc/SIMULINK_API.md) (`new_system`,
+`add_block`, `add_line`, `sim` and related commands) is opt-in. After
+`pkg load`, enable it with:
+
+```octave
+pkg load octave-blocks;
+ob_simulink_setup ();
+new_system ('loop');
+```
+
+In a source checkout, `ob_setup ('simulink')` does the same. The wrappers
+deliberately take precedence over same-named functions on the path.
 
 ## What you can build
 
@@ -126,9 +139,13 @@ verification, not for ordinary interpreted simulation.
 | [Validation](doc/VALIDATION.md) | Dated test evidence, reproduction and limits |
 | [Contributing](CONTRIBUTING.md) Â· [Review guide](doc/REVIEW_GUIDE.md) | Development and code review |
 
-The merged event-export milestone records 26 Octave suites, 25 BIST checks
-and 242 strict C99 cases. These are recorded results for that milestone,
-not a GitHub CI badge or a claim of complete compatibility. Run locally:
+`tests/Run-Tests.ps1` is the local gate. It runs 21 stages: 13 Octave test
+stages (including the embedded BIST checks and the recorded Simulink
+reference suites), six strict C99 export stages, the package check and the
+Qt editor checks. Each run writes a `manifest.json` with the git revision,
+per-stage logs and exit codes. Dated results are recorded in
+[VALIDATION.md](doc/VALIDATION.md); they are not a GitHub CI badge or a
+claim of complete compatibility. Run locally:
 
 ```powershell
 ./tests/Run-Tests.ps1
@@ -144,7 +161,7 @@ The editor checks require a desktop session and Qt. See
 
 [Releases](https://github.com/ShannoonRuaaa/octave-blocks/releases) provide
 versioned source ZIPs, SHA-256 checksums and feature notes. Preview releases
-are intended for experimentation. See [CHANGELOG.md](CHANGELOG.md) and
+are intended for experimentation. See [NEWS](NEWS) and
 [release instructions](doc/RELEASING.md).
 
 The combined distribution is [GPL-3.0-or-later](COPYING), including adapted
