@@ -5,6 +5,8 @@ Octave Blocks toward full Simulink functionality, including subsystems,
 variable-step solvers and code generation. Passing a milestone does not complete
 that goal. This ledger describes current scope; dated entries in
 [ADVANCED_PLAN.md](ADVANCED_PLAN.md) retain historical evidence.
+[ROADMAP.md](ROADMAP.md) defines what 1.0 requires from this ledger and
+which gaps are deferred or out of scope.
 
 The event-export foundation is merged in main. PR #4 integrates the advanced
 features below into the native Octave package layout. The combined distribution

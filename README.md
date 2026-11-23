@@ -15,7 +15,7 @@ in the diagram, and inspect scalar, vector or matrix signals in a Scope.
 [Download the preview](https://github.com/ShannoonRuaaa/octave-blocks/releases)
 · [User guide](doc/USER_GUIDE.md)
 · [Examples](#try-an-example)
-· [Roadmap](doc/COMPATIBILITY_GAPS.md)
+· [Roadmap](doc/ROADMAP.md)
 · [Report a problem](https://github.com/ShannoonRuaaa/octave-blocks/issues/new/choose)
 
 ## Start in a minute
