@@ -33,6 +33,12 @@ in production files; their wrapper functions check that every case passed.
 `test_ob_multi_function`, `test_ob_inner_clock_c_cases` and several codegen
 case files are fixtures, not standalone test commands.
 
+Set the environment variable `OB_SKIP_ACCELERATOR` to any non-empty value to
+skip the accelerated comparisons in `test_ob_routing_builders` (for machines
+where compiled MEX files cannot load, such as under Windows Smart App
+Control). The suite prints each skipped case and counts fewer checks; a full
+gate run must leave the variable unset.
+
 The stage runner accepts `-Workers 1` through `-Workers 4` (default 2) and
 optional `-Stages engine,api` for focused retries. Each run keeps a fresh
 manifest, per-stage stdout/stderr, source hashes and exit codes under

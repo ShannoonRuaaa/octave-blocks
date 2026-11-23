@@ -362,7 +362,9 @@ function meta = library_block (source)
     case 'built-in/Switch'
       kind = 'Switch'; params = P('Criteria', 'u2 >= Threshold', 'Threshold', '0');
     case {'simulink/Signal Attributes/Rate Transition', 'built-in/RateTransition'}
-      kind = 'RateTransition'; params = P('OutPortSampleTime', '-1', 'InitialCondition', '0');
+      kind = 'RateTransition'; params = P('OutPortSampleTime', '-1', 'InitialCondition', '0', ...
+                                       'Integrity', 'on', 'Deterministic', 'on', ...
+                                       'OctaveInputSampleTime', '-1');
     case {'simulink/Sinks/Scope', 'simulink/Commonly Used Blocks/Scope', 'built-in/Scope'}
       kind = 'Scope'; params = struct ();
     case {'simulink/Sinks/Display', 'built-in/Display'}
@@ -727,7 +729,22 @@ function [type, value, extra] = realize (meta, name)
           error ('ob_simulink: Switch Criteria must be ''u2 >= Threshold'', ''u2 > Threshold'' or ''u2 ~= 0''');
       endswitch
     case 'RateTransition'
-      type = 'Rate Transition'; value = E('InitialCondition'); extra.rate = sample_rate (E('OutPortSampleTime'));
+      if (! any (strcmp (p.Integrity, {'on', 'off'})) || ! any (strcmp (p.Deterministic, {'on', 'off'})))
+        error ('ob_simulink: Rate Transition Integrity and Deterministic must be on or off');
+      endif
+      input_rate = E('OctaveInputSampleTime');
+      if (isequal (input_rate, -1))
+        % The legacy inherited-rate block remains a plain sampled hold.
+        type = 'Rate Transition'; value = E('InitialCondition');
+        extra.rate = sample_rate (E('OutPortSampleTime'));
+        if (! strcmp (p.Integrity, 'on') || ! strcmp (p.Deterministic, 'on'))
+          error ('ob_simulink: Rate Transition modes need OctaveInputSampleTime');
+        endif
+      else
+        type = 'Subsystem';
+        value = ob_rate_transition (input_rate, E('OutPortSampleTime'), E('InitialCondition'), ...
+                                    strcmp (p.Deterministic, 'on'), strcmp (p.Integrity, 'on'));
+      endif
     case {'Scope', 'Display', 'Terminator'}, type = 'Scope'; value = [];
     case 'ToWorkspace'
       save_format (p.SaveFormat);

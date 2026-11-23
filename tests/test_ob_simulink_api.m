@@ -33,6 +33,28 @@ function test_ob_simulink_api ()
   assert (out.who, {'tout'; 'yout'});
   cases += 2;
 
+  % Explicit input/output rates activate the Rate Transition transfer modes
+  % through the command API; the inherited-rate default remains a hold.
+  new_system ('rtmode');
+  add_block ('simulink/Sources/Clock', 'rtmode/Clock');
+  add_block ('simulink/Signal Attributes/Rate Transition', 'rtmode/Producer', ...
+             'OutPortSampleTime', '0.75');
+  add_block ('simulink/Signal Attributes/Rate Transition', 'rtmode/Transfer', ...
+             'OctaveInputSampleTime', '0.75', 'OutPortSampleTime', '0.25', ...
+             'InitialCondition', '5', 'Integrity', 'on', 'Deterministic', 'on');
+  add_block ('simulink/Sinks/Out1', 'rtmode/Out1');
+  add_line ('rtmode', 'Clock/1', 'Producer/1');
+  add_line ('rtmode', 'Producer/1', 'Transfer/1');
+  add_line ('rtmode', 'Transfer/1', 'Out1/1');
+  set_param ('rtmode', 'StopTime', '3', 'Solver', 'ode4', 'FixedStep', '0.25');
+  want = [5 5 5 0 0 0 0.75 0.75 0.75 1.5 1.5 1.5 2.25];
+  assert (sim ('rtmode').yout(:)', want);
+  set_param ('rtmode/Transfer', 'Integrity', 'off');
+  assert (sim ('rtmode').yout(:)', [0 0 0 0.75 0.75 0.75 1.5 1.5 1.5 2.25 2.25 2.25 3]);
+  set_param ('rtmode/Transfer', 'Deterministic', 'off');
+  assert (sim ('rtmode').yout(:)', [0 0 0 0.75 0.75 0.75 1.5 1.5 1.5 2.25 2.25 2.25 3]);
+  cases += 3;
+
   % Signed sums, element-wise products, gains and a To Workspace log.
   new_system ('ops');
   for k = 1:3

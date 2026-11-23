@@ -212,7 +212,7 @@ case-insensitive and stored with Simulink's spelling (`'MAX'` reads back as
 | `Continuous/Integrator`, `Commonly Used Blocks/Integrator`; `Continuous/Integrator Limited` | Integrator | `InitialCondition`, `LimitOutput`, `UpperSaturationLimit`, `LowerSaturationLimit`, `ExternalReset` (`none`, `rising`, `falling`, `either`, `level`, `level hold`) | Integrator, or Limited Integrator with limits/reset port |
 | `Continuous/Transport Delay` | TransportDelay | `DelayTime`, `InitialOutput` | Transport Delay |
 | `Discrete/Unit Delay`; `Discrete/Discrete-Time Integrator`, `Commonly Used Blocks/Discrete-Time Integrator` | UnitDelay; DiscreteIntegrator | `InitialCondition`, `SampleTime` (−1) | Unit Delay, forward-Euler Discrete Integrator |
-| `Signal Attributes/Rate Transition` | RateTransition | `OutPortSampleTime`, `InitialCondition` | Rate Transition |
+| `Signal Attributes/Rate Transition` | RateTransition | `OutPortSampleTime`, `InitialCondition`, `Integrity` (`on`), `Deterministic` (`on`), `OctaveInputSampleTime` (−1; Octave extension) | Native hold by default; with explicit input/output rates, `ob_rate_transition` modes |
 | `Discontinuities/Saturation`, `Commonly Used Blocks/Saturation`; `Discontinuities/Dead Zone` | Saturate; DeadZone | `UpperLimit`/`LowerLimit`; `LowerValue`/`UpperValue` | Native blocks |
 | `Signal Routing/Switch`, `Commonly Used Blocks/Switch` (`u2 > Threshold`); `built-in/Switch` (`u2 >= Threshold`) | Switch | `Criteria` (`u2 >= Threshold`, `u2 > Threshold`, `u2 ~= 0`), `Threshold` (0) | Native Switch for `>=`; the other criteria negate the control (`u2 > T` is `!(−u2 >= −T)`, `u2 ~= 0` is `!(−|u2| >= 0)`) and swap the data inputs of a native Switch, so they export to C |
 | `Continuous/Transfer Fcn`, `State-Space`, `Zero-Pole` | TransferFcn, StateSpace, ZeroPole | Simulink coefficient and matrix parameters | `ob_transfer_function`, `ob_state_space`, `ob_zero_pole` |
@@ -418,10 +418,10 @@ as an explicit exception in `test_ob_simulink_api_reference`.
   signals: a Mux with a count fed Constant `[1 2]` stops with
   `ob_simulink:MuxWidth` where Simulink outputs `[1 2 3]` (recorded,
   scenario `followup`); write `[1;2]` and declare `Inputs` `[2 1]`; `Integrator, Second-Order` covers only its default options, and
-  `Integrator, Second-Order Limited` is not supported. Rate Transition keeps
-  the native mapping (see [MULTIRATE.md](MULTIRATE.md#rate-transition) for
-  `ob_rate_transition`, which builds the Integrity/Deterministic modes from
-  explicit rates).
+  `Integrator, Second-Order Limited` is not supported. Rate Transition uses
+  the native hold by default. Set its `OctaveInputSampleTime` and
+  `OutPortSampleTime` explicitly to use the Integrity/Deterministic modes
+  described in [MULTIRATE.md](MULTIRATE.md#rate-transition).
 
 **Solvers and numerics**
 

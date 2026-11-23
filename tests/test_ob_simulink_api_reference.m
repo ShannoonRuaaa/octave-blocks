@@ -773,6 +773,8 @@ function reason = exception (block_type, mask_type, path, name)
   reason = '';
   if (strcmp (block_type, 'RateLimiter') && strcmp (name, 'OctaveSampleTime'))
     reason = 'extension';      % the sampled Rate Limiter's period
+  elseif (strcmp (block_type, 'RateTransition') && strcmp (name, 'OctaveInputSampleTime'))
+    reason = 'extension';      % explicit upstream rate for transfer modes
   elseif (strcmp (block_type, 'Fcn') && strcmp (name, 'Expr'))
     reason = 'Simulink''s default expression indexes u(2)';
   elseif (strcmp (block_type, 'ToWorkspace') && strcmp (name, 'SaveFormat') && ! strncmp (path, 'built-in/', 9))

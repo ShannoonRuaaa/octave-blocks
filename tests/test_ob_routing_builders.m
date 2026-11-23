@@ -247,6 +247,16 @@ function test_ob_routing_builders (reference_file)
                              'Integrity', 'on', 'Deterministic', 'off', 'Source', 'clock'));
   expect (isequal (run_trace (slow, t)', [5 0 0 0 0.75 0.75 0.75 1.5 1.5 1.5 2.25 2.25 2.25]), ...
           'integrity-only 0.75 -> 0.25');
+  % Integrity off ignores the deterministic flag: the current slow sample
+  % is visible on a simultaneous hit, with no extra slow-period delay.
+  unprotected = struct ('InRate', '0.75', 'OutPortSampleTime', '0.25', 'InitialCondition', '5', ...
+                        'Integrity', 'off', 'Deterministic', 'on', 'Source', 'clock');
+  want_unprotected = [0 0 0 0.75 0.75 0.75 1.5 1.5 1.5 2.25 2.25 2.25 3];
+  expect (isequal (run_trace (rate_model (unprotected), t)', want_unprotected), ...
+          'integrity off uses the current sample');
+  unprotected.Deterministic = 'off';
+  expect (isequal (run_trace (rate_model (unprotected), t)', want_unprotected), ...
+          'deterministic flag has no effect without integrity');
   % Analytic: output hits before the input's first hit show IC with
   % Integrity on (fast [0.25 0.2] to slow [0.5 0.1]) and 0 with it off.
   late = struct ('InRate', '[0.25 0.2]', 'OutPortSampleTime', '[0.5 0.1]', 'InitialCondition', '-9', ...
@@ -289,6 +299,8 @@ function test_ob_routing_builders (reference_file)
   compiled{end+1} = {'rate_integrity', rate_model(C.rt_offset_nondet.parameters), [0 2 0.05], struct()};
   compiled{end+1} = {'rate_hold', integrate_output(rate_model(C.rt_c2d_nondet.parameters)), [0 3 0.1], struct()};
   compiled{end+1} = {'rate_late_ic', rate_model(C.rt_scalar_ic_vector_late.parameters), [0 1 0.05], struct()};
+  compiled{end+1} = {'rate_unprotected_s2f', rate_model(unprotected), [0 3 0.25], struct()};
+  compiled{end+1} = {'rate_unprotected_f2s', rate_model(C.rt_f2s_nointegrity.parameters), [0 2 0.05], struct()};
 
   % ---------------------------------------------------------- Integrator, Second-Order
   lib = library (ref, 'simulink/Continuous/Integrator, Second-Order');
@@ -386,9 +398,14 @@ function test_ob_routing_builders (reference_file)
     else
       c_compare (gcc, directory, name, model, config, options);
     endif
-    accelerated_compare (name, model, ob_time_grid (config(1), config(2), config(3)), options);
-    fprintf ('  %-20s C export and accelerated run match ob_run\n', name);
-    checks += 2;
+    if (isempty (getenv ('OB_SKIP_ACCELERATOR')))
+      accelerated_compare (name, model, ob_time_grid (config(1), config(2), config(3)), options);
+      fprintf ('  %-20s C export and accelerated run match ob_run\n', name);
+      checks += 2;
+    else
+      fprintf ('  %-20s C export matches ob_run (accelerator skipped)\n', name);
+      checks += 1;
+    endif
   endfor
   fprintf ('routing builders: %d checks passed (%d C export cases)\n', checks, numel (compiled));
 endfunction

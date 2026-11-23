@@ -92,15 +92,24 @@ rates:
 - slow-to-fast deterministic is a Unit Delay at the input rate;
 - integrity-only returns the last slow sample strictly before each output
   hit (this needs a common base period of both rates);
-- the other cases are holds at the output rate.
+- integrity off ignores DET and reads the current input at each output hit;
+- fast-to-slow, equal-rate and continuous-to-discrete transfers hold at the
+  output rate.
 
-IC is used only by the two delaying modes, and the output is 0 before the
-first output hit, as Simulink logs it. Deterministic transfer with offsets
+IC is used by the delaying modes and by an integrity-protected output that
+hits before its first input sample. The output is 0 before the first output
+hit, as Simulink logs it. Deterministic transfer with offsets
 or non-integer rate ratios raises Simulink's errors; discrete-to-continuous
 and inherited (−1) output rates are rejected. 29 recorded Simulink 26.2 cases
 agree (`tests/test_ob_routing_builders.m`). The native Rate Transition block
-and the command API's `Signal Attributes/Rate Transition` keep the
-sample-and-hold behaviour described above.
+keeps the sample-and-hold behaviour described above. The command API uses
+that native mapping by default. Set `OctaveInputSampleTime` to an explicit
+input rate, `OutPortSampleTime` to an explicit output rate, and `Integrity`
+and `Deterministic` to `on` or `off` to select these builder modes through
+`Signal Attributes/Rate Transition`. `OctaveInputSampleTime` is an Octave
+Blocks extension because automatic upstream rate inference is not available.
+With integrity off, a continuous consumer still sees the output-rate hold;
+Simulink's unprotected signal can change at every major solver step.
 
 ## Continuous integration and input jumps
 
