@@ -1,5 +1,21 @@
 # Validation report
 
+## 0.3.0 documentation fixes — 2026-11-23
+
+Revision `d1ced2d` (branch `release/0.3.0-docs`), Windows 11 desktop test
+machine, GNU Octave 11.3.0, PowerShell 7.7.0. `tests/Run-Tests.ps1 -Stages
+audit,package` passed with unchanged source:
+
+- audit, including the new `test_ob_docs`: 376 tracked text files are valid
+  UTF-8, 465 relative links in 38 Markdown files resolve, and
+  `doc/README.md` links all 34 other docs
+- package: install, simulation, C export, the accelerator, a 3-block
+  command-API model built with `add_block`/`add_line` and run with `sim`
+  after `ob_simulink_setup`, GPL emission and unload
+
+Only these two stages were run; the change touches documentation, the
+package check and the new docs test.
+
 ## 0.3.0 command API review follow-ups — 2026-11-22
 
 Same tree and tools as the entry below. A review of the integration found

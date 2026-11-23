@@ -152,13 +152,11 @@ acceptance criterion and a size (S/M/L/XL).
 - [x] Editor-stage preflight. `tests/Test-Editor.ps1` fails with an
   explanation in session 0 or before Octave's first-run wizard instead of
   hanging ([tests/README.md](../tests/README.md)).
-- [ ] Command API documented for installed use. Acceptance: the README,
+- [x] Command API documented for installed use. The README,
   [SIMULINK_API.md](SIMULINK_API.md) and [USER_GUIDE.md](USER_GUIDE.md) show
-  `ob_simulink_setup ()` for installed use. Today only SIMULINK_API.md covers
-  command-API setup, with the source-checkout `ob_setup ('simulink')`; the
-  README and user guide do not mention the command API. The existing
-  `Test-Package.ps1` check is extended from `new_system` to
-  `add_block`/`add_line`/`sim` on a 3-block model. **S**
+  `ob_simulink_setup ()` after `pkg load`, and `Test-Package.ps1` builds and
+  simulates a 3-block `add_block`/`add_line`/`sim` model after `pkg install`
+  ([VALIDATION.md](VALIDATION.md), 2026-11-23 entry).
 - [ ] Qt check. Acceptance: `octave_blocks` raises an identified error with
   remediation text when Qt graphics are not available, and a headless
   `octave-cli` test asserts the identifier. **S**
@@ -235,8 +233,7 @@ acceptance criterion and a size (S/M/L/XL).
 
 - [x] Command API reference. [SIMULINK_API.md](SIMULINK_API.md) gives a
   library-path table with BlockType, parameters and defaults, the Dataset
-  layout, and the differences from Simulink. Its Rate Transition
-  contradiction and installed-use setup are tracked below.
+  layout, and the differences from Simulink, including installed-use setup.
 - [x] Licensing and provenance. The project is GPL-3.0-or-later, with the
   Octave `ode45` derivation documented and the original MIT grant kept
   ([LICENSING.md](LICENSING.md), [NOTICE](../NOTICE)). `Test-Package.ps1`
@@ -262,22 +259,16 @@ acceptance criterion and a size (S/M/L/XL).
   `inst/private/ob_execution_mode.m` has no such mode, while
   [COMPATIBILITY_GAPS.md](COMPATIBILITY_GAPS.md) lists them only as a missing
   trace. **M**
-- [ ] Contradictions and stale text fixed, with a lint test. Acceptance:
-  - `ode45` C export: [USER_GUIDE.md](USER_GUIDE.md) line 93 ("Choose `rk4`
-    in Settings before export") against [CODEGEN.md](CODEGEN.md) lines 18–19,
-    and line 118, which should say adaptive C is unsupported *with zero
-    crossings*
-  - Rate Transition `Integrity`/`Deterministic`: accepted at
-    [SIMULINK_API.md](SIMULINK_API.md) line 215, listed as unsupported around
-    line 365
-  - the README gate counts, the 0.2.1 examples in RELEASING.md and
-    PACKAGE_LAYOUT.md, the `inst/` statement in PACKAGE_LAYOUT.md and the
-    reorganization note in CONTRIBUTING.md
-  - the `0x92` byte in README.md
-
-  A test checks that tracked text files are valid UTF-8, that relative links
-  resolve, and that [doc/README.md](README.md) links every doc outside the
-  archive. **S**
+- [x] Contradictions and stale text fixed, with a lint test. Fixed: the
+  `ode45` C export statements in [USER_GUIDE.md](USER_GUIDE.md), the Rate
+  Transition `Integrity`/`Deterministic` entries in
+  [SIMULINK_API.md](SIMULINK_API.md), the README gate counts, the stale
+  versions in RELEASING.md and PACKAGE_LAYOUT.md, the `inst/` statement in
+  PACKAGE_LAYOUT.md, the reorganization note in CONTRIBUTING.md and the
+  `0x92` byte in README.md. `tests/test_ob_docs.m` (audit stage) checks that
+  tracked text files are valid UTF-8, that relative links resolve, and that
+  [doc/README.md](README.md) links every doc
+  ([VALIDATION.md](VALIDATION.md), 2026-11-23 entry).
 - [ ] Structured user guide. Acceptance:
   - [USER_GUIDE.md](USER_GUIDE.md) has sections for install (Windows, Linux),
     first model (editor), first model (script), results (including saving
