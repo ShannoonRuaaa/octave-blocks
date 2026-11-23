@@ -22,6 +22,7 @@
 - [Package layout](PACKAGE_LAYOUT.md): where code belongs and why.
 - [Review guide](REVIEW_GUIDE.md), [validation](VALIDATION.md),
   [release packaging](RELEASING.md).
+- [Road to 1.0](ROADMAP.md): release criteria, intermediate releases and scope.
 - [Compatibility gaps](COMPATIBILITY_GAPS.md) and [advanced plan](ADVANCED_PLAN.md).
 - [Runtime performance](RUNTIME_PERFORMANCE.md), [UI performance](UI_PERFORMANCE.md),
   [benchmark reproduction](../tests/benchmarks/README.md).
