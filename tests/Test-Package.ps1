@@ -25,10 +25,18 @@ source=fileread(fullfile(folder,'package-adaptive.c'));
 assert(!isempty(strfind(source,'SPDX-License-Identifier: GPL-3.0-or-later')));
 setenv('OB_ACCELERATOR_CACHE',fullfile(folder,'cache'));
 [a,info]=ob_accelerate(m,t); assert(max(abs(ob_scope_data(a,4)(:)-ob_scope_data(r,4)(:)))<1e-12);
-ob_simulink_setup(); new_system('package_smoke'); bdclose('package_smoke');
+ob_simulink_setup(); new_system('package_smoke');
+add_block('simulink/Sources/Constant','package_smoke/Source','Value','3');
+add_block('simulink/Math Operations/Gain','package_smoke/Gain','Gain','2');
+add_block('simulink/Sinks/Out1','package_smoke/y');
+add_line('package_smoke','Source/1','Gain/1'); add_line('package_smoke','Gain/1','y/1');
+set_param('package_smoke','StopTime','2'); out=sim('package_smoke');
+assert(numel(out.tout)>1 && abs(out.tout(end)-2)<1e-9);
+assert(size(out.yout),[numel(out.tout) 1]); assert(all(out.yout==6));
+bdclose('package_smoke'); assert(!bdIsLoaded('package_smoke'));
 pkg('unload','octave-blocks');
 assert(isempty(which('ob_run')) && isempty(which('new_system')));
-disp('Native package install, API, simulation, acceleration, GPL emission and unload passed');
+disp('Native package install, API, simulation, acceleration, command API, GPL emission and unload passed');
 "@
 & (Join-Path $bin 'octave-cli.exe') --quiet --eval $expression
 if ($LASTEXITCODE -ne 0) { throw 'Installed package verification failed.' }

@@ -32,6 +32,9 @@ The `test_ob_*_bist.m` files contain the regression checks formerly embedded
 in production files; their wrapper functions check that every case passed.
 `test_ob_multi_function`, `test_ob_inner_clock_c_cases` and several codegen
 case files are fixtures, not standalone test commands.
+`test_ob_docs` (in the `audit` stage) checks that the README, CONTRIBUTING.md,
+NEWS, DESCRIPTION, INDEX and Markdown docs are valid UTF-8, that their relative
+Markdown links resolve, and that `doc/README.md` links every `doc/*.md` file.
 
 Set the environment variable `OB_SKIP_ACCELERATOR` to any non-empty value to
 skip the accelerated comparisons in `test_ob_routing_builders` (for machines

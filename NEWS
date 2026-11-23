@@ -1,15 +1,17 @@
 Octave Blocks 0.3.0 (development)
 
-Adds compiled acceleration, flat adaptive C export, Transport Delay,
+Adds cached compiled acceleration, flat adaptive C export, Transport Delay,
 Limited Integrator, programmatic modeling and recorded Simulink evidence.
 The combined distribution is GPL-3.0-or-later to include adapted Octave
-solver components; original MIT notices remain in LICENSES/MIT.txt.
+solver components, with solver attribution and generated-code notices;
+original MIT notices remain in LICENSES/MIT.txt.
 
 Uses GNU Octave package conventions: inst/ for installed functions,
 inst/private/ for shared implementation, doc/ for documentation, and
 DESCRIPTION, COPYING and INDEX for package installation and discovery.
 Examples are installed separately from the public API in inst/examples/.
 Tests and benchmarks remain in tests/ and are not added by pkg load.
+Advanced simulation is integrated into this layout.
 
 New Simulink library builders, built from native primitives so that
 ob_run, zero crossings, strict C99 ob_codegen and ob_accelerate all work,
@@ -46,10 +48,72 @@ model default stays 'Array'. The handles survive Octave's binary/text
 save and load; for MAT files, remove them and rebuild the Dataset with
 ob_simulink ('dataset', s). A Mux or Demux signal whose shape differs
 from the declared width stops sim with an error that names the block.
+Rate Transition library blocks accept Integrity and Deterministic; with
+an explicit OctaveInputSampleTime (an Octave Blocks extension) they map
+onto ob_rate_transition. Without it only the default (both on) is
+accepted, as the native sample-and-hold; setting either to off is an
+error.
+
+Other changes:
+
+ ** ob_accelerate falls back to a temporary cache directory when the
+    per-user cache is not writable, and accelerator load failures name
+    the cache and suggest setting OB_ACCELERATOR_CACHE.
+
+ ** The Qt editor test stage (tests/Test-Editor.ps1) fails fast with an
+    explanation instead of hanging in session 0 or behind Octave's
+    first-run welcome wizard.
+
+ ** Project branch names are neutral and documentation references are
+    current.
+
+ ** NEWS is now the single changelog; the former CHANGELOG.md entries are
+    folded in below.
 
 Not added: Zero-Order Hold (use a native Rate Transition), Moving Average,
 Bus Creator/Selector (use ob_mux/ob_demux), sample-time reports and model
 diagnostics.
 
-See CHANGELOG.md for earlier preview release notes and doc/README.md
-for the documentation index.
+See doc/README.md for the documentation index.
+
+
+Octave Blocks 0.2.1-preview.1
+
+ ** Adopts GNU Octave package layout and metadata for pkg install and
+    pkg load.
+
+ ** Groups shared internals under inst/private/, public functions under
+    inst/, and runnable examples under inst/examples/.
+
+ ** Folds the compiler-only multiple-output shape helper into its caller.
+
+ ** Moves guides and project records into doc/, with a documentation
+    index.
+
+ ** Adds installable .tar.gz archives alongside source ZIPs in release
+    packaging.
+
+
+Octave Blocks 0.2.0-preview.1
+
+Source preview of the merged event-export milestone.
+
+ ** Public C99 RK4 export for supported primitive and continuous-control
+    events.
+
+ ** Shared parent/child continuous stages, clocks and input callbacks.
+
+ ** Transactional C APIs with failure and rollback checks.
+
+ ** Input lookup, graph, numeric formatting and editor improvements.
+
+ ** README images, analytical oscillator example, contribution guide and
+    source-release packaging.
+
+Requires a separate GNU Octave installation; verified on Octave 11.3.0 on
+Windows. Does not include the accelerator or reorganization in draft PR #4.
+Adaptive C solvers, arbitrary Octave-to-C translation and Simulink file
+interchange remain outside this release.
+
+See doc/VALIDATION.md for recorded milestone evidence and
+doc/COMPATIBILITY_GAPS.md for remaining work.

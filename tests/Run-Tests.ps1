@@ -24,7 +24,7 @@ $definitions = @(
     @{Name='events'; Code='test_ob_zero_crossings(); test_ob_continuous_controls();'},
     @{Name='systems'; Code='test_ob_linear_systems(); test_ob_analysis(); test_ob_matlab_numeric(); test_ob_multioutput(); test_ob_algebraic(); test_ob_delay_integrator(); test_ob_delay_matlab();'},
     @{Name='performance'; Code='test_ob_performance_graph(); test_ob_performance_metadata(); test_ob_performance_events(); test_ob_runtime_fast_paths();'},
-    @{Name='audit'; Code='test_ob_codegen_metadata(); test_ob_codegen_adjacency(); test_ob_builtin_controls(); test_ob_transfer_builtin(); test_ob_dmperm_order(); test_ob_advanced_simulink(); test_ob_c_event_inventory();'},
+    @{Name='audit'; Code='test_ob_codegen_metadata(); test_ob_codegen_adjacency(); test_ob_builtin_controls(); test_ob_transfer_builtin(); test_ob_dmperm_order(); test_ob_advanced_simulink(); test_ob_c_event_inventory(); test_ob_docs();'},
     @{Name='embedded'; Code='test_ob_execution_order_bist(); test_ob_edges_bist(); test_ob_zc_snapshot_bist(); test_ob_block_parameters_bist(); test_ob_transport_delay_bist(); test_ob_ode_settings_bist(); test_ob_dormand_prince_bist();'},
     @{Name='api'; Code='test_ob_simulink_api(); test_ob_simulink_api_reference(); test_ob_simulink_delay_integrator();'},
     @{Name='builders'; Code='test_ob_nonlinear_builders(); test_ob_routing_builders();'},

@@ -90,7 +90,9 @@ models, including matrices, state blocks, nested subsystems, and selected
 builtin Function blocks. Conditional Subsystems export as typed child contexts
 with their supported state/output policies. With zero crossings enabled, RK4
 exports also locate registered primitives and declared continuous controls.
-Choose `rk4` in Settings before export. The generated
+Choose `rk4` in Settings before export, or `ode45` for flat models (no
+conditional subsystems, multiple-output Functions or zero crossings), which
+export with an adaptive solver; `ode15s` is interpreted only. The generated
 source has a reusable C API and an optional CSV runner; see [CODEGEN.md](CODEGEN.md)
 for supported operations, compiler commands, return codes, and limitations.
 Octave's workspace variable `ob_last_export` contains the export metadata.
@@ -115,7 +117,8 @@ to 1 to split integration at computed signal crossings; the maximum-step
 setting also bounds the RK4 event search. Events appear in
 `ob_last_result.events`. RK4 C export accepts this option and stores cumulative
 event count/latest time in each generated context; it does not keep an unbounded
-event log. Continuous controls require the option. Adaptive C solvers remain unsupported.
+event log. Continuous controls require the option. Adaptive (ode45) C export is not
+supported with zero crossings; use `rk4`.
 See [ZERO_CROSSINGS.md](ZERO_CROSSINGS.md) for initial-zero behavior, matrix
 channels, event history, sampling rules, and remaining limitations.
 
@@ -140,6 +143,14 @@ plot (result.t, ob_scope_data (result, 3));
 ob_save_model ('my-model.mat', custom, [0 10 0.1]);
 [custom, settings] = ob_load_model ('my-model.mat');
 ```
+
+Models can also be built and run with Simulink-named commands (`new_system`,
+`add_block`, `add_line`, `set_param`, `sim` and related commands); see the
+[command API](SIMULINK_API.md). These wrappers are opt-in because they take
+precedence over same-named functions on the path. Enable them with
+`ob_simulink_setup ()` after `pkg load octave-blocks`, or with
+`ob_setup ('simulink')` in a source checkout. Without them,
+`ob_simulink (command, ...)` provides the same commands.
 
 For stepping and checkpointing from Octave host code, use `ob_runtime_init`,
 `ob_runtime_step`, and `ob_runtime_outputs`. Each context owns its states and

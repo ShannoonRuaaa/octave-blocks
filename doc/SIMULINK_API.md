@@ -5,7 +5,8 @@ commands. The commands produce ordinary Octave Blocks models, so the editor,
 all three solvers, save/load and the supported C exporter work on them.
 
 ```octave
-ob_setup ('simulink');   % with the project folder on the path
+pkg load octave-blocks;  % installed package
+ob_simulink_setup ();    % or, in a source checkout: ob_setup ('simulink')
 new_system ('loop');
 add_block ('simulink/Sources/Step', 'loop/Ref');
 add_block ('simulink/Math Operations/Subtract', 'loop/Err');
@@ -19,9 +20,14 @@ out = sim ('loop', 'StopTime', '10');
 plot (out.tout, out.yout);
 ```
 
-The Simulink-named functions live in the `simulink/` folder and are only
-visible after `ob_setup ('simulink')`. They are thin wrappers around
-`ob_simulink (command, ...)`, which can be called directly instead.
+The Simulink-named functions live in the package's `simulink/` folder
+(`inst/simulink/` in a source checkout) and are only
+visible after `ob_simulink_setup ()`, which adds that folder to the path. In
+an installed package, call it after `pkg load octave-blocks`; in a source
+checkout, `ob_setup ('simulink')` adds the package folders and then calls it.
+The wrappers deliberately take precedence over same-named functions already
+on the path. They are thin wrappers around `ob_simulink (command, ...)`, which
+can be called directly instead without enabling them.
 
 ## Commands
 
@@ -362,7 +368,9 @@ as an explicit exception in `test_ob_simulink_api_reference`.
   function-call triggers, Constant/Sine `SampleTime` and a discrete Step
   `SampleTime` (only 0 and −1 are accepted), Sine `SineType`,
   Transport Delay buffer/Padé options, block `ZeroCross` settings, Rate
-  Transition `Integrity`/`Deterministic`, the PID anti-windup, filter and
+  Transition `Integrity` or `Deterministic` `off` with an inherited input
+  rate (those modes need explicit `OctaveInputSampleTime` and
+  `OutPortSampleTime`; sample times are not propagated), the PID anti-windup, filter and
   integrator options, Discrete-Time Integrator methods, limits and reset,
   Discrete Transfer Fcn initial states and reset, and the Integrator's
   `InitialConditionSource`, `WrapState`, `ShowStatePort`,
