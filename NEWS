@@ -1,3 +1,12 @@
+Octave Blocks (development)
+
+Hide control-mode helpers in inst/private/ and keep one ob_example definition
+in inst/examples/. Complete the INDEX and Contents catalogs, including the
+opt-in command wrappers and examples. Add Texinfo help for the undocumented
+modeling utilities and examples, and make the editor's help reachable.
+Package layout checks now enforce unique function names, matching catalogs
+and available help.
+
 Octave Blocks 0.3.0
 
 Adds cached compiled acceleration, flat adaptive C export, Transport Delay,

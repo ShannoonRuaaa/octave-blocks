@@ -5,7 +5,7 @@ function test_ob_accelerate ()
   % rk4 models and user .m Functions.  Uses a temporary cache directory and
   % a temporary folder of test Functions, and removes both afterwards.
   root = fileparts (fileparts (mfilename ('fullpath')));
-  private_path = ob_test_private_path ();  % ob_accelerate_events is in src/private
+  private_path = ob_test_private_path ();  % ob_accelerate_events is in inst/private
   addpath (fullfile (root, 'tests', 'benchmarks'));
   cache = tempname ();
   functions = tempname (); mkdir (functions);

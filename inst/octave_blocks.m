@@ -1,6 +1,19 @@
 function fig = octave_blocks (initial_model = ob_example ())
+  ## -*- texinfo -*-
+  ## @deftypefn {} {@var{fig} =} octave_blocks (@var{initial_model})
+  ## Open the visual block diagram editor and return its figure handle.
+  ## With no input, edit the Time--Gain--Scope example.  Otherwise,
+  ## @var{initial_model} is an Octave Blocks model struct to validate and edit.
+  ## Changes in the editor belong to the figure; use its Save button to persist
+  ## them.  A Qt graphics session is required.
+  ##
+  ## @example
+  ## fig = octave_blocks (ob_oscillator ());
+  ## @end example
+  ## @seealso{ob_run, ob_load_model, ob_save_model}
+  ## @end deftypefn
+
   ob_validate_model (initial_model);
-  % Small Simulink-style editor whose execution engine is GNU Octave.
   fig = figure ("name", "Octave Blocks", "numbertitle", "off", ...
                 "menubar", "none", "position", [120 100 1100 650], ...
                 "closerequestfcn", @(src, evt) ob_close (src), ...

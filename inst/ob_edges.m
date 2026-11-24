@@ -1,5 +1,19 @@
 function edges = ob_edges (model)
-  % Canonical edges: [source source_port target target_port].
+  ## -*- texinfo -*-
+  ## @deftypefn {} {@var{edges} =} ob_edges (@var{model})
+  ## Return canonical connections as an N-by-4 matrix.
+  ## Columns are source block, source output port, target block and target
+  ## input port.  Legacy N-by-2 connections use source port 1 and assign
+  ## target ports in row order.  An empty model returns a 0-by-4 matrix.
+  ## This checks connection syntax; block and port existence are validated
+  ## by model operations such as @code{ob_connect}.
+  ##
+  ## @example
+  ## edges = ob_edges (ob_example ());
+  ## @end example
+  ## @seealso{ob_connect, ob_disconnect}
+  ## @end deftypefn
+
   raw = model.edges;
   if (! isnumeric (raw) || ! isreal (raw) || ndims (raw) != 2 ...
       || ! any (columns (raw) == [2 4]) || any (! isfinite (raw(:))) ...

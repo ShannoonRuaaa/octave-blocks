@@ -10,7 +10,7 @@ function report = benchmark_ob_optimizations (source = pwd (), output = '', repe
   endif
   addpath (source);
   if (exist (fullfile (source, 'ob_setup.m'), 'file'))
-    ob_setup ();  % reorganized tree: src and examples; a flat tree is the folder itself
+    ob_setup ();  % package tree: inst/ and inst/examples/; a flat tree is the folder itself
   endif
   legacy = ob_enabled_continuous_example ();
   continuous = legacy;

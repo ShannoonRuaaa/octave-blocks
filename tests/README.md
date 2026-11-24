@@ -35,6 +35,9 @@ case files are fixtures, not standalone test commands.
 `test_ob_docs` (in the `audit` stage) checks that the README, CONTRIBUTING.md,
 NEWS, DESCRIPTION, INDEX and Markdown docs are valid UTF-8, that their relative
 Markdown links resolve, and that `doc/README.md` links every `doc/*.md` file.
+`test_ob_package_layout` (also in `audit`) checks unique installed function
+names, matching filenames and declarations, reachable help, and agreement
+between `inst/`, its examples and opt-in wrappers, `INDEX` and `Contents.m`.
 
 Set the environment variable `OB_SKIP_ACCELERATOR` to any non-empty value to
 skip the accelerated comparisons in `test_ob_routing_builders` (for machines

@@ -1,4 +1,20 @@
 function samples = ob_signal_values (result, path, port = 1)
+  ## -*- texinfo -*-
+  ## @deftypefn {} {@var{samples} =} ob_signal_values (@var{result}, @var{path}, @var{port})
+  ## Return signal samples from an @code{ob_run} result as a cell column.
+  ## @var{path} is a row of block indices through the model hierarchy;
+  ## @var{port} defaults to 1.  Each cell contains the signal at one output
+  ## time, preserving its shape.  For conditional internals, times before
+  ## their first execution contain NaNs; a child that never executes raises
+  ## an error.
+  ##
+  ## @example
+  ## r = ob_run (ob_example (), 0:0.1:1);
+  ## samples = ob_signal_values (r, 2);
+  ## @end example
+  ## @seealso{ob_scope_data, ob_runtime_outputs}
+  ## @end deftypefn
+
   if (! isnumeric (path) || ! isvector (path) || isempty (path) ...
       || ! isreal (path) || any (! isfinite (path)) || any (path < 1) ...
       || any (path != fix (path)) || ! isnumeric (port) || ! isscalar (port) ...

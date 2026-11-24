@@ -20,8 +20,8 @@ function report = benchmark_ob_accelerator (repeats = 5, output = '')
   addpath (root);
   reference = fullfile (root, 'simulink-benchmark-reference.json');
   if (exist (fullfile (root, 'ob_setup.m'), 'file'))
-    % Reorganized tree: its ob_setup adds src and examples; the recordings
-    % are in reference/.  A flat tree is the library folder itself.
+    % Package tree: ob_setup adds inst/ and inst/examples/; recordings
+    % are in tests/reference/.  A flat tree is the library folder itself.
     ob_setup ();
     reference = fullfile (root, 'tests', 'reference', 'simulink-benchmark-reference.json');
   endif
