@@ -1,7 +1,7 @@
 # Road to 1.0
 
-Status: **draft**, reviewed 2026-11-23. Current version: 0.3.0 (development;
-the tags so far are `v0.2.0-preview.1` and `v0.2.1-preview.1`).
+Status: **draft**, reviewed 2026-11-24. Current version: 0.3.0 (tagged
+`v0.3.0`; earlier tags are `v0.2.0-preview.1` and `v0.2.1-preview.1`).
 
 1.0 is a stable, installable and honestly documented release of the
 capability subset that exists today, plus a few thin mappings onto
