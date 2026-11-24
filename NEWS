@@ -1,5 +1,12 @@
 Octave Blocks (development)
 
+New model saves include format_version=1; the loader accepts legacy
+unversioned files and rejects malformed or newer schema markers with
+identified errors. Add a Qt availability diagnostic, Windows PowerShell 5.1
+launcher quoting, an installed-package smoke check, focused format/API tests,
+and release preparation CI. The API policy remains a proposal. These changes
+are not fully tested and will be verified on another machine before release.
+
 Hide control-mode helpers in inst/private/ and keep one ob_example definition
 in inst/examples/. Complete the INDEX and Contents catalogs, including the
 opt-in command wrappers and examples. Add Texinfo help for the undocumented

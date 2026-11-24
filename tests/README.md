@@ -45,6 +45,35 @@ where compiled MEX files cannot load, such as under Windows Smart App
 Control). The suite prints each skipped case and counts fewer checks; a full
 gate run must leave the variable unset.
 
+## Release preparation checks
+
+`test_ob_model_format` and `test_ob_api_contract` run in the
+`release-contract` stage. They check versioned and legacy model loading,
+failed-save preservation, invalid/future version rejection, the documented
+API inventory and result fields, and the Qt preflight in a headless session.
+`tests/Test-Launcher.ps1` checks launcher syntax and Windows argument quoting
+without opening the editor; run it with PowerShell 7 and Windows PowerShell
+5.1 on Windows.
+
+Run the installed-package smoke check in a fresh Octave process, with GCC
+and mkoctfile on PATH, without `ob_setup` or an existing loaded package:
+
+```octave
+addpath ('tests');
+report = smoke_release ('/absolute/path/octave-blocks-0.3.0.tar.gz');
+```
+
+It isolates the package prefix and both package registries, compares RK4
+and ode45 simulation, checks schema persistence and command-API Dataset
+output, compiles standalone C99 and compares every exported numeric column,
+checks MEX cache reuse/model edits, and verifies unload/uninstall. A JSON
+report and generated files remain in a new `tests/.artifacts/` directory
+(or a new explicit directory passed as the second argument).
+`OB_SKIP_ACCELERATOR` skips MEX checks without claiming fallback was tested.
+A successful smoke check with skips is not a full backend pass. The complete
+release gates and another-machine run remain required before a release claim;
+see [the review plan](../doc/V1_PROPOSAL_REVIEW.md).
+
 On Linux, `tests/run-tests-linux.sh REPO OUTDIR [JOBS] [STAGE...]` runs the
 same Octave stages, ports the strict C99 stages and the package check to
 bash, and skips the Qt editor stage. It needs `octave-cli`, `mkoctfile`, `gcc`

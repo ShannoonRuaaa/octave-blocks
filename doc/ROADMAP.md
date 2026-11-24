@@ -3,6 +3,11 @@
 Status: **draft**, reviewed 2026-11-24. Current version: 0.3.0 (tagged
 `v0.3.0`; earlier tags are `v0.2.0-preview.1` and `v0.2.1-preview.1`).
 
+The reviewed [release preparation proposal](V1_PROPOSAL_REVIEW.md) adds a
+schema guard, API inventory and verification helpers. Those development
+changes are not fully tested and will be verified on another machine;
+milestones below still require their complete acceptance evidence.
+
 1.0 is a stable, installable and honestly documented release of the
 capability subset that exists today, plus a few thin mappings onto
 primitives that are already verified. It promises:

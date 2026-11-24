@@ -27,6 +27,7 @@ $definitions = @(
     @{Name='audit'; Code='test_ob_codegen_metadata(); test_ob_codegen_adjacency(); test_ob_builtin_controls(); test_ob_transfer_builtin(); test_ob_dmperm_order(); test_ob_advanced_simulink(); test_ob_c_event_inventory(); test_ob_docs(); test_ob_package_layout();'},
     @{Name='embedded'; Code='test_ob_execution_order_bist(); test_ob_edges_bist(); test_ob_zc_snapshot_bist(); test_ob_block_parameters_bist(); test_ob_transport_delay_bist(); test_ob_ode_settings_bist(); test_ob_dormand_prince_bist();'},
     @{Name='api'; Code='test_ob_simulink_api(); test_ob_simulink_api_reference(); test_ob_simulink_delay_integrator();'},
+    @{Name='release-contract'; Code='test_ob_model_format(); test_ob_api_contract();'},
     @{Name='builders'; Code='test_ob_nonlinear_builders(); test_ob_routing_builders();'},
     @{Name='reference-conditional'; Code='test_ob_simulink_conditional();'},
     @{Name='reference-extended'; Code='test_ob_simulink_extended();'},
