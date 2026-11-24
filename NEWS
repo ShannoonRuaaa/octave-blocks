@@ -56,6 +56,13 @@ error.
 
 Other changes:
 
+ ** Linux fixes: accelerated models no longer read each other's tables
+    when several are loaded in one session (MEX symbols are now hidden
+    outside Windows); generated C builds warning-free with glibc and gcc
+    15; ob_run reports ob_run:ode15sUnavailable when Octave was built
+    without SUNDIALS IDA. tests/run-tests-linux.sh runs the test stages
+    on Linux.
+
  ** ob_accelerate falls back to a temporary cache directory when the
     per-user cache is not writable, and accelerator load failures name
     the cache and suggest setting OB_ACCELERATOR_CACHE.

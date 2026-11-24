@@ -1,5 +1,36 @@
 # Validation report
 
+## Linux portability fixes — 2026-11-24
+
+Revision `ff9376f` (branch `fix/linux-gate`).
+
+**Windows**: the desktop test machine (Windows 11, GNU Octave 11.3.0 with
+its MinGW gcc 15.2.0, PowerShell 7.7.0) passed all 21 stages of
+`tests/Run-Tests.ps1` in one uninterrupted run from a signed-in desktop
+session, with unchanged source hashes.
+
+**Linux**: WSL 2 Ubuntu 26.04.1 on the same machine, Ubuntu's GNU Octave
+11.1.0 and gcc 15.2.0, run with `tests/run-tests-linux.sh` (the 20
+non-editor stages; the package installs with `-nodeps` because `DESCRIPTION`
+requires Octave 11.3.0). 13 stages pass: audit, embedded, api, builders,
+reference-conditional, reference-benchmarks, package and all six strict C99
+stages. The other 7 (engine, conditional, events, systems, performance,
+reference-extended, accelerator) stop only at `ode15s` cases: Ubuntu's
+Octave is built without SUNDIALS IDA, and `ob_run` now reports that with
+`ob_run:ode15sUnavailable`. Every other check in those suites passed when
+`ode15s` was substituted in diagnosis runs.
+
+Defects the Linux run found and this revision fixes:
+
+- accelerated MEX files exported their model symbols, so on ELF systems a
+  later accelerator in the same session read the first one's tables
+  (`ob_accelerate` now hides them outside Windows)
+- generated C failed the `-Werror` gate with glibc and gcc 15 (a
+  `-Warray-bounds` false positive through glibc's inline `bsearch`)
+- two tests picked a Windows `gcc.exe` from the PATH that WSL appends
+- one Bode phase check used a tolerance below the solve's conditioning
+- parallel stages could race creating the shared test scratch folder
+
 ## 0.3.0 documentation fixes — 2026-11-23
 
 Revision `d1ced2d` (branch `release/0.3.0-docs`), Windows 11 desktop test
