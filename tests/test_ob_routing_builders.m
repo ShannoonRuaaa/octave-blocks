@@ -689,9 +689,12 @@ function accelerated_compare (name, model, t, options)
 endfunction
 
 function gcc = find_gcc ()
-  gcc = file_in_path (getenv ('PATH'), 'gcc.exe');
+  % gcc.exe only on Windows: WSL appends the Windows PATH, and a MinGW
+  % gcc.exe found there builds Windows executables that Linux cannot run.
+  gcc = '';
+  if (ispc ()), gcc = file_in_path (getenv ('PATH'), 'gcc.exe'); endif
   if (isempty (gcc)), gcc = file_in_path (getenv ('PATH'), 'gcc'); endif
-  if (isempty (gcc))
+  if (isempty (gcc) && ispc ())
     candidate = fullfile (OCTAVE_HOME (), 'bin', 'gcc.exe');
     if (exist (candidate, 'file')), gcc = candidate; endif
   endif

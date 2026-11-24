@@ -13,6 +13,16 @@ function test_ob_solvers ()
   stiff.blocks(1).type = "Integrator"; stiff.blocks(1).value = 1;
   stiff.blocks(2).value = -1000;
   stiff.edges = [1 2; 2 1; 1 3];
+  if (! ob_ode15s_available ())
+    % Octave without SUNDIALS IDA: ode15s cases cannot run, and ob_run must
+    % say why by identifier rather than with __ode15__'s raw error.
+    try
+      ob_run (stiff, [0 0.1], struct ("solver", "ode15s"));
+      error ("test_ob_solvers: ode15s ran although SUNDIALS IDA is unavailable");
+    catch err
+      assert (strcmp (err.identifier, "ob_run:ode15sUnavailable"), err.message);
+    end_try_catch
+  endif
   result = ob_run (stiff, [0 0.01 0.1], struct ("solver", "ode15s"));
   assert (abs (result.values{2, 3} - exp (-10)) < 1e-8);
   assert (abs (result.values{end, 3}) < 1e-8);

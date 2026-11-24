@@ -334,14 +334,17 @@ function count = bode_cases (ref)
   assert_close (r.H(2, 2), 1 / (1i + 1), 1e-9);
   % 100(s+1)^2/(s^3(s+10)) in a rotated basis, where eig splits the triple
   % pole at 0 by ~1e-5: no spurious low-frequency crossing, same margins
-  % as the companion form, phase on the -270 degree branch.
+  % as the companion form, phase on the -270 degree branch.  At 1e-3 rad/s
+  % the rotated 1i*w*I - A is nearly singular, so the phase there carries
+  % ~1e-6 degree of BLAS/LAPACK-dependent solve rounding, and one-ulp
+  % changes to the rotated A move it by up to ~3e-5 degree.
   [A, B, C, D] = companion (100 * [1 2 1], [1 10 0 0 0]);
   [Q, unused] = qr ([4 1 0 2; 1 3 1 0; 0 1 5 1; 2 0 1 6]);
   assert (max (abs (eig (Q * A * Q'))(abs (eig (Q * A * Q')) < 1)) > 1e-7);   % split
   base = ob_bode (A, B, C, D);
   w = [1e-3 0.1 1 10];
   r = ob_bode (Q * A * Q', Q * B, C * Q', D, w);
-  assert_close (squeeze (r.phase)', -270 + 2 * atand (w) - atand (w / 10), 1e-6);
+  assert_close (squeeze (r.phase)', -270 + 2 * atand (w) - atand (w / 10), 1e-4);
   assert (numel (r.margins.GainMargin) == 1 && numel (base.margins.GainMargin) == 1);
   assert_close ([r.Gm r.Wcg r.Pm r.Wcp], [base.Gm base.Wcg base.Pm base.Wcp], 1e-7);
   % Linearized pendulum: H = 1/(s^2+0.2s+1) from ob_linearize's struct.
@@ -522,7 +525,10 @@ function [result, csv] = export_and_compare (model, grid, scratch, name)
 endfunction
 
 function gcc = compiler ()
-  gcc = file_in_path (getenv ('PATH'), 'gcc.exe');
+  % Off Windows, a gcc.exe on PATH (WSL appends the Windows PATH) builds
+  % Windows executables this system cannot run: use the native gcc.
+  gcc = '';
+  if (ispc ()), gcc = file_in_path (getenv ('PATH'), 'gcc.exe'); endif
   if (isempty (gcc)), gcc = file_in_path (getenv ('PATH'), 'gcc'); endif
   if (isempty (gcc))
     candidate = fullfile (OCTAVE_HOME (), 'bin', 'gcc.exe');
