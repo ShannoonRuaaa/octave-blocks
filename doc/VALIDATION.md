@@ -1,5 +1,22 @@
 # Validation report
 
+## Linux on Octave 11.3.0 with SUNDIALS — 2026-11-24
+
+Revision `f544809` (`main`), WSL 2 Ubuntu 26.04.1 on the desktop test
+machine. GNU Octave 11.3.0 was built from the official GNU source tarball
+(signature verified against the GNU keyring) into `/opt/octave-11.3.0`,
+without the Qt GUI or docs, with SUNDIALS 7.1.1 IDA, NVECSERIAL and
+SUNLINSOL_KLU enabled, OpenBLAS, and gcc 15.2.0.
+`tests/run-tests-linux.sh` passed **all 20 non-editor stages**, including
+every `ode15s` case; the package installed without `-nodeps`. Together with
+the 21 Windows stages at `ff9376f` (entry below; the later commits change
+only docs and the Linux runner), every stage passes on both platforms.
+
+Ubuntu's SUNDIALS headers include `<mpi.h>`, so Octave's configure silently
+disables `ode15s` unless MPI headers are installed (`mpi-default-dev`) and
+on the include path. That is likely also why Ubuntu's own Octave package
+has no `ode15s`; see `tests/README.md`.
+
 ## Linux portability fixes — 2026-11-24
 
 Revision `ff9376f` (branch `fix/linux-gate`).
