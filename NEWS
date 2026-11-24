@@ -1,4 +1,4 @@
-Octave Blocks 0.3.0 (development)
+Octave Blocks 0.3.0
 
 Adds cached compiled acceleration, flat adaptive C export, Transport Delay,
 Limited Integrator, programmatic modeling and recorded Simulink evidence.
