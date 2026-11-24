@@ -72,6 +72,7 @@ function [next, count, times, samples] = ob_flow_segment (model, edges, order, i
                                 'MaxStep', maxstep, 'Refine', 1);
     if (! isempty (monitor)), settings = ob_ode_settings (settings, 'OutputFcn', @accepted_output); endif
     if (strcmp (options.solver, 'ode15s'))
+      ob_ode15s_available (true);
       settings = ob_ode_settings (settings, 'InitialSlope', rhs (begin, initial));
     endif
     [elapsed, solution] = feval (options.solver, @elapsed_rhs, [0 duration], initial, settings);

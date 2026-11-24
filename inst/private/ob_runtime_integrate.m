@@ -496,6 +496,7 @@ function [states, accepted, times, solution] = adaptive_segment (model, edges, o
     settings = ob_ode_settings ("RelTol", options.reltol, "AbsTol", options.abstol, ...
                                 "MaxStep", maxstep, "Refine", 1);
     if (strcmp (options.solver, "ode15s"))
+      ob_ode15s_available (true);
       settings = ob_ode_settings (settings, "InitialSlope", rhs(start_time, initial));
     endif
     [times, solution] = feval (options.solver, rhs, [start_time end_time], initial, settings);

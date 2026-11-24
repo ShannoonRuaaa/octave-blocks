@@ -42,6 +42,11 @@ where compiled MEX files cannot load, such as under Windows Smart App
 Control). The suite prints each skipped case and counts fewer checks; a full
 gate run must leave the variable unset.
 
+On Linux, `tests/run-tests-linux.sh REPO OUTDIR [JOBS] [STAGE...]` runs the
+same Octave stages, ports the strict C99 stages and the package check to
+bash, and skips the Qt editor stage. It needs `octave-cli`, `mkoctfile`, `gcc`
+and `git`; `ode15s` needs an Octave built with SUNDIALS IDA.
+
 The stage runner accepts `-Workers 1` through `-Workers 4` (default 2) and
 optional `-Stages engine,api` for focused retries. Each run keeps a fresh
 manifest, per-stage stdout/stderr, source hashes and exit codes under

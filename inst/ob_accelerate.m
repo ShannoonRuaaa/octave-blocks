@@ -239,6 +239,7 @@ function entry = generate (model, options, t, cache, scale, plan, statics)
     if (events), guards = event_guards (model); endif
   endif
   gateway = ob_accelerate_gateway (! isempty (plan.ids), events);
+  source = hide_export_symbols (source);
   key = hash ('sha1', [source gateway compile_flags() OCTAVE_VERSION computer() 'ob-accelerate-v2']);
   name = ['ob_accel_' key(1:32)];
   entry = struct ('name', name, 'source', fullfile (cache, [name '.c']), ...
@@ -248,6 +249,29 @@ function entry = generate (model, options, t, cache, scale, plan, statics)
                   'generated', struct ('shapes', {generated.shapes}, 'offsets', generated.offsets, ...
                                        'sample_times', generated.sample_times), ...
                   'plan', plan, 'statics', statics, 'events', events, 'guards', guards);
+endfunction
+
+function source = hide_export_symbols (source)
+  % Give the export's external symbols (ob_sample_period, ob_model_step, ...)
+  % hidden visibility outside Windows.  Octave loads MEX files with
+  % RTLD_GLOBAL, so on ELF systems a default-visible symbol of a later
+  % accelerator binds to the same-named symbol of the first one loaded,
+  % unless the link binds it locally; Ubuntu's Octave links with
+  % -Wl,-Bsymbolic-functions after -Wl,-Bsymbolic, which binds functions
+  % only, so the gateway read another model's ob_sample_period (an empty
+  % ticks array).  Windows DLLs never interpose.  The headers the export
+  % includes are included first, outside the hidden region, so that the C
+  % library keeps default visibility (their include guards make the
+  % export's own #include lines no-ops); the gateway, with mexFunction,
+  % follows the pop.  -fvisibility=hidden cannot be used: it would also hide
+  % the __octave_mex_soversion__ that mkoctfile adds, and Octave then
+  % refuses the file.
+  guard = '#if defined(__GNUC__) && !defined(_WIN32) && !defined(__CYGWIN__)';
+  prefix = {guard, '#include <math.h>', '#include <float.h>', '#include <stddef.h>', ...
+          '#include <string.h>', '#include <stdio.h>', '#include <stdlib.h>', ...
+          '#pragma GCC visibility push(hidden)', '#endif', ''};
+  suffix = {'', guard, '#pragma GCC visibility pop', '#endif', ''};
+  source = [strjoin(prefix, char (10)) source strjoin(suffix, char (10))];
 endfunction
 
 function [source, events] = instrument_typed (source)
