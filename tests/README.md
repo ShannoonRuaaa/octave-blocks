@@ -45,7 +45,13 @@ gate run must leave the variable unset.
 On Linux, `tests/run-tests-linux.sh REPO OUTDIR [JOBS] [STAGE...]` runs the
 same Octave stages, ports the strict C99 stages and the package check to
 bash, and skips the Qt editor stage. It needs `octave-cli`, `mkoctfile`, `gcc`
-and `git`; `ode15s` needs an Octave built with SUNDIALS IDA.
+and `git`; `ode15s` needs an Octave built with SUNDIALS IDA. Ubuntu 26.04's
+`octave` package lacks it. To build Octave from source with SUNDIALS there,
+install `libsundials-dev`, `libsuitesparse-dev` and `mpi-default-dev`
+(Ubuntu's SUNDIALS headers include `<mpi.h>`), then run configure with
+`CPPFLAGS=-I/usr/lib/x86_64-linux-gnu/openmpi/include`. Its summary must list
+the SUNDIALS IDA, NVECTOR and SUNLINSOL KLU libraries. Put that Octave's
+`bin` first on `PATH` when running the script.
 
 The stage runner accepts `-Workers 1` through `-Workers 4` (default 2) and
 optional `-Stages engine,api` for focused retries. Each run keeps a fresh
