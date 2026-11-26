@@ -90,14 +90,19 @@ function offset = offsets (port, count)
 endfunction
 
 function points = route_one (s, f, c)
-  % The first route shape without any penalty wins; otherwise the cheapest.
+  % The first route shape without any avoidable penalty wins; otherwise the
+  % cheapest. A port inside another block (blocks drawn on top of each
+  % other) makes that block unavoidable, so the search stops there.
   g = c.g; best = Inf; points = [s; f];
+  p = [s; f]; r = c.rect; tol = 1e-9;
+  c.floor = g.block_penalty * nnz (p(:,1) > r(:,1)'+tol & p(:,1) < r(:,2)'-tol ...
+                                   & p(:,2) > r(:,3)'+tol & p(:,2) < r(:,4)'-tol);
   if (f(1) - s(1) >= 2*g.min_stub || (abs (f(2)-s(2)) < 1e-12 && f(1) > s(1)))
     % Only obstacles near the box between the ports matter for these shapes.
     near = prune (c, [s(1) f(1)], [min(s(2),f(2)) max(s(2),f(2))]);
     if (abs (f(2)-s(2)) < 1e-12)
       [best, penalty] = score (s, f, zeros (0, 1), 1, near);
-      if (penalty == 0), return; endif
+      if (penalty <= c.floor), return; endif
     else
       % One vertical lane between the ports. Lanes spread out from the
       % middle of the gap, and the first candidate wins ties.
@@ -107,7 +112,7 @@ function points = route_one (s, f, c)
       [cost, penalty] = score (s, f, xm, 2, near);
       [best, at] = min (cost);
       points = [s; xm(at) s(2); xm(at) f(2); f];
-      if (penalty(at) == 0), return; endif
+      if (penalty(at) <= c.floor), return; endif
     endif
   endif
   [cost, route] = detour (s, f, c);
@@ -126,7 +131,7 @@ function [best, points] = detour (s, f, c)
   [cost, penalty] = score (s, f, [x1(e) x2(e) yc], 3, c);
   [best, at] = min (cost);
   choice = [x1(1) x2(1) yc(at)];
-  if (penalty(at) > 0)
+  if (penalty(at) > c.floor)
     % Otherwise every combination of the nearest lanes and the cheapest
     % channel lanes, in one evaluation.
     [unused, ranked] = sort (cost);
