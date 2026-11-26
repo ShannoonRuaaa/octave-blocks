@@ -69,6 +69,11 @@ ports when either block has multiple ports; a destination port can receive one
 wire, and a source port can branch to several destinations (including different
 ports on the same block). Disconnect identifies the wire automatically when
 there is only one between the selected blocks, otherwise it asks for ports.
+The editor routes wires automatically as horizontal and vertical segments.
+Wires of different signals never share a segment: parallel runs take separate
+lanes, and feedback wires go around blocks through free space. Branches of one
+source port share their common trunk. While a block is dragged its own wires
+follow it; dropping it routes the whole diagram again. Routes are not saved.
 Smooth numeric algebraic feedback is solved during simulation, including loops
 through virtual subsystem boundaries. Matrix loops use explicit initial signal
 guesses; nonsmooth or lifecycle-containing loops remain unsupported. See

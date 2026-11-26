@@ -1,3 +1,16 @@
+Octave Blocks (unreleased)
+
+ ** The editor routes wires automatically so that different signals no
+    longer run on top of each other. Wires are drawn as horizontal and
+    vertical segments; parallel segments move into separate lanes, and
+    feedback wires go around blocks through free channels (in the
+    oscillator, the two feedback wires no longer share their top segment).
+    Routes follow a dragged block and are recomputed for the whole diagram
+    when it is dropped, when wires are added or removed, and when a model
+    loads. Routing is deterministic display geometry: models, simulation
+    and saved .mat files are unchanged.
+
+
 Octave Blocks 0.3.0
 
 Adds cached compiled acceleration, flat adaptive C export, Transport Delay,
