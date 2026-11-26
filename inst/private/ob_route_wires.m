@@ -40,10 +40,11 @@ function routes = ob_route_wires (centers, edges, inputs, outputs, routes, subse
   wanted = false (count, 1); wanted(subset) = true;
   order = order(wanted(order))';
   % Wires with a port strictly inside another block.
-  tol = 1e-9; ports = [start; finish];
-  buried = any (ports(:,1) > rect(:,1)'+tol & ports(:,1) < rect(:,2)'-tol ...
+  tol = 1e-9; ports = [start(order,:); finish(order,:)];
+  buried = false (count, 1);
+  inside = any (ports(:,1) > rect(:,1)'+tol & ports(:,1) < rect(:,2)'-tol ...
                 & ports(:,2) > rect(:,3)'+tol & ports(:,2) < rect(:,4)'-tol, 2);
-  buried = buried(1:count) | buried(count+1:end);
+  buried(order) = inside(1:numel (order)) | inside(numel (order)+1:end);
   % Placed segments, one row [orientation position low high signal] each
   % (orientation 0 is horizontal). The run in front of every port is
   % reserved from the start, so a lane or channel chosen for an earlier wire
@@ -68,13 +69,13 @@ function routes = ob_route_wires (centers, edges, inputs, outputs, routes, subse
   for k = order
     s = start(k,:); f = finish(k,:);
     if (buried(k))
-      routes{k} = plain (s, f, rect, g);
+      routes{k} = plain (s, f, g);
     else
       % Only blocks and segments across the widest candidate matter.
       left = min (s(1), f(1)-reach); right = max (f(1), s(1)+reach);
       near = used(:,5) != net(k) & xhi > left & xlo < right;
       inside = rect(:,2) > left & rect(:,1) < right;
-      routes{k} = route_one (s, f, faces (rect(inside,:), tol), used(near,1:4)', rect, g);
+      routes{k} = route_one (s, f, rect(inside,:), used(near,1:4)', g, ! partial);
     endif
     placed = segments (routes{k}, net(k)*ones (rows (routes{k}), 1));
     [lo, hi] = x_extent (placed);
@@ -112,25 +113,25 @@ function F = faces (r, tol)
        r(:,1)'+tol; r(:,3)'+tol; r(:,2)'-tol; r(:,4)'-tol];
 endfunction
 
-function points = plain (s, f, rect, g)
+function points = plain (s, f, g)
   % The shape without a lane search: straight, one bend lane in the middle
-  % of the gap, or a detour through the first free channel.
+  % of the gap, or a detour just above both ports' blocks.
   if (abs (f(2)-s(2)) < 1e-12 && f(1) > s(1))
     points = [s; f];
   elseif (f(1) - s(1) >= 2*g.min_stub)
     xm = (s(1)+f(1))/2; points = [s; xm s(2); xm f(2); f];
   else
-    x1 = s(1) + g.stub; x2 = f(1) - g.stub;
-    yc = channels (min (x1, x2), max (x1, x2), rect, g);
-    points = [s; x1 s(2); x1 yc(1); x2 yc(1); x2 f(2); f];
+    x1 = s(1) + g.stub; x2 = f(1) - g.stub; yc = max (s(2), f(2)) + g.hh + g.clear_y;
+    points = [s; x1 s(2); x1 yc; x2 yc; x2 f(2); f];
   endif
 endfunction
 
-function points = route_one (s, f, F, U, rect, g)
+function points = route_one (s, f, R, U, g, thorough)
   % The first route shape without any penalty wins; otherwise the cheapest.
-  % F holds the nearby block faces and U the nearby segments of other
-  % signals, one column [orientation position low high] each.
-  best = Inf; points = [s; f];
+  % R holds the nearby blocks and U the nearby segments of other signals,
+  % one column [orientation position low high] each. Without THOROUGH (while
+  % a block is dragged) a detour keeps its shortest exit and entry lanes.
+  best = Inf; points = [s; f]; F = faces (R, 1e-9);
   if (abs (f(2)-s(2)) < 1e-12 && f(1) > s(1))
     [best, penalty] = score (s, f, zeros (0, 1), 1, F, U);
     if (penalty == 0), return; endif
@@ -148,17 +149,20 @@ function points = route_one (s, f, F, U, rect, g)
   % Five segments: out of the source, along a free channel, into the target.
   x1 = s(1) + g.stub + (0:g.lanes-1)'*g.px;
   x2 = f(1) - g.stub - (0:g.lanes-1)'*g.px;
-  yc = channels (min (x1(1), x2(1)), max (x1(1), x2(1)), rect, g);
+  yc = channels (min (x1(1), x2(1)), max (x1(1), x2(1)), R, g);
   % The shortest exit and entry lanes first, along every channel lane.
   e = ones (numel (yc), 1);
   [cost, penalty] = score (s, f, [x1(e) x2(e) yc], 3, F, U);
   [detour, at] = min (cost);
   choice = [x1(1) x2(1) yc(at)];
-  if (penalty(at) > 0)
+  if (penalty(at) > 0 && thorough)
     % Otherwise every combination of the nearest lanes and the cheapest
-    % channel lanes, in one evaluation.
+    % channel lanes, in one evaluation, against what lies in their height.
     [unused, ranked] = sort (cost);
     yc = yc(ranked(1:min (g.joint, end)));
+    low = min ([yc; s(2); f(2)]) - g.py; high = max ([yc; s(2); f(2)]) + g.py;
+    F = F(:,R(:,4) > low & R(:,3) < high);
+    U = U(:,(U(1,:) == 0 & U(2,:) > low & U(2,:) < high) | (U(1,:) == 1 & U(4,:) > low & U(3,:) < high));
     index = (0:g.joint^2*numel (yc)-1)';
     candidates = [x1(mod (index, g.joint)+1) x2(mod (floor (index/g.joint), g.joint)+1) ...
                   yc(floor (index/g.joint^2)+1)];
