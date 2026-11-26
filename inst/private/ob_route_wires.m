@@ -19,7 +19,9 @@ function routes = ob_route_wires (centers, edges, inputs, outputs, routes, subse
   % through a block, running on or next to a segment of another signal, and
   % crossing one. Parallel segments therefore move into separate lanes, and
   % backward (feedback) wires go around blocks through free channels.
-  % Branches of one output port may share their common trunk. The result
+  % Branches of one output port may share their common trunk. A wire with a
+  % port inside another block (blocks drawn over each other) cannot avoid
+  % that block and takes its plain shape without a search. The result
   % depends only on the arguments, so it is deterministic. Routes are
   % display geometry only and are never stored in a model.
   count = rows (edges);
@@ -31,14 +33,17 @@ function routes = ob_route_wires (centers, edges, inputs, outputs, routes, subse
   rect = [centers(:,1)-g.hw centers(:,1)+g.hw centers(:,2)-g.hh centers(:,2)+g.hh];
   net = edges(:,1)*(max (edges(:,2))+1) + edges(:,2);  % one id per output port
   inputs = inputs(:); outputs = outputs(:);
-  start = [centers(edges(:,1),1)+g.hw ...
-           centers(edges(:,1),2)+offsets(edges(:,2),outputs(edges(:,1)))];
-  finish = [centers(edges(:,3),1)-g.hw ...
-            centers(edges(:,3),2)+offsets(edges(:,4),inputs(edges(:,3)))];
+  start = [rect(edges(:,1),2) centers(edges(:,1),2)+offsets(edges(:,2),outputs(edges(:,1)))];
+  finish = [rect(edges(:,3),1) centers(edges(:,3),2)+offsets(edges(:,4),inputs(edges(:,3)))];
   gap = finish(:,1) - start(:,1);
   [unused, order] = sort ((gap < 2*g.min_stub)*1e3 + abs (gap));
   wanted = false (count, 1); wanted(subset) = true;
   order = order(wanted(order))';
+  % Wires with a port strictly inside another block.
+  tol = 1e-9; ports = [start; finish];
+  buried = any (ports(:,1) > rect(:,1)'+tol & ports(:,1) < rect(:,2)'-tol ...
+                & ports(:,2) > rect(:,3)'+tol & ports(:,2) < rect(:,4)'-tol, 2);
+  buried = buried(1:count) | buried(count+1:end);
   % Placed segments, one row [orientation position low high signal] each
   % (orientation 0 is horizontal). The run in front of every port is
   % reserved from the start, so a lane or channel chosen for an earlier wire
@@ -57,17 +62,23 @@ function routes = ob_route_wires (centers, edges, inputs, outputs, routes, subse
       used = [used; placed];
     endif
   endif
-  % Block faces in the frame of a horizontal segment (row 1: across is y,
-  % along is x) and of a vertical one (row 2).
-  c = struct ('rect',rect,'g',g, ...
-              'across',[rect(:,3)'; rect(:,1)'],'across_end',[rect(:,4)'; rect(:,2)'], ...
-              'along',[rect(:,1)'; rect(:,3)'],'along_end',[rect(:,2)'; rect(:,4)']);
+  % The x-extent of every placed segment, for finding the nearby ones.
+  [xlo, xhi] = x_extent (used);
+  reach = g.stub + g.lanes*g.px;
   for k = order
-    c.used = used(used(:,5) != net(k),1:4);
-    routes{k} = route_one (start(k,:), finish(k,:), c);
-    placed = segments (routes{k}, k*ones (rows (routes{k}), 1));
-    placed(:,5) = net(k);
-    used = [used; placed];
+    s = start(k,:); f = finish(k,:);
+    if (buried(k))
+      routes{k} = plain (s, f, rect, g);
+    else
+      % Only blocks and segments across the widest candidate matter.
+      left = min (s(1), f(1)-reach); right = max (f(1), s(1)+reach);
+      near = used(:,5) != net(k) & xhi > left & xlo < right;
+      inside = rect(:,2) > left & rect(:,1) < right;
+      routes{k} = route_one (s, f, faces (rect(inside,:), tol), used(near,1:4)', rect, g);
+    endif
+    placed = segments (routes{k}, net(k)*ones (rows (routes{k}), 1));
+    [lo, hi] = x_extent (placed);
+    used = [used; placed]; xlo = [xlo; lo]; xhi = [xhi; hi];
   endfor
 endfunction
 
@@ -77,9 +88,7 @@ function g = geometry ()
               'px',.012,'py',.024, ...        % lane pitch in x and y
               'clear_y',.024, ...             % channel clearance from blocks
               'low',.01,'high',.99, ...       % channel limits inside the axes
-              'lanes',6,'joint',4, ...        % candidate lanes per choice
-              'length_weight',10,'bend_weight',.25,'cross_penalty',1, ...
-              'near_penalty',2,'overlap_penalty',50,'block_penalty',40);
+              'lanes',6,'joint',4);           % candidate lanes per choice
 endfunction
 
 function offset = offsets (port, count)
@@ -89,49 +98,63 @@ function offset = offsets (port, count)
   offset(many) = .036 - .072 * (port(many) - 1) ./ (count(many) - 1);
 endfunction
 
-function points = route_one (s, f, c)
-  % The first route shape without any avoidable penalty wins; otherwise the
-  % cheapest. A port inside another block (blocks drawn on top of each
-  % other) makes that block unavoidable, so the search stops there.
-  g = c.g; best = Inf; points = [s; f];
-  p = [s; f]; r = c.rect; tol = 1e-9;
-  c.floor = g.block_penalty * nnz (p(:,1) > r(:,1)'+tol & p(:,1) < r(:,2)'-tol ...
-                                   & p(:,2) > r(:,3)'+tol & p(:,2) < r(:,4)'-tol);
-  if (f(1) - s(1) >= 2*g.min_stub || (abs (f(2)-s(2)) < 1e-12 && f(1) > s(1)))
-    % Only obstacles near the box between the ports matter for these shapes.
-    near = prune (c, [s(1) f(1)], [min(s(2),f(2)) max(s(2),f(2))]);
-    if (abs (f(2)-s(2)) < 1e-12)
-      [best, penalty] = score (s, f, zeros (0, 1), 1, near);
-      if (penalty <= c.floor), return; endif
-    else
-      % One vertical lane between the ports. Lanes spread out from the
-      % middle of the gap, and the first candidate wins ties.
-      steps = [0 reshape([-1:-1:-g.lanes; 1:g.lanes], 1, [])];
-      xm = (s(1)+f(1))/2 + steps*g.px;
-      xm = xm(xm >= s(1)+g.min_stub-1e-12 & xm <= f(1)-g.min_stub+1e-12)';
-      [cost, penalty] = score (s, f, xm, 2, near);
-      [best, at] = min (cost);
-      points = [s; xm(at) s(2); xm(at) f(2); f];
-      if (penalty(at) <= c.floor), return; endif
-    endif
-  endif
-  [cost, route] = detour (s, f, c);
-  if (cost < best), points = route; endif
+function [lo, hi] = x_extent (seg)
+  vertical = seg(:,1) == 1;
+  lo = seg(:,3); hi = seg(:,4);
+  lo(vertical) = seg(vertical,2); hi(vertical) = seg(vertical,2);
 endfunction
 
-function [best, points] = detour (s, f, c)
+function F = faces (r, tol)
+  % Block faces, shrunk by TOL, in the frame of a horizontal segment (odd
+  % rows: across is y, along is x) and of a vertical one (even rows), in the
+  % order across low, across high, along low, along high.
+  F = [r(:,3)'+tol; r(:,1)'+tol; r(:,4)'-tol; r(:,2)'-tol; ...
+       r(:,1)'+tol; r(:,3)'+tol; r(:,2)'-tol; r(:,4)'-tol];
+endfunction
+
+function points = plain (s, f, rect, g)
+  % The shape without a lane search: straight, one bend lane in the middle
+  % of the gap, or a detour through the first free channel.
+  if (abs (f(2)-s(2)) < 1e-12 && f(1) > s(1))
+    points = [s; f];
+  elseif (f(1) - s(1) >= 2*g.min_stub)
+    xm = (s(1)+f(1))/2; points = [s; xm s(2); xm f(2); f];
+  else
+    x1 = s(1) + g.stub; x2 = f(1) - g.stub;
+    yc = channels (min (x1, x2), max (x1, x2), rect, g);
+    points = [s; x1 s(2); x1 yc(1); x2 yc(1); x2 f(2); f];
+  endif
+endfunction
+
+function points = route_one (s, f, F, U, rect, g)
+  % The first route shape without any penalty wins; otherwise the cheapest.
+  % F holds the nearby block faces and U the nearby segments of other
+  % signals, one column [orientation position low high] each.
+  best = Inf; points = [s; f];
+  if (abs (f(2)-s(2)) < 1e-12 && f(1) > s(1))
+    [best, penalty] = score (s, f, zeros (0, 1), 1, F, U);
+    if (penalty == 0), return; endif
+  elseif (f(1) - s(1) >= 2*g.min_stub)
+    % One vertical lane between the ports. Lanes spread out from the middle
+    % of the gap, and the first candidate wins ties.
+    steps = [0 reshape([-1:-1:-g.lanes; 1:g.lanes], 1, [])];
+    xm = (s(1)+f(1))/2 + steps*g.px;
+    xm = xm(xm >= s(1)+g.min_stub-1e-12 & xm <= f(1)-g.min_stub+1e-12)';
+    [cost, penalty] = score (s, f, xm, 2, F, U);
+    [best, at] = min (cost);
+    points = [s; xm(at) s(2); xm(at) f(2); f];
+    if (penalty(at) == 0), return; endif
+  endif
   % Five segments: out of the source, along a free channel, into the target.
-  g = c.g;
   x1 = s(1) + g.stub + (0:g.lanes-1)'*g.px;
   x2 = f(1) - g.stub - (0:g.lanes-1)'*g.px;
-  c = prune (c, [min(x2(end),s(1)) max(x1(end),f(1))], [-Inf Inf]);
-  yc = channels (min (x1(1), x2(1)), max (x1(1), x2(1)), c);
+  yc = channels (min (x1(1), x2(1)), max (x1(1), x2(1)), rect, g);
   % The shortest exit and entry lanes first, along every channel lane.
   e = ones (numel (yc), 1);
-  [cost, penalty] = score (s, f, [x1(e) x2(e) yc], 3, c);
-  [best, at] = min (cost);
+  [cost, penalty] = score (s, f, [x1(e) x2(e) yc], 3, F, U);
+  [detour, at] = min (cost);
   choice = [x1(1) x2(1) yc(at)];
-  if (penalty(at) > c.floor)
+  if (penalty(at) > 0)
     % Otherwise every combination of the nearest lanes and the cheapest
     % channel lanes, in one evaluation.
     [unused, ranked] = sort (cost);
@@ -139,44 +162,27 @@ function [best, points] = detour (s, f, c)
     index = (0:g.joint^2*numel (yc)-1)';
     candidates = [x1(mod (index, g.joint)+1) x2(mod (floor (index/g.joint), g.joint)+1) ...
                   yc(floor (index/g.joint^2)+1)];
-    [cost, at] = min (score (s, f, candidates, 3, c));
-    if (cost < best), best = cost; choice = candidates(at,:); endif
+    [cost, at] = min (score (s, f, candidates, 3, F, U));
+    if (cost < detour), detour = cost; choice = candidates(at,:); endif
   endif
-  points = [s; choice(1) s(2); choice(1:2:3); choice(2:3); choice(2) f(2); f];
+  if (detour < best)
+    points = [s; choice(1) s(2); choice(1:2:3); choice(2:3); choice(2) f(2); f];
+  endif
 endfunction
 
-function c = prune (c, x, y)
-  % Keep the blocks and segments that can touch the box X by Y (with one
-  % lane pitch of margin, for the closeness penalty).
-  x = [x(1)-c.g.px x(2)+c.g.px]; y = [y(1)-c.g.py y(2)+c.g.py];
-  r = c.rect;
-  keep = r(:,2) > x(1) & r(:,1) < x(2) & r(:,4) > y(1) & r(:,3) < y(2);
-  c.rect = r(keep,:);
-  c.across = c.across(:,keep); c.across_end = c.across_end(:,keep);
-  c.along = c.along(:,keep); c.along_end = c.along_end(:,keep);
-  u = c.used; horizontal = u(:,1) == 0;
-  % Horizontal rows: position is y, extent is x; vertical rows the reverse.
-  lo_x = u(:,2); hi_x = u(:,2); lo_y = u(:,3); hi_y = u(:,4);
-  lo_x(horizontal) = u(horizontal,3); hi_x(horizontal) = u(horizontal,4);
-  lo_y(horizontal) = u(horizontal,2); hi_y(horizontal) = u(horizontal,2);
-  c.used = u(hi_x > x(1) & lo_x < x(2) & hi_y > y(1) & lo_y < y(2),:);
-endfunction
-
-function yc = channels (left, right, c)
+function yc = channels (left, right, rect, g)
   % Lanes in the block-free horizontal bands across [left, right]: upward
   % from above the blocks, downward from below them, and spreading from the
   % middle of every interior gap that is wide enough for a lane.
-  g = c.g; r = c.rect;
-  inside = r(:,2) > left - 1e-9 & r(:,1) < right + 1e-9;
-  bands = [r(inside,3)-g.clear_y r(inside,4)+g.clear_y];
+  inside = rect(:,2) > left - 1e-9 & rect(:,1) < right + 1e-9;
+  bands = [rect(inside,3)-g.clear_y rect(inside,4)+g.clear_y];
   if (isempty (bands)), yc = (g.low+g.high)/2; return; endif
   [unused, ranked] = sort (bands(:,1)); bands = bands(ranked,:);
   % Merge overlapping bands: a band starts a new group when it begins above
   % the highest top of every band before it.
   tops = cummax (bands(:,2));
   first = [true; bands(2:end,1) > tops(1:end-1)];
-  last = [first(2:end); true];
-  merged = [bands(first,1) tops(last)];
+  merged = [bands(first,1) tops([first(2:end); true])];
   lanes = (0:g.lanes-1)'*g.py;
   above = merged(end,2) + lanes; below = merged(1,1) - lanes;
   yc = [above(above <= g.high); below(below >= g.low)];
@@ -192,59 +198,45 @@ function yc = channels (left, right, c)
   endif
 endfunction
 
-function [cost, penalty] = score (s, f, p, shape, c)
+function [cost, penalty] = score (s, f, p, shape, F, U)
   % Costs of candidate routes of one SHAPE (1 straight, 2 one vertical lane,
   % 3 detour); P has one row of lane coordinates per candidate. Segment
   % rows [orientation position low high] are stacked by place in the
   % route: all first segments, then all second segments, and so on.
-  g = c.g;
+  %
+  % Cost: 10 per unit of length and .25 per bend, plus 40 for each block a
+  % segment passes through, 50 for running on a segment of another signal,
+  % up to 2 for running closer than a lane pitch beside one, and 1 for
+  % crossing one.
   switch (shape)
     case 1
       n = 1; seg = [0 s(2) s(1) f(1)];
     case 2
       n = rows (p); e = ones (n, 1); z = zeros (n, 1);
-      seg = [z s(2)*e min(s(1),p) max(s(1),p); ...
-             e p min(s(2),f(2))*e max(s(2),f(2))*e; ...
-             z f(2)*e min(p,f(1)) max(p,f(1))];
+      seg = [z s(2)*e s(1)*e p; e p min(s(2),f(2))*e max(s(2),f(2))*e; z f(2)*e p f(1)*e];
     case 3
       n = rows (p); e = ones (n, 1); z = zeros (n, 1);
       x1 = p(:,1); x2 = p(:,2); yc = p(:,3);
-      seg = [z s(2)*e min(s(1),x1) max(s(1),x1); ...
-             e x1 min(s(2),yc) max(s(2),yc); ...
-             z yc min(x1,x2) max(x1,x2); ...
-             e x2 min(yc,f(2)) max(yc,f(2)); ...
-             z f(2)*e min(x2,f(1)) max(x2,f(1))];
+      seg = [z s(2)*e s(1)*e x1; e x1 min(s(2),yc) max(s(2),yc); ...
+             z yc min(x1,x2) max(x1,x2); e x2 min(yc,f(2)) max(yc,f(2)); ...
+             z f(2)*e x2 f(1)*e];
   endswitch
-  penalty = sum (reshape (segment_penalty (seg, c), n, []), 2);
-  len = sum (reshape (seg(:,4)-seg(:,3), n, []), 2);
-  cost = penalty + g.length_weight*len + g.bend_weight*(2*shape-2);
-endfunction
-
-function penalty = segment_penalty (seg, c)
-  % Penalties of candidate segments [orientation position low high] for
-  % blocks they pass through and for placed segments of other signals they
-  % run on, run close beside, or cross.
-  g = c.g; tol = 1e-9;
   o = seg(:,1); pos = seg(:,2); lo = seg(:,3); hi = seg(:,4);
-  penalty = zeros (rows (seg), 1);
-  if (! isempty (c.rect))
-    side = o + 1;
-    penalty += g.block_penalty * sum (pos > c.across(side,:)+tol & pos < c.across_end(side,:)-tol ...
-                                      & lo < c.along_end(side,:)-tol & hi > c.along(side,:)+tol, 2);
+  side = o + 1;
+  penalty = 40*sum (pos > F(side,:) & pos < F(side+2,:) & lo < F(side+6,:) & hi > F(side+4,:), 2);
+  if (! isempty (U))
+    tol = 1e-9;
+    parallel = o == U(1,:);
+    distance = abs (pos - U(2,:));
+    shared = parallel & min (hi, U(4,:)) - max (lo, U(3,:)) > tol;
+    pitch = .024 - .012*o;
+    close = shared & distance < pitch - tol;
+    crossing = ! parallel & U(2,:) > lo+tol & U(2,:) < hi-tol & pos > U(3,:)+tol & pos < U(4,:)-tol;
+    penalty += 50*sum (close & distance < tol, 2) + sum (crossing, 2) ...
+             + 2*sum (close .* (1 - distance./pitch), 2);
   endif
-  u = c.used;
-  if (! isempty (u))
-    parallel = o == u(:,1)';
-    upos = u(:,2)'; ulo = u(:,3)'; uhi = u(:,4)';
-    distance = abs (pos - upos);
-    shared = parallel & min (hi, uhi) - max (lo, ulo) > tol;
-    overlap = shared & distance < tol;
-    pitch = g.py + (g.px-g.py)*o;
-    near = shared & ! overlap & distance < pitch*(1-1e-6);
-    crossing = ! parallel & upos > lo+tol & upos < hi-tol & pos > ulo+tol & pos < uhi-tol;
-    penalty += g.overlap_penalty*sum (overlap, 2) + g.cross_penalty*sum (crossing, 2) ...
-             + g.near_penalty*sum (near .* (1 - distance./pitch), 2);
-  endif
+  penalty = sum (reshape (penalty, n, []), 2);
+  cost = penalty + 10*sum (reshape (hi-lo, n, []), 2) + .5*(shape-1);
 endfunction
 
 function seg = segments (points, owner)
