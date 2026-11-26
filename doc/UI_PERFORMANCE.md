@@ -19,6 +19,67 @@ twice. A drag still records one Undo entry, and moving back to the saved
 position clears the dirty marker when the drag finishes. Graphics handles stay
 in editor state and are excluded from model files and Undo/Redo snapshots.
 
+## Wire routing (2026-11-26)
+
+Wires are routed as horizontal and vertical segments by
+`inst/private/ob_route_wires.m`, so that wires of different signals never
+share a segment. Routes are display data in the retained scene (`routes` in
+the graphics cache), never part of the model, Undo/Redo snapshots or files.
+
+- A scene rebuild (load, demo buttons, Connect/Disconnect, edits, Undo/Redo,
+  navigation) routes every wire.
+- A drag motion reroutes only the moved block's wires, around the unchanged
+  routes of the others, with the shortest detour lanes. The line and arrow
+  objects are kept and only changed routes are written.
+- The drop (mouse-up after a move) routes the whole diagram again and writes
+  the wires whose routes changed. The settled layout therefore depends only on
+  the diagram, whatever path the drag took.
+- A wire with a port inside another block (blocks drawn over each other, as
+  newly added blocks are) cannot avoid that block. It takes its plain shape
+  without a lane search, which keeps such crowded scenes cheap.
+
+![Editor demos before (left) and after (right) wire routing: Oscillator,
+Nested demo, Rate demo, Control demo and Input demo](images/wire-routing.png)
+
+In the oscillator the two feedback wires shared their top segment, and
+Position -> Scope ran under the Velocity block; in the Rate demo the loopback
+ran on top of Time -> Rate Transition. After routing, each signal has its own
+lane. These canvases were printed offscreen from the editor figures of
+`v0.3.0` and of this change on the Windows test desktop.
+
+Router cost alone, in `octave-cli` on the laptop used for development (median
+of repeated calls):
+
+| Diagram | Full routing | Drag reroute |
+| --- | ---: | ---: |
+| Oscillator (4 wires) | 8.8 ms | |
+| Control demo (7 wires) | 8.0 ms | |
+| 10-block benchmark chain | 4–6 ms | 3.0 ms |
+| 40-block benchmark chain | 28–49 ms | 3–5.5 ms |
+
+In the editor, hidden Qt figures on the Windows test desktop, `v0.3.0` and
+this change alternating in fresh GUI processes, three rounds each (medians;
+`benchmark_ob_editor_drag ([10 40], 12, 5)` for motion, then mouse-up after
+one motion for the drop):
+
+| Callback | Diagram | Before | After | Change |
+| --- | --- | ---: | ---: | ---: |
+| Drag motion | 10-block chain | 27.9 ms | 36.6 ms | +8.7 ms |
+| Drag motion | 40-block chain | 27.0 ms | 37.6 ms | +10.6 ms |
+| Drop | Oscillator | 12.1 ms | 40.5 ms | +28 ms |
+| Drop | Control demo | 15.1 ms | 36.0 ms | +21 ms |
+| Drop | 10-block chain | 16.5 ms | 29.5 ms | +13 ms |
+| Drop | 40-block chain | 31.1 ms | 96.5 ms | +65 ms |
+
+That desktop was locked and noisy during these runs (its callback times are
+three to four times those in the audits below, and repeated scene builds of
+one model varied by up to 2x). Selection clicks and scene builds do not run
+the router on their own; an earlier round of the same protocol measured them
+equal within noise (10-block click 99.9 vs 117.7 ms, 40-block 275.5 vs
+275.1 ms). Routing adds roughly 10 ms to each drag motion and a one-time
+cost on the drop that grows with the diagram. The benchmark chains are a
+stress case: their blocks overlap, so every in-row wire has a buried port.
+
 ## Drag audit (2026-11-16)
 
 Ordinary motion now uses a changed-block hint when native `guidata` write
@@ -119,7 +180,11 @@ properties and selection callback, selection without graphics recreation,
 multi-output block movement and numbered wire endpoints, loopback rerouting,
 one history entry
 per drag, Undo/Redo, interface changes, recovery after external graphics removal,
-and Enter/Up navigation. Test figures are deleted after each run.
+and Enter/Up navigation. It also checks that the drawn wires of every editor
+demo match a fresh routing and that no two signals share a segment or pass
+through a block: on load, after each demo button, during and after a drag, and
+after Disconnect and Connect. `test_ob_editor_core` checks the same routing
+geometry without a GUI. Test figures are deleted after each run.
 
 Native mouse verification also exercised block faces, labels, port circles,
 port numbers, and an edge click that previously missed. A traced drag selected

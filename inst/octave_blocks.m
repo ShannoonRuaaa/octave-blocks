@@ -616,7 +616,7 @@ function ob_draw (fig, geometry_only = false, selection_only = false, motion = [
   if (isfield(state,'graphics'))
     cache = state.graphics;
     valid = all(isfield(cache,{'incident','path','blocks','handles','diagram','selected', ...
-                              'bodies','edges','wires','inputs','outputs'})) ...
+                              'bodies','edges','wires','inputs','outputs','routes','settled'})) ...
             && numel(cache.incident)==numel(diagram.blocks) ...
             && isequal(cache.path,state.path) && numel(cache.blocks)==numel(diagram.blocks) ...
             && all(isgraphics(cache.handles));
@@ -660,15 +660,19 @@ function ob_draw (fig, geometry_only = false, selection_only = false, motion = [
             endfor
           endif
         endfor
-        if (isempty(moved)), incident = [];
-        else incident = unique([cache.incident{moved}]); endif
-        for k = reshape(incident,1,[])
-          edge = cache.edges(k,:);
-          [points,corners] = signal_geometry(diagram.blocks(edge(1)),diagram.blocks(edge(3)), ...
-              edge(2),cache.outputs(edge(1)),edge(4),cache.inputs(edge(3)));
-          set(cache.wires(k,1),'xdata',points(:,1),'ydata',points(:,2));
-          set(cache.wires(k,2),'xdata',corners(:,1),'ydata',corners(:,2));
-        endfor
+        % While a block moves, only its own wires are rerouted, around the
+        % unchanged routes of the others. The drop routes everything again.
+        if (! isempty(moved))
+          incident = unique([cache.incident{moved}]);
+          routes = ob_route_wires(block_centers(diagram),cache.edges,cache.inputs, ...
+                                  cache.outputs,cache.routes,incident);
+          cache = update_routes(cache,routes,incident);
+          cache.settled = false;
+        endif
+      elseif (! cache.settled)
+        routes = ob_route_wires(block_centers(diagram),cache.edges,cache.inputs,cache.outputs);
+        cache = update_routes(cache,routes,1:rows(cache.edges));
+        cache.settled = true;
       endif
       if (cache.selected != state.selected)
         if (cache.selected > 0), set(cache.bodies(cache.selected),'facecolor',[.86 .91 .99]); endif
@@ -691,18 +695,21 @@ function ob_draw (fig, geometry_only = false, selection_only = false, motion = [
                   'blocks',{cell(1,numel(diagram.blocks))},'bodies',zeros(1,numel(diagram.blocks)), ...
                   'wires',zeros(rows(edges),2),'edges',edges,'handles',[], ...
                   'incident',{cell(1,numel(diagram.blocks))},'draw_key',key,'dirty',dirty, ...
-                  'inputs',zeros(1,numel(diagram.blocks)),'outputs',zeros(1,numel(diagram.blocks)));
+                  'inputs',zeros(1,numel(diagram.blocks)),'outputs',zeros(1,numel(diagram.blocks)), ...
+                  'routes',{cell(rows(edges),1)},'settled',true);
   for id = 1:numel(diagram.blocks)
     [inputs,outputs] = ob_block_ports(diagram.blocks(id));
     if (isinf(inputs)), inputs = max(1,max([0;edges(edges(:,3)==id,4)])); endif
     cache.inputs(id) = inputs; cache.outputs(id) = outputs;
   endfor
+  % Wires are routed together so that different signals never share a
+  % segment. Routes are display data only; the model stores no geometry.
+  cache.routes = ob_route_wires (block_centers(diagram), edges, cache.inputs, cache.outputs);
   for k = 1:rows (edges)
     edge = edges(k, :);
     cache.incident{edge(1)}(end+1) = k;
     if (edge(3)!=edge(1)), cache.incident{edge(3)}(end+1) = k; endif
-    a = diagram.blocks(edge(1)); b = diagram.blocks(edge(3));
-    cache.wires(k,:) = draw_signal (ax, a, b, edge(2),cache.outputs(edge(1)),edge(4),cache.inputs(edge(3)));
+    cache.wires(k,:) = draw_signal (ax, cache.routes{k});
   endfor
   for id = 1:numel (diagram.blocks)
     block = diagram.blocks(id);
@@ -1100,9 +1107,26 @@ function ob_close (fig)
   if (isempty (state) || ob_discard (state)), delete (fig); endif
 endfunction
 
-function handles = draw_signal (ax, source, target, source_port, outputs, target_port, inputs)
+function centers = block_centers (diagram)
+  centers = [[diagram.blocks.x]' [diagram.blocks.y]'];
+endfunction
+
+function cache = update_routes (cache, routes, wires)
+  % Move only the wires whose route changed; the line and arrow objects
+  % are kept.
+  for k = reshape (wires, 1, [])
+    if (! isequal (routes{k}, cache.routes{k}))
+      points = routes{k}; corners = arrow_corners (points);
+      set (cache.wires(k,1), 'xdata', points(:,1), 'ydata', points(:,2));
+      set (cache.wires(k,2), 'xdata', corners(:,1), 'ydata', corners(:,2));
+    endif
+  endfor
+  cache.routes = routes;
+endfunction
+
+function handles = draw_signal (ax, points)
   color = [0.28 0.36 0.55];
-  [points,corners] = signal_geometry(source,target,source_port,outputs,target_port,inputs);
+  corners = arrow_corners (points);
   wire = line (ax, points(:, 1), points(:, 2), "color", color, "linewidth", 1.6);
   arrow = patch ("parent",ax,"xdata",corners(:,1),"ydata",corners(:,2), ...
                  "facecolor",color,"edgecolor",color);
@@ -1112,16 +1136,9 @@ function handles = draw_signal (ax, source, target, source_port, outputs, target
   set (handles, 'hittest', 'off', 'pickableparts', 'none');
 endfunction
 
-function [points,corners] = signal_geometry (source, target, source_port, outputs, target_port, inputs)
-  start = [source.x + 0.105, source.y + port_offset(source_port, outputs)];
-  finish = [target.x - 0.105, target.y + port_offset(target_port, inputs)];
-  if (finish(1) > start(1))
-    points = [start; finish];
-  else
-    top = min (0.98, max (source.y, target.y) + 0.1);
-    points = [start; start + [0.02 0]; start(1)+0.02 top; ...
-              finish(1)-0.02 top; finish - [0.02 0]; finish];
-  endif
+function corners = arrow_corners (points)
+  % Arrowhead at the target port, along the last segment of the route.
+  finish = points(end, :);
   start = points(end - 1, :);
   direction = finish - start;
   length = norm (direction);

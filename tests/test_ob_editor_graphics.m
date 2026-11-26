@@ -71,10 +71,13 @@ function test_ob_editor_graphics ()
     loopback.drag_origin = point(1,1:2)-delta; guidata(fig,loopback);
     feval(get(fig,'windowbuttonmotionfcn'),fig,[]); moved = guidata(fig);
     assert(isequal(moved.model,expected_moved));
-    assert(numel(get(moved.graphics.wires(2,1),'xdata')) == 2);
+    % Back in front of the consumer, the wire bends once through one lane.
+    assert(numel(get(moved.graphics.wires(2,1),'xdata')) == 4);
+    assert(!moved.graphics.settled);
     feval(get(fig,'windowbuttonupfcn'),fig,[]);
     moved = guidata(fig);
     assert(!moved.dragging && numel(moved.undo)==1);
+    assert_separated_wires(moved);
     assert(isequal(moved.model,expected_moved));
     assert(isequal(sort(findall(moved.axes)),handles));
     press_button(fig,'Undo'); state = guidata(fig);
@@ -232,6 +235,42 @@ function test_ob_editor_graphics ()
     setappdata(probe,'ob_state_listener',true);
     feval(get(probe,'windowbuttonupfcn'),probe,[]);
 
+    % Wire routing: the retained wires follow the routes of the whole
+    % diagram, and no two signals share a segment or pass through a block,
+    % in every editor demo, after a demo loads from its button, after a drag
+    % and drop, and after a wire is removed and connected again.
+    demos = {@ob_oscillator, @ob_subsystem_example, @ob_multirate_example, ...
+             @ob_control_example, @ob_input_example};
+    for d = 1:numel(demos)
+      routed = octave_blocks(demos{d}()); figures(end+1) = routed;
+      assert_separated_wires(guidata(routed));
+    endfor
+    for label = {'Oscillator','Nested demo','Rate demo','Control demo','Input demo','Oscillator'}
+      state = guidata(routed);
+      state.saved = struct('model',state.model,'config',state.config,'options',state.options);
+      guidata(routed,state); press_button(routed,label{1});
+      assert_separated_wires(guidata(routed));
+    endfor
+    state = guidata(routed); assert(isequal(state.model,ob_oscillator()));
+    retained = sort(findall(state.axes));
+    click_block(routed,3); state = guidata(routed);
+    point = get(state.axes,'currentpoint');
+    state.drag_origin = point(1,1:2)-[.08 .1]; guidata(routed,state);
+    feval(get(routed,'windowbuttonmotionfcn'),routed,[]); state = guidata(routed);
+    % During the drag only the Gain's wires follow it, around the others.
+    assert(!state.graphics.settled && isequal(sort(findall(state.axes)),retained));
+    assert(isempty(ob_wire_overlaps(drawn_routes(state),state.graphics.edges)));
+    feval(get(routed,'windowbuttonupfcn'),routed,[]); state = guidata(routed);
+    assert(abs(state.model.blocks(3).x-.63) < 1e-12 && abs(state.model.blocks(3).y-.4) < 1e-12);
+    assert(isequal(sort(findall(state.axes)),retained));
+    assert_separated_wires(state);
+    press_button(routed,'Disconnect'); click_block(routed,2); click_block(routed,1);
+    state = guidata(routed); assert(rows(ob_edges(state.model)) == 3);
+    assert_separated_wires(state);
+    press_button(routed,'Connect'); click_block(routed,2); click_block(routed,1);
+    state = guidata(routed); assert(rows(ob_edges(state.model)) == 4);
+    assert_separated_wires(state);
+
     % Hierarchy navigation must invalidate the old scene even when both
     % diagrams happen to have the same number of blocks.
     nested = ob_subsystem_example ();
@@ -366,6 +405,33 @@ function assert_diagram_geometry (state)
     if(cache.inputs(edge(3))>1), target_offset=.072*((cache.inputs(edge(3))+1)/2-edge(4))/(cache.inputs(edge(3))-1); endif
     assert(abs(y(1)-source.y-source_offset)<1e-14 && abs(y(end)-target.y-target_offset)<1e-14);
   endfor
+endfunction
+
+function routes = drawn_routes (state)
+  wires = state.graphics.wires; routes = cell(rows(wires),1);
+  for k = 1:rows(wires)
+    routes{k} = [reshape(get(wires(k,1),'xdata'),[],1) reshape(get(wires(k,1),'ydata'),[],1)];
+  endfor
+endfunction
+
+function assert_separated_wires (state)
+  % The drawn wires are the settled routes of the current diagram: a fresh
+  % routing gives the same polylines, which keep different signals apart
+  % and stay out of every block. Each arrowhead points into its port.
+  diagram = ob_model_at(state.model,state.path); cache = state.graphics;
+  edges = ob_edges(diagram); centers = [[diagram.blocks.x]' [diagram.blocks.y]'];
+  assert(isequal(cache.edges,edges) && cache.settled && isequal(cache.diagram,diagram));
+  expected = ob_route_wires(centers,edges,cache.inputs,cache.outputs);
+  drawn = drawn_routes(state);
+  for k = 1:rows(edges)
+    assert(isequal(size(drawn{k}),size(expected{k})) && max(abs(drawn{k}(:)-expected{k}(:))) < 1e-14);
+    assert(isequal(cache.routes{k},expected{k}));
+    tip = [get(cache.wires(k,2),'xdata')(1) get(cache.wires(k,2),'ydata')(1)];
+    assert(max(abs(tip-expected{k}(end,:))) < 1e-14);
+  endfor
+  [overlaps,through] = ob_wire_overlaps(drawn,edges,centers);
+  assert(isempty(overlaps),'wires %s share a segment',mat2str(overlaps));
+  assert(isempty(through),'wire/block %s',mat2str(through));
 endfunction
 
 function click_block (fig,id)
