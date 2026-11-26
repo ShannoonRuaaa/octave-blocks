@@ -33,8 +33,11 @@ function routes = ob_route_wires (centers, edges, inputs, outputs, routes, subse
   rect = [centers(:,1)-g.hw centers(:,1)+g.hw centers(:,2)-g.hh centers(:,2)+g.hh];
   net = edges(:,1)*(max (edges(:,2))+1) + edges(:,2);  % one id per output port
   inputs = inputs(:); outputs = outputs(:);
-  start = [rect(edges(:,1),2) centers(edges(:,1),2)+offsets(edges(:,2),outputs(edges(:,1)))];
-  finish = [rect(edges(:,3),1) centers(edges(:,3),2)+offsets(edges(:,4),inputs(edges(:,3)))];
+  % Port positions as in the editor's port_offset (octave_blocks.m).
+  many = outputs(edges(:,1)); ports = edges(:,2);
+  start = [rect(edges(:,1),2) centers(edges(:,1),2)+(many > 1).*(.036-.072*(ports-1)./max (many-1, 1))];
+  many = inputs(edges(:,3)); ports = edges(:,4);
+  finish = [rect(edges(:,3),1) centers(edges(:,3),2)+(many > 1).*(.036-.072*(ports-1)./max (many-1, 1))];
   gap = finish(:,1) - start(:,1);
   [unused, order] = sort ((gap < 2*g.min_stub)*1e3 + abs (gap));
   wanted = false (count, 1); wanted(subset) = true;
@@ -45,42 +48,48 @@ function routes = ob_route_wires (centers, edges, inputs, outputs, routes, subse
   inside = any (ports(:,1) > rect(:,1)'+tol & ports(:,1) < rect(:,2)'-tol ...
                 & ports(:,2) > rect(:,3)'+tol & ports(:,2) < rect(:,4)'-tol, 2);
   buried(order) = inside(1:numel (order)) | inside(numel (order)+1:end);
-  % Placed segments, one row [orientation position low high signal] each
-  % (orientation 0 is horizontal). The run in front of every port is
-  % reserved from the start, so a lane or channel chosen for an earlier wire
-  % does not block the way into or out of a later wire's port.
-  used = [zeros(2*count,1) [start(:,2) start(:,1) start(:,1)+g.stub net; ...
-                            finish(:,2) finish(:,1)-g.stub finish(:,1) net]];
-  if (partial)
-    fixed = find (! wanted);
-    if (! isempty (fixed))
-      % Label every point with its route (a run-length expansion).
-      lengths = cellfun ("size", routes(fixed), 1);
-      owner = zeros (sum (lengths), 1);
-      owner(cumsum ([1; lengths(1:end-1)])) = 1;
-      placed = segments (vertcat (routes{fixed}), fixed(cumsum (owner)));
-      placed(:,5) = net(placed(:,5));
-      used = [used; placed];
-    endif
-  endif
-  % The x-extent of every placed segment, for finding the nearby ones.
-  [xlo, xhi] = x_extent (used);
-  reach = g.stub + g.lanes*g.px;
+  reach = g.stub + g.lanes*g.px; used = []; placed = ! wanted;
   for k = order
     s = start(k,:); f = finish(k,:);
     if (buried(k))
       routes{k} = plain (s, f, g);
     else
+      if (isempty (used))
+        used = placed_segments (start, finish, net, routes, placed, g);
+      endif
       % Only blocks and segments across the widest candidate matter.
       left = min (s(1), f(1)-reach); right = max (f(1), s(1)+reach);
-      near = used(:,5) != net(k) & xhi > left & xlo < right;
+      near = used(:,5) != net(k) & used(:,7) > left & used(:,6) < right;
       inside = rect(:,2) > left & rect(:,1) < right;
       routes{k} = route_one (s, f, rect(inside,:), used(near,1:4)', g, ! partial);
     endif
-    placed = segments (routes{k}, net(k)*ones (rows (routes{k}), 1));
-    [lo, hi] = x_extent (placed);
-    used = [used; placed]; xlo = [xlo; lo]; xhi = [xhi; hi];
+    placed(k) = true;
+    if (! isempty (used))
+      used = [used; segments(routes{k}, net(k)*ones (rows (routes{k}), 1))];
+    endif
   endfor
+endfunction
+
+function used = placed_segments (start, finish, net, routes, placed, g)
+  % Placed segments, one row [orientation position low high signal x-low
+  % x-high] each (orientation 0 is horizontal). The run in front of every
+  % port is reserved from the start, so a lane or channel chosen for an
+  % earlier wire does not block the way into or out of a later wire's port.
+  stubs = [start(:,2) start(:,1) start(:,1)+g.stub net; ...
+           finish(:,2) finish(:,1)-g.stub finish(:,1) net];
+  used = [zeros(rows (stubs), 1) stubs stubs(:,2:3)];
+  % Then every route PLACED so far: the fixed ones of a partial call and
+  % the wires already routed. The caller appends each later wire.
+  done = find (placed);
+  if (! isempty (done))
+    % Label every point with its route (a run-length expansion).
+    lengths = cellfun ("size", routes(done), 1);
+    owner = zeros (sum (lengths), 1);
+    owner(cumsum ([1; lengths(1:end-1)])) = 1;
+    segs = segments (vertcat (routes{done}), done(cumsum (owner)));
+    segs(:,5) = net(segs(:,5));
+    used = [used; segs];
+  endif
 endfunction
 
 function g = geometry ()
@@ -90,19 +99,6 @@ function g = geometry ()
               'clear_y',.024, ...             % channel clearance from blocks
               'low',.01,'high',.99, ...       % channel limits inside the axes
               'lanes',6,'joint',4);           % candidate lanes per choice
-endfunction
-
-function offset = offsets (port, count)
-  % The editor's port placement (port_offset in octave_blocks.m).
-  offset = zeros (size (port));
-  many = count > 1;
-  offset(many) = .036 - .072 * (port(many) - 1) ./ (count(many) - 1);
-endfunction
-
-function [lo, hi] = x_extent (seg)
-  vertical = seg(:,1) == 1;
-  lo = seg(:,3); hi = seg(:,4);
-  lo(vertical) = seg(vertical,2); hi(vertical) = seg(vertical,2);
 endfunction
 
 function F = faces (r, tol)
@@ -244,9 +240,9 @@ function [cost, penalty] = score (s, f, p, shape, F, U)
 endfunction
 
 function seg = segments (points, owner)
-  % Rows [orientation position low high owner] of the segments of one or
-  % more stacked routes. OWNER labels every point with its route, and only
-  % consecutive points of one route form a segment.
+  % Rows [orientation position low high owner x-low x-high] of the segments
+  % of one or more stacked routes. OWNER labels every point with its route,
+  % and only consecutive points of one route form a segment.
   a = points(1:end-1,:); b = points(2:end,:);
   same = owner(1:end-1) == owner(2:end); owner = owner(1:end-1);
   dx = abs (a(:,1)-b(:,1)) > 1e-12; dy = abs (a(:,2)-b(:,2)) > 1e-12;
@@ -254,4 +250,7 @@ function seg = segments (points, owner)
   seg = [zeros(sum (across), 1) a(across,2) min(a(across,1),b(across,1)) ...
          max(a(across,1),b(across,1)) owner(across,1); ...
          ones(sum (up), 1) a(up,1) min(a(up,2),b(up,2)) max(a(up,2),b(up,2)) owner(up,1)];
+  seg(:,6:7) = seg(:,[3 4]);
+  vertical = seg(:,1) == 1;
+  seg(vertical,6:7) = seg(vertical,[2 2]);
 endfunction
