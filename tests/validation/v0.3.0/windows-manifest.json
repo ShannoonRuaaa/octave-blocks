@@ -1,0 +1,158 @@
+{
+  "Revision": "7880a5877e3229bf35e7417bed7c477bcbecc81b",
+  "Octave": "GNU Octave (x86_64-w64-mingw32) version 11.3.0",
+  "PowerShell": "7.7.0",
+  "StartedUtc": "2026-11-24T05:28:47.4282369Z",
+  "Stages": [
+    {
+      "ExitCode": 0,
+      "Seconds": 66.4664835,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\engine.stderr.log",
+      "Name": "engine",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\engine.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 262.5853402,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\conditional.stderr.log",
+      "Name": "conditional",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\conditional.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 358.3325827,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\systems.stderr.log",
+      "Name": "systems",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\systems.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 62.7124477,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\performance.stderr.log",
+      "Name": "performance",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\performance.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 653.737649,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\events.stderr.log",
+      "Name": "events",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\events.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 14.4372817,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\embedded.stderr.log",
+      "Name": "embedded",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\embedded.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 82.4008653,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\audit.stderr.log",
+      "Name": "audit",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\audit.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 306.2125878,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\api.stderr.log",
+      "Name": "api",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\api.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 685.2851418,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\builders.stderr.log",
+      "Name": "builders",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\builders.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 468.3152403,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\reference-conditional.stderr.log",
+      "Name": "reference-conditional",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\reference-conditional.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 180.8949039,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\reference-benchmarks.stderr.log",
+      "Name": "reference-benchmarks",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\reference-benchmarks.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 408.7956703,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\accelerator.stderr.log",
+      "Name": "accelerator",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\accelerator.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 864.121488,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\reference-extended.stderr.log",
+      "Name": "reference-extended",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\reference-extended.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 483.4108236,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\c-codegen.stderr.log",
+      "Name": "c-codegen",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\c-codegen.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 8.2445797,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\c-input.stderr.log",
+      "Name": "c-input",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\c-input.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 505.3152517,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\c-combined.stderr.log",
+      "Name": "c-combined",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\c-combined.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 19.0709776,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\c-edges.stderr.log",
+      "Name": "c-edges",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\c-edges.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 72.1571685,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\c-hierarchy.stderr.log",
+      "Name": "c-hierarchy",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\c-hierarchy.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 31.9105683,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\package.stderr.log",
+      "Name": "package",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\package.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 422.4820904,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\c-event.stderr.log",
+      "Name": "c-event",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\c-event.log"
+    },
+    {
+      "ExitCode": 0,
+      "Seconds": 78.2080889,
+      "Stderr": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\editor.stderr.log",
+      "Name": "editor",
+      "Stdout": "<project>\\tests\\.artifacts\\gate-887dd78bbc6b48ba8d9d97368b5515df\\editor.log"
+    }
+  ],
+  "SourceUnchanged": true,
+  "Complete": true,
+  "FinishedUtc": "2026-11-24T06:20:26.8979455Z"
+}
