@@ -180,8 +180,8 @@ endfunction
 function select_source (source, sources, initial_path, bench_dir)
   % Clear compiled functions (and their persistent state) and put exactly
   % one source tree, plus this benchmark folder, at the front of the path.
-  % A reorganized tree (with ob_setup.m) keeps its library in src/ and its
-  % models in examples/ and is set up by its own ob_setup; a flat tree
+  % A package tree (with ob_setup.m) keeps its library in inst/ and its
+  % models in inst/examples/ and is set up by its own ob_setup; a flat tree
   % (before the reorganization) is the library folder itself.
   clear functions;
   path (initial_path);

@@ -3,6 +3,11 @@
 Status: **draft**, reviewed 2026-11-24. Current version: 0.3.0 (tagged
 `v0.3.0`; earlier tags are `v0.2.0-preview.1` and `v0.2.1-preview.1`).
 
+The reviewed [release preparation proposal](V1_PROPOSAL_REVIEW.md) adds a
+schema guard, API inventory and verification helpers. Those development
+changes are not fully tested and will be verified on another machine;
+milestones below still require their complete acceptance evidence.
+
 1.0 is a stable, installable and honestly documented release of the
 capability subset that exists today, plus a few thin mappings onto
 primitives that are already verified. It promises:
@@ -192,19 +197,20 @@ acceptance criterion and a size (S/M/L/XL).
     output struct (including the Dataset-like `yout`/`logsout` layout) and the
     `ob_scope_data` output, and a semver deprecation rule: removals only in a
     major release, after at least one minor release of identified warnings.
-  - `ob_is_combined_mode` and `ob_is_resettable_mode` move to `inst/private`.
-    `ob_atomic_feedthrough` is marked experimental, because the scheduler does
-    not use it. The duplicate `inst/ob_example.m` is removed.
+  - Package organization completed on 2026-11-24: `ob_is_combined_mode` and
+    `ob_is_resettable_mode` are in `inst/private`, `ob_atomic_feedthrough` is
+    marked experimental, and the duplicate `inst/ob_example.m` is removed.
   - Tests assert that `inst/`, `INDEX`, `inst/Contents.m` and `doc/API.md`
     list the same functions, and that the documented result fields exist.
 
   **M**
 - [ ] Help text. Acceptance: every stable function returns at least a usage
   line, inputs, outputs and one example from `help`, and a test enforces it.
-  `ob_run` documents every option and result field. Today 10 functions in
-  `inst/` (one due to move to private) and 3 in `inst/examples/` have no help,
-  and the help of `octave_blocks` comes after a code line, so `help` cannot
-  reach it. **M**
+  `ob_run` documents every option and result field. The 2026-11-24 package
+  cleanup filled the missing help blocks and made `octave_blocks` help
+  reachable; `test_ob_package_layout` now checks that all installed functions
+  have help. Complete argument/result/example coverage for the stable API
+  remains part of this milestone. **M**
 - [ ] No silent substitutions. Acceptance: when the command API runs `ode23`,
   `ode113`, `ode23s`, `ode23t` or `ode23tb` with another solver, or
   `FixedStepAuto` with RK4, it raises the identified warning

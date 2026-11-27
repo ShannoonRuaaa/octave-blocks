@@ -1,4 +1,18 @@
 function model = ob_disconnect (model, source, target, source_port = [], target_port = [])
+  ## -*- texinfo -*-
+  ## @deftypefn {} {@var{model} =} ob_disconnect (@var{model}, @var{source}, @var{target}, @var{source_port}, @var{target_port})
+  ## Remove one connection and return the updated model struct.
+  ## @var{source} and @var{target} are block indices.  Optional port indices
+  ## restrict the connection to remove; empty ports match any port.  An
+  ## ambiguous or missing connection raises an error.  Other input port
+  ## numbers remain unchanged.
+  ##
+  ## @example
+  ## m = ob_disconnect (ob_example (), 1, 2);
+  ## @end example
+  ## @seealso{ob_connect, ob_edges}
+  ## @end deftypefn
+
   if (isempty (source) || isempty (target))
     error ("ob_disconnect: use positive block and port indices");
   endif

@@ -6,6 +6,12 @@
 [![GNU Octave](https://img.shields.io/badge/GNU%20Octave-11.3.0-0790c0)](https://octave.org/)
 [![License: GPL--3.0--or--later](https://img.shields.io/badge/license-GPL--3.0--or--later-2b8a65)](LICENSE)
 
+**Development verification note:** the release preparation changes on this
+branch are not fully tested and will be verified on another machine. See
+the [proposal review and verification plan](doc/V1_PROPOSAL_REVIEW.md) for
+accepted changes, corrections and outstanding checks. The released version
+remains 0.3.0.
+
 Octave Blocks is a visual modeling and simulation project built around GNU
 Octave. Connect continuous and discrete blocks, place your own `.m` functions
 in the diagram, and inspect scalar, vector or matrix signals in a Scope.

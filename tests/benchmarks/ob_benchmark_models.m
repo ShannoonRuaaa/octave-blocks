@@ -2,7 +2,7 @@ function cases = ob_benchmark_models ()
   % Shared engine benchmark set: interpreted runs, accelerated runs and the
   % recorded Simulink timings all use exactly these models and settings.
   % Each case has name, model, t (output times) and options (ob_run options).
-  % Needs src, examples and benchmarks on the path: ob_setup ('tests').
+  % Needs inst/, inst/examples/ and tests/benchmarks/: ob_setup ('tests').
   B = @(type, value, name) struct ('type', type, 'value', value, 'name', name, 'x', 0, 'y', 0);
   cases = struct ('name', {}, 'model', {}, 't', {}, 'options', {});
 

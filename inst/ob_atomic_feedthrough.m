@@ -9,6 +9,7 @@ function [matrix, any_direct] = ob_atomic_feedthrough (model)
 %
 %   This reports structural paths for diagnostics. The scheduler does not
 %   use this matrix to reorder conditional execution or permit feedback.
+%   This diagnostic API is experimental; its interface may change.
 %
 %   Reference:
 %     https://www.mathworks.com/help/simulink/ug/algebraic-loops.html

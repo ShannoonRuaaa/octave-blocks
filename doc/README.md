@@ -22,6 +22,9 @@
 
 - [Licensing and solver provenance](LICENSING.md): GPL distribution and retained MIT notices.
 - [Package layout](PACKAGE_LAYOUT.md): where code belongs and why.
+- [API inventory and proposed stability policy](API.md),
+  [model file format](MODEL_FORMAT.md), [user-facing limitations](LIMITATIONS.md).
+- [Release proposal review and another-machine verification](V1_PROPOSAL_REVIEW.md).
 - [Review guide](REVIEW_GUIDE.md), [validation](VALIDATION.md),
   [release packaging](RELEASING.md).
 - [Road to 1.0](ROADMAP.md): release criteria, intermediate releases and scope.

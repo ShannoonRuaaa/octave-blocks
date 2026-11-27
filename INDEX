@@ -7,6 +7,9 @@ Simulation
  ob_accelerate
 Programmatic modeling
  ob_simulink ob_simulink_setup
+Simulink-style commands (opt in with ob_simulink_setup)
+ new_system load_system open_system close_system save_system bdIsLoaded bdclose
+ add_block delete_block add_line delete_line get_param set_param find_system sim
 Models and connections
  ob_connect ob_disconnect ob_load_model ob_save_model
  ob_model_at ob_set_model_at ob_edges
@@ -27,3 +30,14 @@ Analysis
  ob_linearize ob_findop ob_bode ob_stepinfo
 C export
  ob_codegen
+Examples
+ ob_example ob_oscillator ob_function_example ob_multioutput_example
+ ob_input_example ob_subsystem_example ob_linear_system_example
+ ob_control_example ob_conditional_example ob_continuous_control_example
+ ob_enabled_continuous_example ob_enabled_multirate_example
+ ob_combined_control_example ob_combined_continuous_example
+ ob_multirate_example ob_zero_crossing_example ob_gated_outputs_example
+ ob_scalar_initial_example ob_staggered_enables_example ob_algebraic_example
+Example signal functions
+ ob_demo_function ob_demo_multi_function
+ ob_combined_enable_wave ob_combined_trigger_wave

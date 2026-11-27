@@ -1,3 +1,5 @@
+# Undo only the paths owned by this package, including wrappers opted into
+# through ob_simulink_setup.  Never expose private/ as a global search path.
 rmpath (fullfile (fileparts (mfilename ('fullpath')), 'examples'));
 wrapper_path = fullfile(fileparts(mfilename('fullpath')),'simulink');
 if (any(strcmp(strsplit(path(),pathsep()),wrapper_path))), rmpath(wrapper_path); endif

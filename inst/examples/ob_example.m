@@ -1,5 +1,14 @@
 function model = ob_example ()
-  % Time -> Gain -> Scope; custom Function blocks can call any .m function.
+  ## -*- texinfo -*-
+  ## @deftypefn {} {@var{model} =} ob_example ()
+  ## Return a Time--Gain--Scope model with gain 2.
+  ##
+  ## @example
+  ## r = ob_run (ob_example (), 0:0.1:1);
+  ## @end example
+  ## @seealso{octave_blocks, ob_function_example}
+  ## @end deftypefn
+
   model.blocks = struct ("type", {"Time", "Gain", "Scope"}, ...
                          "value", {[], 2, []}, ...
                          "name", {"Time", "Gain", "Scope"}, ...

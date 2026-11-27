@@ -1,0 +1,59 @@
+name: Release preparation checks
+
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    container:
+      # Official Octave image, pinned to the declared dependency and image digest.
+      image: ghcr.io/gnu-octave/octave:11.3.0@sha256:185db7993e000d4f3f6e7bbbf7fb3f999f52e799ea52231ad8a15353381e0dcb
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record toolchain and archive the checked-out revision
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/ob-ci
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          { git rev-parse HEAD; octave-cli --version; gcc --version; mkoctfile --version; } > /tmp/ob-ci/environment.txt
+          git archive --format=tar.gz --prefix=octave-blocks/ -o /tmp/ob-ci/octave-blocks.tar.gz HEAD
+      - name: Check installed package, standalone C and accelerator
+        run: |
+          set -euo pipefail
+          octave-cli --quiet --no-window-system --eval "addpath('tests'); smoke_release('/tmp/ob-ci/octave-blocks.tar.gz','/tmp/ob-ci/smoke');" 2>&1 | tee /tmp/ob-ci/smoke.log
+      - name: Check source contracts, schema, catalogs and docs
+        run: |
+          set -euo pipefail
+          octave-cli --quiet --no-window-system --eval "ob_setup('tests'); test_ob_model_format(); test_ob_api_contract(); test_ob_package_layout(); test_ob_docs();" 2>&1 | tee /tmp/ob-ci/contracts.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-release-preparation
+          path: |
+            /tmp/ob-ci/environment.txt
+            /tmp/ob-ci/*.log
+            /tmp/ob-ci/smoke/smoke-report.json
+
+  windows-launcher:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check quoting under PowerShell 7
+        shell: pwsh
+        run: ./tests/Test-Launcher.ps1
+      - name: Check quoting under Windows PowerShell 5.1
+        shell: powershell
+        run: ./tests/Test-Launcher.ps1

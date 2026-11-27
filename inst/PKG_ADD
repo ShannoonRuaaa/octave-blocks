@@ -1,1 +1,3 @@
+# Examples are callable after both pkg load and source-checkout setup.
+# Keep Simulink-named wrappers opt-in to avoid shadowing unrelated functions.
 addpath (fullfile (fileparts (mfilename ('fullpath')), 'examples'));

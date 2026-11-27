@@ -1,7 +1,7 @@
 function test_ob_performance_metadata ()
   test_path_cleanup = ob_test_setup ();
   % Category indexes are optional additions to the serializable v1 cache.
-  private_path = ob_test_private_path ();  % calls src/private functions directly
+  private_path = ob_test_private_path ();  % calls inst/private functions directly
   fields = {'conditional_ids','integrator_ids','step_ids','zc_ids', ...
             'continuous_path_ids','boundary_ids'};
   models = {ob_control_example(),ob_enabled_continuous_example(),ob_oscillator()};

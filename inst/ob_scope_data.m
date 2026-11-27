@@ -1,5 +1,19 @@
 function traces = ob_scope_data (result, id, port = 1)
-  % Flatten a scalar, vector, or matrix signal into one trace per element.
+  ## -*- texinfo -*-
+  ## @deftypefn {} {@var{traces} =} ob_scope_data (@var{result}, @var{id}, @var{port})
+  ## Flatten a logged signal into a numeric matrix with one row per time.
+  ## @var{result} is returned by @code{ob_run}; @var{id} is a block index
+  ## or a hierarchy path.  The optional output @var{port} defaults to 1.
+  ## Signal elements become columns in column-major order.  Samples must
+  ## be real numeric values of a fixed, nonempty shape.
+  ##
+  ## @example
+  ## r = ob_run (ob_oscillator (), 0:0.1:1);
+  ## traces = ob_scope_data (r, 4);
+  ## @end example
+  ## @seealso{ob_signal_values, ob_scope_paths}
+  ## @end deftypefn
+
   if (isfield (result, "signal_map"))
     samples = ob_signal_values (result, id, port);
   else

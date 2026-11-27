@@ -18,8 +18,10 @@ For editor issues, describe the click target and steps. Remove private data.
    to [NEWS](NEWS), the single changelog, for user-visible changes.
 
 The full Windows gate is `./tests/Run-Tests.ps1` with PowerShell 7,
-GNU Octave with Qt, and a C99 compiler. Tests currently run locally;
-there is no required GitHub CI status check yet.
+GNU Octave with Qt, and a C99 compiler. The release preparation workflow
+runs focused Linux package/contract checks and Windows launcher checks.
+It does not replace the full local platform gates, and no required branch
+protection status check has been configured by this change.
 
 Use Octave built-ins and maintained libraries where suitable. Preserve
 independent instances, failure rollback, signal shapes, clocks and event order.

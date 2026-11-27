@@ -1,4 +1,19 @@
 function model = ob_connect (model, source, target, source_port = 1, target_port = [])
+  ## -*- texinfo -*-
+  ## @deftypefn {} {@var{model} =} ob_connect (@var{model}, @var{source}, @var{target}, @var{source_port}, @var{target_port})
+  ## Connect two blocks in a model and return the updated model struct.
+  ## @var{source} and @var{target} are block indices.  The optional source
+  ## port defaults to 1; an omitted or empty target port selects the first
+  ## unused input port.  Validate the input model and the selected ports.
+  ##
+  ## @example
+  ## m = ob_example ();
+  ## m = ob_disconnect (m, 1, 2);
+  ## m = ob_connect (m, 1, 2);
+  ## @end example
+  ## @seealso{ob_disconnect, ob_edges}
+  ## @end deftypefn
+
   ob_validate_model (model);
   n = numel (model.blocks);
   if (! valid_index (source, n) || ! valid_index (target, n))
